@@ -4,7 +4,19 @@ import {
   HEADER_FR_EN,
   translateValue,
 } from './bdTranslate.js';
-const HIDDEN_COLUMNS = new Set(['AI', 'AJ', 'AK', 'AL', 'AM', 'AN', 'AT', 'AV']);
+const HIDDEN_COLUMNS = new Set([
+  'AI',
+  'AJ',
+  'AK',
+  'AL',
+  'AM',
+  'AN',
+  'AT',
+  'AV',
+  'Z', // Source
+  'AA', // Pack
+  'AB', // Reference
+]);
 const HEADER_EN = {
   AP: 'Sub-system L1',
   AQ: 'Sub-system L1 ref',
