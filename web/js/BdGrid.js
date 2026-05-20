@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from 'vue';
 import {
   buildCellMap,
   buildWidthMap,
@@ -13,9 +13,11 @@ import {
   cellInlineStyle,
   projectCellClass,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=calc-syn7';
+} from './bdStore.js?v=syn-perf2';
+
 const ROW_H = 21;
-const BUFFER = 12;
+const BUFFER = 8;
+
 export default {
   name: 'BdGrid',
   props: {
@@ -29,9 +31,19 @@ export default {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
     const viewportH = ref(600);
-    const cellMap = computed(() =>
-      buildCellMap(props.sheet.cells, props.sheet.headerRows)
+
+    const cellMap = shallowRef(new Map());
+    watch(
+      () => props.sheet,
+      (sheet) => {
+        cellMap.value =
+          sheet?.cellMap instanceof Map
+            ? sheet.cellMap
+            : buildCellMap(sheet?.cells, sheet?.headerRows);
+      },
+      { immediate: true }
     );
+
     const widthMap = computed(() =>
       buildWidthMap(
         props.sheet.colWidths,
@@ -40,15 +52,10 @@ export default {
         props.sheet.cells
       )
     );
+
+    const columns = computed(() => props.sheet.columns || []);
+
     const bodyRows = computed(() => {
-      if (props.sheetName === 'SYNTHESIS') {
-        const last = props.sheet.lastRow || 1;
-        const rows = [];
-        for (let r = 1; r <= last; r++) {
-          rows.push({ excelRow: r, displayRow: r });
-        }
-        return rows;
-      }
       if (props.outlineOnly) {
         const map = cellMap.value;
         let displayRow = 1;
@@ -58,6 +65,7 @@ export default {
       }
       return computeBodyDisplayRows(props.sheet);
     });
+
     const rowCount = computed(() => bodyRows.value.length);
     const visibleStart = computed(() => {
       const start = Math.floor(scrollTop.value / ROW_H) - BUFFER;
@@ -76,23 +84,23 @@ export default {
       const remaining = rowCount.value - visibleStart.value - shown;
       return Math.max(0, remaining * ROW_H);
     });
-    const columns = computed(() => props.sheet.columns);
-    const sectionHeaderRows = computed(
-      () => props.sheet.sectionHeaderRows
-    );
-    const calcRevision = computed(
-      () => props.session?.revision?.value ?? 0
-    );
+
+    const sectionHeaderRows = computed(() => props.sheet.sectionHeaderRows);
+    const calcRevision = computed(() => props.session?.revision?.value ?? 0);
+
     function colStyle(col) {
       const w = widthMap.value.get(col) || 72;
       return { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
     }
+
     function isStickyDateCol(col) {
       return col === 'A';
     }
+
     function onScroll(e) {
       scrollTop.value = e.target.scrollTop;
     }
+
     function onCellInput(row, col, value) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
@@ -109,6 +117,7 @@ export default {
       }
       emit('cell-change', { row, col, value });
     }
+
     function cellReadonly(row, col) {
       const cell = getCell(cellMap.value, row, col);
       if (props.session?.ready?.value) {
@@ -121,6 +130,7 @@ export default {
       }
       return isReadonlyCell(cell, row, props.sheet.dataStartRow);
     }
+
     function cellDisplay(row, col) {
       void calcRevision.value;
       const map = cellMap.value;
@@ -148,19 +158,13 @@ export default {
         return masked;
       }
 
-      if (props.session?.ready?.value) {
-        return props.session.getDisplayValue(
-          props.sheetName,
-          row,
-          col,
-          cell
-        );
-      }
       return displayValue(cell);
     }
+
     function updateViewport() {
       if (scrollEl.value) viewportH.value = scrollEl.value.clientHeight;
     }
+
     watch(
       () => props.outlineOnly,
       () => {
@@ -168,18 +172,15 @@ export default {
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
       }
     );
+
     onMounted(() => {
-      if (props.sheetName === 'SYNTHESIS' && props.session?.bindSynthesisGrid) {
-        props.session.bindSynthesisGrid((row, col) =>
-          getCell(cellMap.value, row, col)
-        );
-      }
       updateViewport();
       window.addEventListener('resize', updateViewport);
     });
     onUnmounted(() => {
       window.removeEventListener('resize', updateViewport);
     });
+
     return {
       scrollEl,
       columns,
@@ -190,7 +191,6 @@ export default {
       colStyle,
       isStickyDateCol,
       getCell: (r, c) => getCell(cellMap.value, r, c),
-      displayValue,
       cellDisplay,
       cellReadonly,
       rowStyleClass: (row) =>
@@ -210,7 +210,7 @@ export default {
   },
   template: `
     <div class="bd-grid-root">
-      <div class="bd-grid-scroll" ref="scrollEl" @scroll="onScroll">
+      <div class="bd-grid-scroll" ref="scrollEl" @scroll.passive="onScroll">
         <table class="bd-table" role="grid">
           <thead>
             <tr class="hdr-row-letters">
@@ -257,7 +257,6 @@ export default {
                   },
                   projectCellClass(cellDisplay(entry.excelRow, col), col),
                 ]"
-                :title="col === 'AE' ? cellDisplay(entry.excelRow, col) : undefined"
                 :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"
               >
                 <template v-if="cellReadonly(entry.excelRow, col)">

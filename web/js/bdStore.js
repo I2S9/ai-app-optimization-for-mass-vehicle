@@ -19,7 +19,9 @@ export function buildCellMap(cells, headerRows = {}) {
         c: col,
         v: c.v ?? existing?.v,
         f: c.f ?? existing?.f,
-        bg: c.s?.backgroundColor ?? existing?.bg,
+        bg: c.bg ?? c.s?.backgroundColor ?? existing?.bg,
+        fc: c.fc ?? c.s?.color ?? existing?.fc,
+        b: c.b ?? existing?.b,
       });
     }
   }

@@ -1,81 +1,91 @@
-import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import BdGrid from './BdGrid.js?v=calc-syn7';
-import AppSidebar from './AppSidebar.js?v=calc-syn7';
-import EmptyPage from './EmptyPage.js?v=calc-syn7';
-import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=calc-syn7';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=calc-syn7';
-import { createWorkbookSession } from './workbookSession.js?v=calc-syn7';
+import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
+import BdGrid from './BdGrid.js?v=syn-perf5';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-perf5';
+import AppSidebar from './AppSidebar.js?v=syn-perf6';
+import EmptyPage from './EmptyPage.js?v=syn-perf5';
+import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf5';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-perf5';
+import { createWorkbookSession } from './workbookSession.js?v=syn-perf5';
 
 const App = {
-  components: { BdGrid, AppSidebar, EmptyPage },
+  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage },
   setup() {
     const loading = ref(true);
-    const calcLoading = ref(false);
+    const synthesisLoading = ref(false);
     const error = ref(null);
-    const calcError = ref(null);
     const bdSheet = ref(null);
     const synthesisSheet = ref(null);
     const bdRaw = ref(null);
-    const synthesisRaw = ref(null);
     const dirty = ref(0);
     const route = ref(DEFAULT_ROUTE);
     const menuOpen = ref(false);
     const outlineOnly = ref(false);
     const session = createWorkbookSession();
+    let engineStarted = false;
+    let synthesisLoadPromise = null;
 
     const currentNav = computed(
       () => NAV_ITEMS.find((n) => n.id === route.value) || NAV_ITEMS[0]
     );
 
-    const activeSheet = computed(() => {
-      if (route.value === 'synthesis') return synthesisSheet.value;
-      if (route.value === 'database') return bdSheet.value;
-      return null;
-    });
-
-    const activeSheetName = computed(() =>
-      route.value === 'synthesis' ? 'SYNTHESIS' : 'BD'
+    const isDatabase = computed(() => route.value === 'database');
+    const isSynthesis = computed(() => route.value === 'synthesis');
+    const isGridPage = computed(
+      () => route.value === 'database' || route.value === 'synthesis'
     );
 
-    async function ensureEngine() {
-      if (session.ready.value || session.loading.value) return;
-      if (!bdRaw.value) return;
-      const sheets = [{ name: 'BD', data: bdRaw.value }];
-      calcLoading.value = true;
-      calcError.value = null;
-      try {
-        await session.loadSheets(sheets);
-        if (session.error.value) calcError.value = session.error.value;
-      } finally {
-        calcLoading.value = false;
+    function scheduleEngine() {
+      if (engineStarted || !bdRaw.value || !isGridPage.value) return;
+      engineStarted = true;
+      const run = () => session.loadSheets([{ name: 'BD', data: bdRaw.value }]);
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 3000 });
+      } else {
+        setTimeout(run, 100);
       }
+    }
+
+    function loadSynthesis() {
+      if (synthesisSheet.value) return Promise.resolve();
+      if (synthesisLoadPromise) return synthesisLoadPromise;
+      synthesisLoading.value = true;
+      synthesisLoadPromise = fetch('/public/data/synthesis-sheet.json')
+        .then((res) => {
+          if (!res.ok) throw new Error(`Synthesis data (${res.status})`);
+          return res.json();
+        })
+        .then((raw) => {
+          synthesisSheet.value = transformSynthesisSheet(raw);
+        })
+        .catch((e) => {
+          error.value = e.message;
+        })
+        .finally(() => {
+          synthesisLoading.value = false;
+        });
+      return synthesisLoadPromise;
     }
 
     onMounted(async () => {
       document.title = 'WGHT Dashboard';
+      const routeParam = new URLSearchParams(location.search).get('route');
+      if (routeParam && NAV_ITEMS.some((n) => n.id === routeParam)) {
+        route.value = routeParam;
+      }
       try {
         const bdRes = await fetch('/public/data/bd-sheet.json');
         if (!bdRes.ok) throw new Error(`Failed to load BD data (${bdRes.status})`);
-        const rawBd = await bdRes.json();
-        bdRaw.value = rawBd;
-        bdSheet.value = transformBdSheet(rawBd);
-
-        const synRes = await fetch('/public/data/synthesis-sheet.json');
-        if (synRes.ok) {
-          const rawSyn = await synRes.json();
-          synthesisRaw.value = rawSyn;
-          synthesisSheet.value = transformSynthesisSheet(rawSyn);
+        bdRaw.value = await bdRes.json();
+        bdSheet.value = transformBdSheet(bdRaw.value);
+        if (route.value === 'synthesis') {
+          await loadSynthesis();
         }
-        await ensureEngine();
+        scheduleEngine();
       } catch (e) {
         error.value = e.message;
       } finally {
         loading.value = false;
       }
-    });
-
-    watch(route, async (id) => {
-      if (id === 'database' || id === 'synthesis') await ensureEngine();
     });
 
     onUnmounted(() => session.destroy());
@@ -87,6 +97,8 @@ const App = {
     function navigate(id) {
       route.value = id;
       menuOpen.value = false;
+      if (id === 'synthesis') loadSynthesis();
+      if (id === 'database' || id === 'synthesis') scheduleEngine();
     }
 
     function toggleOutline() {
@@ -95,13 +107,12 @@ const App = {
 
     return {
       loading,
-      calcLoading,
+      synthesisLoading,
       error,
-      calcError,
       bdSheet,
       synthesisSheet,
-      activeSheet,
-      activeSheetName,
+      isDatabase,
+      isSynthesis,
       dirty,
       route,
       menuOpen,
@@ -114,7 +125,7 @@ const App = {
     };
   },
   template: `
-    <div class="app-shell">
+    <div class="app-shell" :class="{ 'menu-open': menuOpen }">
       <AppSidebar
         :current="route"
         :open="menuOpen"
@@ -131,10 +142,10 @@ const App = {
           >
             <span></span><span></span><span></span>
           </button>
-          <span v-if="route === 'database'" class="page-title">Database</span>
-          <span v-else-if="route === 'synthesis'" class="page-title">Synthesis</span>
+          <span v-if="isDatabase" class="page-title">Database</span>
+          <span v-else-if="isSynthesis" class="page-title">Synthesis</span>
           <span v-else class="page-title">{{ currentNav.label }}</span>
-          <template v-if="route === 'database'">
+          <template v-if="isDatabase || isSynthesis">
             <button type="button" class="icon-btn icon-btn-sm" title="Matrix view" aria-label="Matrix view">
               <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                 <rect x="1" y="1" width="6" height="6" fill="currentColor"/>
@@ -158,33 +169,35 @@ const App = {
             </button>
           </template>
         </div>
-        <span class="status" v-if="calcLoading">Building calculation engine…</span>
-        <span class="status error-text" v-else-if="calcError">{{ calcError }}</span>
-        <span class="status" v-else-if="(route === 'database' || route === 'synthesis') && activeSheet && dirty">
-          Unsaved changes
-        </span>
-        <span class="status" v-else-if="session.ready && (route === 'database' || route === 'synthesis')">
-          Live formulas
-        </span>
+        <span class="status" v-if="loading">Loading…</span>
+        <span class="status" v-else-if="isSynthesis && synthesisLoading">Loading synthesis…</span>
+        <span class="status error-text" v-else-if="error">{{ error }}</span>
+        <span class="status" v-else-if="isGridPage && dirty">Unsaved changes</span>
       </header>
       <div class="app-body">
         <main class="app-content">
-          <div v-if="loading" class="loading-overlay">Loading…</div>
-          <div v-else-if="error" class="loading-overlay error-text">{{ error }}</div>
-          <div v-else-if="route === 'synthesis' && !synthesisSheet" class="loading-overlay error-text">
-            Missing synthesis-sheet.json — run: node tools/export-synthesis-sheet.mjs
+          <div v-if="loading" class="loading-overlay">Loading database…</div>
+          <div v-else-if="isSynthesis && synthesisLoading" class="loading-overlay">Loading synthesis…</div>
+          <div v-else-if="isSynthesis && !synthesisSheet && error" class="loading-overlay error-text">{{ error }}</div>
+          <div v-else-if="isSynthesis && !synthesisSheet" class="loading-overlay error-text">
+            Missing synthesis-sheet.json
           </div>
-          <template v-else>
-            <BdGrid
-              v-if="(route === 'database' && bdSheet) || (route === 'synthesis' && synthesisSheet)"
-              :sheet="activeSheet"
-              :sheet-name="activeSheetName"
-              :session="session"
-              :outline-only="outlineOnly && route === 'database'"
-              @cell-change="onCellChange"
-            />
-            <EmptyPage v-else :title="currentNav.label" />
-          </template>
+          <BdGrid
+            v-else-if="isDatabase && bdSheet"
+            :sheet="bdSheet"
+            sheet-name="BD"
+            :session="session"
+            :outline-only="outlineOnly"
+            @cell-change="onCellChange"
+          />
+          <SynthesisGrid
+            v-else-if="isSynthesis && synthesisSheet"
+            :sheet="synthesisSheet"
+            :session="session"
+            :outline-only="outlineOnly"
+            @cell-change="onCellChange"
+          />
+          <EmptyPage v-else :title="currentNav.label" />
         </main>
       </div>
     </div>

@@ -6,6 +6,7 @@ import {
   computeSumproduct,
   isSumproductCell,
 } from './synthesisCalc.js';
+import { isSynFilterEdit } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
   const revision = ref(0);
@@ -15,6 +16,8 @@ export function createWorkbookSession() {
   const engine = new WorkbookEngine();
   let bdCols = null;
   let synGridGetter = null;
+  let synFiltersDirty = false;
+  const sumproductCache = new Map();
 
   async function loadSheets(sheets) {
     loading.value = true;
@@ -47,6 +50,10 @@ export function createWorkbookSession() {
     return cell?.v != null && cell.v !== '' ? String(cell.v) : '';
   }
 
+  function clearSumproductCache() {
+    sumproductCache.clear();
+  }
+
   function setCellValue(sheetName, row, col, value) {
     if (sheetName === 'BD') {
       engine.setCellValue(sheetName, row, col, value);
@@ -54,12 +61,31 @@ export function createWorkbookSession() {
         if (!bdCols[col]) bdCols[col] = [];
         bdCols[col][row] = value;
       }
+      synFiltersDirty = true;
+      clearSumproductCache();
+    } else if (sheetName === 'SYNTHESIS' && synGridGetter) {
+      const cell = synGridGetter(row, col);
+      if (cell) {
+        cell.v = value;
+        delete cell.f;
+      }
+      if (isSynFilterEdit(row, col)) {
+        synFiltersDirty = true;
+        clearSumproductCache();
+      }
     }
     revision.value += 1;
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
     if (sheetName === 'SYNTHESIS' && isSumproductCell(cell) && bdCols) {
+      if (!synFiltersDirty && cell?.v != null && cell.v !== '') {
+        return String(cell.v);
+      }
+      const cacheKey = `${row}:${col}`;
+      if (sumproductCache.has(cacheKey)) {
+        return sumproductCache.get(cacheKey);
+      }
       const getBdValue = (r, c) => {
         if (ready.value && engine.hasFormula('BD', r, c)) {
           const v = engine.getCellValue('BD', r, c);
@@ -75,7 +101,9 @@ export function createWorkbookSession() {
         getBdValue
       );
       const rounded = Math.round(n * 10000) / 10000;
-      return String(rounded);
+      const out = String(rounded);
+      sumproductCache.set(cacheKey, out);
+      return out;
     }
     if (sheetName === 'BD' && ready.value && engine.hasFormula(sheetName, row, col)) {
       const computed = engine.getCellValue(sheetName, row, col);
@@ -95,6 +123,8 @@ export function createWorkbookSession() {
     engine.destroy();
     bdCols = null;
     synGridGetter = null;
+    synFiltersDirty = false;
+    clearSumproductCache();
     ready.value = false;
   }
 

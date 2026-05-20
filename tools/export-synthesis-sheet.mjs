@@ -1,5 +1,5 @@
 /**
- * ONE-TIME export: SYNTHESIS sheet → web/public/data/synthesis-sheet.json
+ * Export SYNTHESIS sheet → web/public/data/synthesis-sheet.json
  */
 import fs from 'fs';
 import path from 'path';
@@ -11,6 +11,61 @@ const WB = path.join(ROOT, 'workbooks', 'base-de-donnees-complete-avec-liens.xls
 const TMP = path.join(process.env.TEMP || '/tmp', 'xlsm-bd-export');
 const OUT = path.join(ROOT, 'web', 'public', 'data', 'synthesis-sheet.json');
 const MAX_ROW = 530;
+const MAX_COL = 'NI';
+
+/** Excel indexed palette (common defaults). */
+const INDEXED_COLORS = {
+  0: '#000000',
+  1: '#FFFFFF',
+  2: '#FF0000',
+  3: '#00FF00',
+  4: '#0000FF',
+  5: '#FFFF00',
+  6: '#FF00FF',
+  7: '#00FFFF',
+  8: '#000000',
+  9: '#FFFFFF',
+  10: '#FF0000',
+  11: '#00FF00',
+  12: '#0000FF',
+  13: '#FFFF00',
+  14: '#FF00FF',
+  15: '#00FFFF',
+  16: '#800000',
+  17: '#008000',
+  18: '#000080',
+  19: '#808000',
+  20: '#800080',
+  21: '#008080',
+  22: '#C0C0C0',
+  23: '#808080',
+  40: '#FFFFCC',
+  41: '#CCFFFF',
+  42: '#FFCCCC',
+  43: '#CCCCFF',
+  44: '#CCFFCC',
+  45: '#FFCCFF',
+  46: '#99CCFF',
+  47: '#FF99CC',
+  48: '#CC99FF',
+  49: '#FFCC99',
+  50: '#3366FF',
+  51: '#33CCCC',
+  52: '#99CC00',
+  53: '#FFCC00',
+  54: '#FF9900',
+  55: '#FF6600',
+  56: '#666699',
+  57: '#969696',
+  58: '#003366',
+  59: '#339966',
+  60: '#003300',
+  61: '#333300',
+  62: '#993300',
+  63: '#993366',
+  64: '#333399',
+  65: '#333333',
+};
 
 function colToNum(col) {
   let n = 0;
@@ -41,18 +96,30 @@ function parseSharedStrings(xml) {
   return strings;
 }
 
+function resolveColor(node) {
+  if (!node) return null;
+  const rgb = node.match(/rgb="([^"]+)"/)?.[1];
+  if (rgb) return rgb.length === 6 ? `#${rgb}` : `#${rgb}`;
+  const indexed = node.match(/indexed="(\d+)"/)?.[1];
+  if (indexed != null) return INDEXED_COLORS[indexed] ?? null;
+  const theme = node.match(/theme="(\d+)"/)?.[1];
+  if (theme === '0') return '#FFFFFF';
+  if (theme === '1') return '#000000';
+  return null;
+}
+
 function parseStyles(stylesXml) {
-  const fills = [{ fg: null, bg: null }];
+  const fills = [{ fg: null }];
   const fillRe = /<fill>([\s\S]*?)<\/fill>/g;
   let fm;
   while ((fm = fillRe.exec(stylesXml)) !== null) {
     const block = fm[1];
     const fg =
-      block.match(/<fgColor[^>]*rgb="([^"]+)"/)?.[1] ||
-      block.match(/<fgColor[^>]*indexed="(\d+)"/)?.[1];
-    fills.push({
-      fg: fg ? (fg.length === 6 ? '#' + fg : fg) : null,
-    });
+      resolveColor(block.match(/<fgColor[^>]*\/>/)?.[0] || block.match(/<fgColor[^>]*>/)?.[0]) ||
+      resolveColor(block.match(/<fgColor[^>]*[^/]>[\s\S]*?<\/fgColor>/)?.[0]);
+    const bg =
+      resolveColor(block.match(/<bgColor[^>]*\/>/)?.[0] || block.match(/<bgColor[^>]*>/)?.[0]);
+    fills.push({ fg: fg || bg });
   }
   const fonts = [{}];
   const fontRe = /<font>([\s\S]*?)<\/font>/g;
@@ -61,7 +128,7 @@ function parseStyles(stylesXml) {
     const block = fontm[1];
     fonts.push({
       bold: /<b\s*\/>/.test(block) || /<b>/.test(block),
-      color: block.match(/<color[^>]*rgb="([^"]+)"/)?.[1],
+      color: resolveColor(block.match(/<color[^>]*\/>/)?.[0] || block.match(/<color[^>]*>/)?.[0]),
     });
   }
   const xfs = [];
@@ -71,12 +138,15 @@ function parseStyles(stylesXml) {
     const attrs = xfm[1];
     const fillId = parseInt(attrs.match(/fillId="(\d+)"/)?.[1] ?? '0', 10);
     const fontId = parseInt(attrs.match(/fontId="(\d+)"/)?.[1] ?? '0', 10);
-    const applyFill = attrs.includes('applyFill="1"') || attrs.includes('applyFill="true"');
+    const applyFill =
+      fillId > 0 ||
+      attrs.includes('applyFill="1"') ||
+      attrs.includes('applyFill="true"');
     const f = fills[fillId] || {};
     const font = fonts[fontId] || {};
     xfs.push({
-      backgroundColor: applyFill && f.fg ? (f.fg.startsWith('#') ? f.fg : '#' + f.fg) : null,
-      color: font.color ? '#' + font.color : null,
+      backgroundColor: applyFill && f.fg ? f.fg : null,
+      color: font.color,
       fontWeight: font.bold ? 'bold' : 'normal',
     });
   }
@@ -89,6 +159,37 @@ function decodeXml(s) {
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"');
+}
+
+function parseMergeRef(ref) {
+  const [a, b] = ref.split(':');
+  const parse = (addr) => {
+    const col = addr.replace(/\d+$/, '');
+    const row = parseInt(addr.replace(/^[A-Z]+/, ''), 10);
+    return { col, row, colNum: colToNum(col) };
+  };
+  const start = parse(a);
+  const end = parse(b || a);
+  return {
+    ref,
+    startRow: start.row,
+    endRow: end.row,
+    startCol: start.col,
+    endCol: end.col,
+    rowspan: end.row - start.row + 1,
+    colspan: end.colNum - start.colNum + 1,
+  };
+}
+
+function parseRowHeights(sheetXml) {
+  const rowHeights = {};
+  const rowRe = /<row r="(\d+)"([^>]*)>/g;
+  let m;
+  while ((m = rowRe.exec(sheetXml)) !== null) {
+    const ht = m[2].match(/\bht="([^"]+)"/)?.[1];
+    if (ht) rowHeights[m[1]] = Math.round(+ht * 1.33);
+  }
+  return rowHeights;
 }
 
 async function main() {
@@ -125,7 +226,15 @@ async function main() {
     }
   }
 
-  const usedCols = new Set(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+  const merges = [];
+  const mergeRe = /<mergeCell ref="([^"]+)"/g;
+  let mm;
+  while ((mm = mergeRe.exec(sheetXml)) !== null) {
+    merges.push(parseMergeRef(mm[1]));
+  }
+
+  const rowHeights = parseRowHeights(sheetXml);
+  const usedCols = new Set();
   const headers = {};
   const headerRows = {};
   const cells = [];
@@ -138,7 +247,7 @@ async function main() {
     const inner = m[3];
     const col = ref.replace(/\d+$/, '');
     const row = parseInt(ref.replace(/^[A-Z]+/, ''), 10);
-    if (row > MAX_ROW) continue;
+    if (row > MAX_ROW || colToNum(col) > colToNum(MAX_COL)) continue;
 
     const t = attrs.match(/\bt="([^"]+)"/)?.[1];
     const styleIdx = parseInt(attrs.match(/\bs="(\d+)"/)?.[1] ?? '-1', 10);
@@ -157,39 +266,53 @@ async function main() {
 
     if (row === 1 && display) headers[col] = display;
 
-    if (row <= 14) {
+    if (row >= 2 && row <= 14) {
       if (!headerRows[row]) headerRows[row] = {};
-      if (display != null || formula)
-        headerRows[row][col] = { v: display ?? '', f: formula, s: style };
+      if (display != null || formula) {
+        headerRows[row][col] = {
+          v: display ?? '',
+          f: formula,
+          s: style,
+          bg: style?.backgroundColor,
+        };
+      }
     }
 
-    if (row >= 3) {
+    if (row >= 2) {
       const entry = { r: row, c: col };
       if (display != null && display !== '') entry.v = String(display);
-      if (formula) entry.f = formula;
-      if (style?.backgroundColor) entry.bg = style.backgroundColor;
+      // SUMPRODUCT strings are huge — web recalculates from BD when filters change.
+      if (formula && !/SUMPRODUCT/i.test(formula)) entry.f = formula;
+      else if (formula && (display == null || display === '')) entry.f = 'SUMPRODUCT';
+      if (row <= 14 && style?.backgroundColor) entry.bg = style.backgroundColor;
       if (style?.color) entry.fc = style.color;
       if (style?.fontWeight === 'bold') entry.b = 1;
       cells.push(entry);
     }
   }
 
-  const columns = [...usedCols].sort((a, b) => colToNum(a) - colToNum(b));
-  const lastRow = Math.min(
-    MAX_ROW,
-    cells.reduce((max, c) => Math.max(max, c.r), 3)
-  );
+  const columns = [];
+  for (let i = 1; i <= colToNum(MAX_COL); i++) columns.push(numToCol(i));
+
+  const widthByCol = new Map(colWidths.map((w) => [w.col, w.width]));
+  const fullColWidths = columns.map((col) => ({
+    col,
+    width: widthByCol.get(col) || (col === 'F' ? 180 : col <= 'G' ? 72 : 56),
+  }));
 
   const payload = {
-    version: 1,
+    version: 2,
     sheet: 'SYNTHESIS',
-    dataStartRow: 3,
-    lastRow,
+    dataStartRow: 15,
+    filterRows: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    lastRow: MAX_ROW,
     columns,
-    colWidths: colWidths.filter((w) => columns.includes(w.col)),
+    colWidths: fullColWidths,
     headers,
     headerRows,
-    cells: cells.filter((c) => c.r <= lastRow),
+    merges,
+    rowHeights,
+    cells: cells.filter((c) => c.r <= MAX_ROW),
   };
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
@@ -200,8 +323,10 @@ async function main() {
     payload.cells.length,
     'Columns:',
     columns.length,
+    'Merges:',
+    merges.length,
     'Last row:',
-    lastRow,
+    MAX_ROW,
     'Size MB:',
     (fs.statSync(OUT).size / 1e6).toFixed(2)
   );

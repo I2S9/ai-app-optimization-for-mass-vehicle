@@ -104,36 +104,29 @@ export function transformBdSheet(sheet) {
   return prepared;
 }
 
-/** Synthesis grid: config rows + vehicle comparison columns. */
+import { buildCellMap } from './bdStore.js';
+import { filterSynDisplayColumns } from './synthesisPerf.js';
+
+/** Synthesis grid: columns F… only in UI (A–E hidden), cell map keeps all cols for filters. */
 export function transformSynthesisSheet(sheet) {
-  const columns = [...(sheet.columns || [])];
+  const columns = filterSynDisplayColumns(sheet.columns || []);
   const headers = { ...(sheet.headers || {}) };
   for (const col of columns) {
     const raw = headers[col];
     if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
     else if (raw) headers[col] = translateValue(String(raw));
   }
-  const cells = (sheet.cells || []).map((c) => {
-    if (c.v == null || c.v === '') return c;
-    const v = translateCellValue(String(c.v));
-    return v === c.v ? c : { ...c, v };
-  });
-  const headerRows = {};
-  for (const [row, cols] of Object.entries(sheet.headerRows || {})) {
-    headerRows[row] = {};
-    for (const [col, cell] of Object.entries(cols)) {
-      let v = cell.v;
-      if (v != null && v !== '') v = translateCellValue(String(v));
-      headerRows[row][col] = { ...cell, v };
-    }
-  }
+  const cells = sheet.cells || [];
+  const headerRows = sheet.headerRows || {};
   return {
     ...sheet,
     columns,
     headers,
     cells,
     headerRows,
-    dataStartRow: sheet.dataStartRow || 3,
+    cellMap: buildCellMap(cells, headerRows),
+    dataStartRow: sheet.dataStartRow || 15,
+    filterRows: sheet.filterRows || [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
     sectionHeaderRows: new Set(),
     outlineRows: [],
   };

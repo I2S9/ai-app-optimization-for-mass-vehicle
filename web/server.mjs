@@ -5,7 +5,9 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 5173;
 const MIME = {
@@ -15,6 +17,7 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.ico': 'image/x-icon',
 };
+
 const server = http.createServer((req, res) => {
   let urlPath = req.url?.split('?')[0] || '/';
   if (urlPath === '/') urlPath = '/index.html';
@@ -32,15 +35,36 @@ const server = http.createServer((req, res) => {
     }
     const ext = path.extname(filePath);
     const noStore = ['.html', '.js', '.css', '.json'].includes(ext);
+    const accept = req.headers['accept-encoding'] || '';
+    const useGzip =
+      ext === '.json' && data.length > 4096 && accept.includes('gzip');
+
     const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': noStore ? 'no-store, no-cache, must-revalidate' : 'public, max-age=3600',
     };
     if (noStore) headers.Pragma = 'no-cache';
+
+    if (useGzip) {
+      zlib.gzip(data, (gzipErr, compressed) => {
+        if (gzipErr) {
+          res.writeHead(200, headers);
+          res.end(data);
+          return;
+        }
+        headers['Content-Encoding'] = 'gzip';
+        headers['Content-Length'] = compressed.length;
+        res.writeHead(200, headers);
+        res.end(compressed);
+      });
+      return;
+    }
+
     res.writeHead(200, headers);
     res.end(data);
   });
 });
+
 const HOST = '127.0.0.1';
 server.listen(PORT, HOST, () => {
   console.log(`BD page: http://${HOST}:${PORT}/`);
