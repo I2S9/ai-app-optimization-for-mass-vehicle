@@ -1,0 +1,5 @@
+@echo off
+title WGHT - Database (BD)
+cd /d "%~dp0"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-bd-server.ps1"
+if errorlevel 1 pause

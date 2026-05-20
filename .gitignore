@@ -1,1 +1,11 @@
-.cursorrules
+.cursor/
+node_modules/
+vendor/
+.env
+.env.*
+!.env.example
+web/public/data/bd-sheet.json
+*.zip
+__pycache__/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,949 @@
+# ============================================
+# .CURSORRULES
+# Project: Vehicle Mass Management Platform
+# Industrial Excel Replacement System
+# ============================================
+
+You are an AI software engineering agent responsible for designing and building a large-scale industrial web platform intended to replace a complex ecosystem of interconnected Excel workbooks used for vehicle mass management, engineering analysis, benchmarking, calculations, reporting, visualization, and collaborative work.
+
+The current Excel ecosystem is NOT a simple spreadsheet workflow.
+
+It is currently used simultaneously as:
+- a database
+- a calculation engine
+- a reporting system
+- a visualization tool
+- a collaborative workspace
+- a business logic engine
+- an export/deliverable generation system
+
+This creates major problems:
+- severe latency
+- slow loading
+- browser memory overload
+- rendering bottlenecks
+- duplicated data
+- synchronization issues
+- difficult maintenance
+- poor scalability
+- poor collaboration
+- fragile formulas and links between sheets
+
+The objective is to rebuild the system from scratch with a clean, scalable, high-performance architecture.
+
+DO NOT build an Excel clone in the browser.
+DO NOT reproduce the old technical architecture.
+REBUILD THE BUSINESS LOGIC CLEANLY.
+
+The final platform must replace the Excel workflow sustainably while preserving the expected business outputs, visual structure, calculations, and official Excel export formats.
+
+# ============================================
+# CRITICAL PERFORMANCE ANALYSIS
+# ============================================
+
+The previous prototype architecture was too slow because:
+- the entire dataset was loaded into the browser
+- large JSON files were used like a database
+- every page loaded the full dataset even when only a small subset was needed
+- there was no selective loading
+- there was no true database
+- sheets/pages did not properly communicate through a centralized backend
+- heavy calculations and data handling happened client-side
+- browser memory usage became too high
+- large tables created rendering bottlenecks
+
+Example of the problem:
+- around 3,500 rows x 48 columns were loaded entirely into browser memory
+- the browser was responsible for too much data processing
+- the approach worked better on a powerful personal machine but became very slow on company/enterprise computers
+
+This architecture MUST NOT be reused.
+
+The browser must never become the database, the calculation engine, or the main data-processing layer.
+
+# ============================================
+# MANDATORY TECH STACK
+# ============================================
+
+Use the following stack:
+
+Frontend:
+- Vue.js
+- TypeScript
+
+Backend:
+- Laravel
+- PHP
+
+Database:
+- MySQL
+
+This stack is mandatory for this project because:
+- MySQL will manage structured relational data
+- Laravel will handle business logic, calculations, APIs, Excel import/export, permissions, and server-side processing
+- Vue.js will provide a fast, reactive frontend that only loads and displays the data needed for the current view
+
+The server must do the heavy work.
+The client must only display, edit, and interact with the necessary data.
+
+# ============================================
+# DEVELOPMENT METHODOLOGY
+# ============================================
+
+Before implementing the final application, deeply analyze the Excel workbook logic.
+
+The first phase is NOT UI development.
+The first phase is Excel logic analysis and architecture design.
+
+Analyze:
+- all workbook sheets
+- formulas
+- cross-sheet dependencies
+- calculation chains
+- named ranges
+- hidden sheets if any
+- macros/VBA if relevant
+- manually entered data
+- calculated data
+- output sheets
+- business rules
+- formatting rules
+- official export templates
+- graphs and visual indicators
+
+Identify:
+- source-of-truth sheets
+- dependent sheets
+- calculated sheets
+- reusable entities
+- shared fields
+- common dimensions
+- data flows
+- cascading dependencies
+- required exports
+
+Then:
+- design the relational database schema
+- design the dependency graph/calculation engine
+- design APIs
+- design frontend modules
+- design Excel import/export services
+- only then implement screens and interactions
+
+DO NOT blindly convert Excel sheets into web pages.
+DO NOT hardcode formulas everywhere.
+DO NOT duplicate the same business logic in multiple places.
+DO NOT create disconnected modules.
+
+# ============================================
+# CORE ARCHITECTURE PHILOSOPHY
+# ============================================
+
+This project is NOT:
+- a simple CRUD app
+- a dashboard only
+- a spreadsheet clone
+- a static Excel viewer
+- a frontend-heavy table application
+
+This project IS:
+- a real-time industrial data platform
+- a dependency graph system
+- a server-side calculation engine
+- a collaborative engineering tool
+- an Excel-compatible deliverable generator
+- a future AI-ready benchmark and optimization platform
+
+The backend must be:
+- the source of truth
+- the calculation engine
+- the synchronization layer
+- the permissions layer
+- the export engine
+
+The frontend must be:
+- a fast interaction layer
+- a visualization layer
+- an editable grid interface
+- a lightweight client consuming only necessary backend data
+
+# ============================================
+# MAIN EXCEL WORKBOOK CONTEXT
+# ============================================
+
+The main workbook is:
+- completed-database-with-links.xlsm
+
+This workbook is dense, slow to load, and highly interconnected.
+
+It contains or references modules such as:
+- BD
+- Synthesis
+- MNS
+- Options SP2
+- Output for CDC
+- CDC
+- Weight Tax
+- Graph PTF Limits
+- Target Status Forecast
+- Waterline
+- Z-CdG / Centre of Gravity
+- Portfolio
+- Split
+- other related calculation or output sheets
+
+Important rule:
+ALL sheets/pages/modules are connected.
+
+The future web application must reproduce this interconnection properly.
+
+A modification in one module may impact:
+- another page
+- a calculation
+- a graph
+- a target/status/forecast value
+- a tax calculation
+- a center of gravity calculation
+- a portfolio projection
+- an official Excel export
+- a benchmark indicator
+
+Therefore, pages must not be isolated.
+They must communicate through the database, backend services, and dependency graph.
+
+# ============================================
+# SHEET / PAGE COMMUNICATION RULES
+# ============================================
+
+All web pages corresponding to Excel sheets must be dynamically linked.
+
+When data changes in one page:
+- the value must be saved to MySQL
+- Laravel must detect impacted dependencies
+- impacted calculations must be recalculated server-side
+- impacted pages must receive updated data
+- impacted graphs must refresh
+- impacted exports must use the latest synchronized values
+
+DO NOT:
+- treat each sheet as an independent frontend page
+- duplicate the same data across pages without control
+- manually synchronize values in frontend state
+- rely on static JSON snapshots
+- hardcode page-to-page updates in Vue
+
+ALWAYS:
+- use MySQL as the central source of truth
+- use Laravel services for business logic
+- use dependency tracking for cascading calculations
+- expose clean APIs for each module
+- keep modules synchronized through backend events and database state
+
+# ============================================
+# DATABASE PHILOSOPHY
+# ============================================
+
+Excel files must be transformed into:
+- normalized relational entities
+- structured business objects
+- reusable calculation models
+- auditable records
+- versionable data
+
+Excel must only be:
+- an import format
+- an export format
+- a business reference/template
+
+Excel must never remain:
+- the database
+- the backend
+- the calculation engine
+- the collaboration system
+
+Use MySQL to model entities such as:
+- vehicles
+- projects
+- programs
+- components
+- component categories
+- masses
+- technical attributes
+- targets
+- statuses
+- forecasts
+- portfolio ideas
+- competitors
+- tax rules
+- graph datasets
+- exports
+- users
+- roles
+- permissions
+- audit logs
+- calculation results
+
+# ============================================
+# SERVER-SIDE CALCULATION ENGINE
+# ============================================
+
+Heavy calculations must happen server-side in Laravel.
+
+The calculation engine must support:
+- cross-sheet dependencies
+- cascading recalculations
+- partial recalculation
+- dependency tracking
+- cached intermediate results
+- incremental updates
+- event-driven recalculation
+
+When a value changes:
+- do not recalculate everything
+- identify impacted nodes only
+- recalculate only impacted dependencies
+- update stored calculation results if needed
+- notify relevant frontend views if real-time updates are enabled
+
+The calculation engine must handle:
+- additions
+- subtractions
+- weighted sums
+- SUMPRODUCT-like logic
+- target/status/forecast calculations
+- tax calculations
+- center of gravity calculations
+- portfolio gain projections
+- graph data preparation
+- benchmark calculations
+
+The calculation engine must be clean, testable, and separated from controllers.
+
+Use Laravel service classes for business logic.
+Use jobs/queues for expensive calculations if needed.
+Use caching where useful.
+
+# ============================================
+# FRONTEND RULES
+# ============================================
+
+Vue.js must remain lightweight and fast.
+
+The frontend must only:
+- display required data
+- edit values
+- trigger backend actions
+- render graphs
+- manage user interactions
+- show updated calculated results
+
+The frontend must never:
+- load the entire workbook into memory
+- store all sheets globally
+- use JSON files as the data source
+- calculate the entire workbook client-side
+- preload all modules
+- render massive DOM trees
+- keep large datasets in frontend state unnecessarily
+
+Always:
+- lazy-load data
+- paginate data
+- virtualize large tables
+- fetch only visible/needed rows and columns
+- debounce edits and autosaves
+- minimize API payloads
+- avoid unnecessary rerenders
+- split modules by route/page
+- use optimized state management
+
+The UI must remain smooth on low-end enterprise/company computers.
+
+# ============================================
+# DATA LOADING RULES
+# ============================================
+
+Never load all data at page startup.
+Never load all sheets at once.
+Never fetch unused columns or rows.
+Never send full workbook payloads to the frontend.
+
+Always:
+- load only current page data
+- load only the current table slice
+- load only needed columns
+- use pagination
+- use infinite scroll or virtual scroll if appropriate
+- use server-side filtering
+- use server-side sorting
+- use server-side search
+- cache repeated queries
+
+The application must feel fast even with large interconnected datasets.
+
+# ============================================
+# EDITABLE GRID REQUIREMENTS
+# ============================================
+
+The user experience must feel spreadsheet-like, but the architecture must not be spreadsheet-like internally.
+
+Required grid features:
+- editable cells
+- keyboard navigation
+- copy/paste
+- drag-fill if needed
+- dropdowns
+- validation rules
+- autosave
+- visual feedback after edits
+- error handling
+- filtering
+- sorting
+- search
+- column resizing
+- frozen headers/columns if needed
+- large dataset virtualization
+
+Recommended grid libraries:
+- AG Grid
+- Handsontable
+
+Large tables must remain fluid.
+Rendering performance is critical.
+
+# ============================================
+# AUTOSAVE AND REAL-TIME UPDATES
+# ============================================
+
+The system must support:
+- autosave after edits
+- conflict handling
+- optimistic UI where safe
+- backend validation
+- recalculation after save
+- propagation of calculated values
+- collaboration-ready architecture
+
+Potential implementation:
+- Laravel events
+- queues/jobs
+- WebSockets
+- broadcasting
+- database transactions
+
+Autosave must be debounced.
+Do not send an API request for every tiny interaction if batching is possible.
+
+# ============================================
+# COLLABORATION AND PERMISSIONS
+# ============================================
+
+The platform must support collaborative work.
+
+Required:
+- user accounts
+- admin role
+- permission management
+- read/write restrictions
+- module-level permissions
+- possibly cell/column/table-level permissions later
+- audit history
+- version tracking
+- modification history
+- undo/restore concepts
+
+Portfolio and sensitive deliverables may require restricted editing rights.
+
+# ============================================
+# MODULE 1: BD / MAIN DATABASE
+# ============================================
+
+BD is the central source of truth.
+
+It contains:
+- vehicle component masses
+- technical attributes
+- project data
+- program data
+- manual engineering inputs
+- component classifications
+- status/target/forecast-related fields
+- shared data used by other modules
+
+Requirements:
+- editable grid
+- fast loading
+- server-side filtering
+- server-side sorting
+- search
+- validation
+- autosave
+- calculation triggers
+- dependency propagation
+- audit trail
+
+BD feeds many other modules, including:
+- Synthesis
+- CDC outputs
+- Weight Tax
+- Waterline
+- Target Status Forecast
+- Portfolio
+- Z-CdG
+- graphs
+- exports
+
+# ============================================
+# MODULE 2: SYNTHESIS
+# ============================================
+
+Synthesis is used for comparison, aggregation, and benchmarking.
+
+Depends mainly on:
+- BD
+
+Used for:
+- vehicle comparisons
+- grouped mass calculations
+- competitor comparison
+- decomposition by component category
+- benchmark views
+- data feeding other deliverables
+
+Synthesis may feed:
+- Weight Tax
+- Waterline
+- Target Status Forecast
+- Portfolio
+- exports
+- graphs
+
+# ============================================
+# MODULE 3: TARGET / STATUS / FORECAST
+# ============================================
+
+This is a core dynamic module.
+
+Definitions:
+- Target = desired mass objective
+- Status = current actual mass
+- Forecast = projected future mass after portfolio gains
+
+Depends on:
+- BD
+- Synthesis
+- Portfolio
+
+When a mass, target, status, or portfolio gain changes:
+- forecast must update
+- convergence indicators must update
+- graphs must update
+- related exports must update
+
+This module must be recalculated server-side.
+
+# ============================================
+# MODULE 4: PORTFOLIO
+# ============================================
+
+Portfolio is a collaborative idea management system for mass reduction.
+
+Purpose:
+- collect mass reduction ideas
+- associate ideas with projects/components/teams
+- estimate projected gains
+- help converge toward target mass
+
+Features:
+- idea submission
+- editable fields
+- permissions
+- comments if needed
+- projected gain calculations
+- status tracking
+- Excel/PDF export later if required
+
+Portfolio changes affect:
+- Forecast
+- Target/Status/Forecast graphs
+- KPIs
+- optimization indicators
+- AI benchmarking layer later
+
+# ============================================
+# MODULE 5: WATERLINE
+# ============================================
+
+Waterline is a competitive positioning visualization module.
+
+Purpose:
+- position a selected vehicle compared to competitors
+- show whether the vehicle is in an acceptable or risky zone
+- allow visual benchmarking
+
+Inputs:
+- vehicle model
+- total mass
+- competitor data
+- Synthesis data if needed
+
+Outputs:
+- interactive graph
+- colored zones
+- points representing vehicles
+- zoom/details on selected points
+
+This may require custom visualization logic rather than a standard chart only.
+
+# ============================================
+# MODULE 6: WEIGHT TAX
+# ============================================
+
+Weight Tax calculates fiscal/regulatory impact based on vehicle mass and possibly CO2-related rules.
+
+Inputs:
+- vehicle mass
+- model information
+- Synthesis values
+- tax rules
+
+Outputs:
+- tax calculations
+- penalties
+- formatted export data
+
+Tax rules may evolve yearly.
+Therefore tax logic must be configurable and modular.
+Do not hardcode laws directly in random controllers/components.
+
+# ============================================
+# MODULE 7: CDC / OUTPUT FOR CDC
+# ============================================
+
+CDC / Output for CDC is an official deliverable generation module.
+
+Inputs:
+- BD
+- Synthesis
+- manual engineering values
+- calculated values
+
+Outputs:
+- Excel files matching official templates
+
+Requirements:
+- preserve structure
+- preserve formatting
+- preserve colors
+- preserve merged cells
+- preserve layouts
+- preserve expected sheet names
+- preserve professional appearance
+
+Excel export compatibility is mandatory.
+
+# ============================================
+# MODULE 8: GRAPH PTF LIMITS
+# ============================================
+
+Graph PTF Limits manages dimension limits and related visual tracking.
+
+Features:
+- dimension limit tables
+- status/forecast/target indicators
+- graph generation
+- weekly evolution tracking if needed
+
+Depends on:
+- BD
+- Synthesis
+- engineering constraints
+
+Graphs and indicators must update after relevant data changes.
+
+# ============================================
+# MODULE 9: Z-CDG / CENTER OF GRAVITY
+# ============================================
+
+Z-CdG / Centre of Gravity calculates vehicle center of gravity.
+
+Inputs:
+- component masses
+- X/Y/Z coordinates
+- component positions
+- vehicle structure
+
+Outputs:
+- center of gravity values
+- formatted tables
+- Excel exports if required
+
+Changes in mass or coordinates must trigger recalculation.
+
+# ============================================
+# MODULE 10: SPLIT
+# ============================================
+
+Split compares two selected vehicle models and generates structured comparisons.
+
+Expected features:
+- select two vehicle models
+- compare platform
+- compare top hat
+- compare propulsion
+- compare totals
+- calculate mass differences
+- generate key graphs
+- export formatted Excel files
+
+# ============================================
+# EXCEL IMPORT REQUIREMENTS
+# ============================================
+
+The platform must support importing Excel files when needed.
+
+Import must:
+- read workbook structure
+- extract useful sheets
+- map columns to database entities
+- preserve business meaning
+- validate imported data
+- handle errors clearly
+
+Do not simply store Excel blobs as the main data source.
+Imported Excel data must be transformed into structured MySQL records.
+
+# ============================================
+# EXCEL EXPORT REQUIREMENTS
+# ============================================
+
+Excel export is mandatory.
+
+The generated Excel files must visually match the original workbooks/templates as closely as possible.
+
+Exports must preserve:
+- formatting
+- colors
+- fonts where possible
+- column widths
+- row heights
+- merged cells
+- borders
+- layouts
+- sheet structure
+- expected professional appearance
+
+Use Laravel Excel libraries or PHP spreadsheet libraries where appropriate.
+
+Exports must always use the latest synchronized database/calculation state.
+
+# ============================================
+# GRAPH AND VISUALIZATION REQUIREMENTS
+# ============================================
+
+The platform must support graph generation after the core system is stable.
+
+Graphs may include:
+- line charts
+- bar charts
+- pie charts
+- target/status/forecast graphs
+- waterline graphs
+- dimension limit graphs
+- benchmark visualizations
+
+Use frontend libraries such as:
+- ECharts
+- D3.js
+- Highcharts
+- Chart.js
+
+Complex engineering graphs, especially Waterline, may require custom visualization code.
+
+Graph datasets should be prepared server-side when calculations are heavy.
+
+# ============================================
+# SEARCH REQUIREMENTS
+# ============================================
+
+Implement a strong search experience.
+
+Search should support:
+- global search
+- component search
+- vehicle search
+- project search
+- mass value search
+- quick navigation to matching rows/cells
+- filters by module/category/project/program
+
+Search should be server-side for large datasets.
+
+# ============================================
+# API DESIGN RULES
+# ============================================
+
+Laravel APIs must be clean and modular.
+
+Use:
+- controllers for HTTP handling
+- services for business logic
+- repositories/query classes where useful
+- request validation classes
+- resources/DTOs for API output
+- policies for authorization
+- jobs for heavy async tasks
+- events for recalculation/update propagation
+
+Do not put business logic directly inside controllers.
+Do not duplicate calculation logic in Vue.
+
+# ============================================
+# TESTING REQUIREMENTS
+# ============================================
+
+Testing is important because Excel logic is complex.
+
+Create tests for:
+- formula reproduction
+- calculation services
+- dependency propagation
+- imports
+- exports
+- permissions
+- API endpoints
+- database integrity
+
+Critical calculations must be validated against known Excel results.
+
+# ============================================
+# SECURITY REQUIREMENTS
+# ============================================
+
+Implement:
+- authentication
+- authorization
+- role-based permissions
+- input validation
+- secure file upload handling
+- audit logging
+- protection against unauthorized edits
+
+Engineering data may be sensitive.
+
+# ============================================
+# INTERNATIONALIZATION
+# ============================================
+
+The application must be prepared for:
+- French
+- English
+
+Use i18n architecture from the beginning.
+Do not hardcode all labels directly in components.
+
+# ============================================
+# FUTURE AI BENCHMARKING LAYER
+# ============================================
+
+IMPORTANT:
+The AI benchmarking layer is NOT the first development priority.
+
+The platform must first be fully validated and stable.
+
+Before AI implementation, the application must already support:
+- correct business logic
+- linked web pages/modules
+- real-time or near-real-time updates
+- editable data
+- automatic calculations
+- Excel import/export
+- graph generation where required
+- correct synchronization between modules
+- reliable database structure
+- good performance on enterprise hardware
+
+Only after the core platform is finished and validated should the AI layer be added.
+
+The future AI layer will be used for:
+- benchmark analysis
+- mass optimization suggestions
+- competitor comparison
+- anomaly detection
+- detection of abnormal values
+- identification of mass reduction opportunities
+- intelligent recommendations
+- portfolio scoring
+- decision support for engineering teams
+- historical comparison with previous projects
+- optimization of vehicle mass data
+
+The AI layer must use clean structured data from MySQL.
+This is another reason why the database architecture must be designed properly from the beginning.
+
+The AI layer must remain separated from the core calculation engine.
+
+Core platform responsibilities:
+- data management
+- calculations
+- synchronization
+- exports
+- collaboration
+- visualization
+
+AI layer responsibilities:
+- recommendations
+- prediction
+- optimization
+- benchmarking
+- intelligent analysis
+
+Do not tightly couple AI logic to the core business logic.
+Design the architecture so AI can be added later without rewriting the whole application.
+
+# ============================================
+# DEVELOPMENT PRIORITIES
+# ============================================
+
+Priority order:
+
+1. Excel logic analysis
+2. Database schema design
+3. Backend architecture
+4. Server-side calculation engine
+5. Dependency graph / cascading updates
+6. Core editable modules
+7. Performance optimization
+8. Data integrity
+9. Page/module synchronization
+10. Excel import/export
+11. Collaboration and permissions
+12. Graph generation
+13. User experience improvements
+14. AI benchmarking layer
+
+Do not start with AI.
+Do not start with visual polish.
+Do not start by cloning Excel visually before understanding the logic.
+
+# ============================================
+# FINAL SUCCESS METRIC
+# ============================================
+
+The project succeeds if:
+- Excel is replaced sustainably
+- the application is fast on enterprise machines
+- the browser is never overloaded
+- pages/modules are linked through the backend and database
+- calculations cascade correctly
+- data remains consistent
+- exports match original Excel formats
+- users can edit data safely
+- collaboration is possible
+- future AI benchmarking can be added cleanly
+
+The final goal is a high-performance industrial web platform capable of replacing the Excel workflow, centralizing vehicle mass data, generating official deliverables, and later assisting engineering teams through AI-powered benchmark and optimization features.
+
+# ============================================
+# END OF .CURSORRULES
+# ============================================
