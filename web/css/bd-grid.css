@@ -6,22 +6,6 @@
   background: #e6e6e6;
 }
 
-.bd-grid-toolbar {
-  flex: 0 0 auto;
-  padding: 6px 12px;
-  background: #fff;
-  border-bottom: 1px solid #c0c0c0;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.bd-grid-toolbar label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .bd-grid-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -47,10 +31,13 @@
   padding: 0 4px;
   height: 21px;
   line-height: 21px;
+  vertical-align: middle;
+}
+
+.bd-table tbody td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  vertical-align: middle;
 }
 
 .bd-table th.corner,
@@ -66,6 +53,21 @@
   width: 42px;
 }
 
+.bd-table thead tr.hdr-row-letters th.col-letter {
+  background: #d9d9d9;
+  color: #333;
+  font-weight: 600;
+  text-align: center;
+  font-size: 10px;
+  padding: 2px 4px;
+  min-height: 18px;
+  line-height: 18px;
+}
+
+.bd-table thead tr.hdr-row-letters th.corner {
+  background: #d9d9d9;
+}
+
 .bd-table thead tr.hdr-row-1 th.col-hdr {
   position: sticky;
   top: 0;
@@ -74,25 +76,15 @@
   color: #fff;
   font-weight: 600;
   text-align: center;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+  height: auto;
+  min-height: 28px;
+  line-height: 1.25;
+  padding: 5px 8px;
 }
 
-.bd-table thead tr.hdr-row-2 th,
-.bd-table thead tr.hdr-row-3 th,
-.bd-table thead tr.hdr-row-4 th,
-.bd-table thead tr.hdr-row-5 th {
-  background: #d9e1f2;
-  color: #000;
-  font-weight: 500;
-  text-align: left;
-}
-
-.bd-table thead tr.hdr-row-2 th.corner,
-.bd-table thead tr.hdr-row-3 th.corner,
-.bd-table thead tr.hdr-row-4 th.corner,
-.bd-table thead tr.hdr-row-5 th.corner {
-  background: #d9e1f2;
-  z-index: 6;
-}
 
 .bd-table tbody td.data-cell {
   background: #fff;
@@ -104,12 +96,39 @@
   color: #333;
 }
 
-.bd-table tbody tr.row-addblue td.data-cell {
-  background: #bdd7ee;
+/* Excel template rows — match workbook colours */
+.bd-table tbody tr.row-separator td.data-cell {
+  background: #1f3864;
+  color: #fff;
 }
 
-.bd-table tbody tr.row-addblue td.data-cell.readonly {
-  background: #a8c9e8;
+.bd-table tbody tr.row-adaptation td.data-cell {
+  background: #ffc000;
+  color: #000;
+  font-weight: bold;
+}
+
+.bd-table tbody tr.row-adaptation td.data-cell.readonly {
+  background: #ffc000;
+}
+
+.bd-table tbody tr.row-recopier td.data-cell {
+  background: #fff;
+}
+
+.bd-table tbody tr.row-section td.data-cell {
+  background: #00b0f0;
+  color: #c00000;
+  font-weight: bold;
+}
+
+.bd-table tbody tr.row-section td.data-cell.readonly {
+  background: #00b0f0;
+}
+
+.bd-table tbody tr.row-section td.col-a-label,
+.bd-table tbody tr.row-adaptation td.col-a-label {
+  font-weight: bold;
 }
 
 .bd-table tbody td.data-cell input {

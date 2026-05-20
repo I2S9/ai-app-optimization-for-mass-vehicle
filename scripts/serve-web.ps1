@@ -61,8 +61,10 @@ try {
         $response.StatusCode = 200
         $response.ContentType = $contentType
         $response.ContentLength64 = $bytes.Length
-        if ($ext -eq '.json') {
-            $response.Headers.Add('Cache-Control', 'no-cache')
+        # Always send fresh HTML/JS/CSS (browser was caching old versions)
+        if ($ext -in '.html', '.js', '.css', '.json') {
+            $response.Headers.Add('Cache-Control', 'no-store, no-cache, must-revalidate')
+            $response.Headers.Add('Pragma', 'no-cache')
         }
         $response.OutputStream.Write($bytes, 0, $bytes.Length)
         $response.Close()

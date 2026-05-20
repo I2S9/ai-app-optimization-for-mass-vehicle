@@ -4,12 +4,15 @@ import {
   buildWidthMap,
   getCell,
   displayValue,
+  displayCellValue,
   isReadonlyCell,
-  isAddBlueRow,
-} from './bdStore.js';
+  rowStyleClass,
+  cellInlineStyle,
+} from './bdStore.js?v=20260520-4';
 
 const ROW_H = 21;
-const BUFFER = 8;
+const BUFFER = 12;
+const DISPLAY_START = 2;
 
 export default {
   name: 'BdGrid',
@@ -21,19 +24,19 @@ export default {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
     const viewportH = ref(600);
-    const search = ref('');
 
-    const cellMap = computed(() => buildCellMap(props.sheet.cells));
+    const cellMap = computed(() =>
+      buildCellMap(props.sheet.cells, props.sheet.headerRows)
+    );
     const widthMap = computed(() =>
-      buildWidthMap(props.sheet.colWidths, props.sheet.columns)
+      buildWidthMap(props.sheet.colWidths, props.sheet.columns, props.sheet.headers)
     );
 
-    const dataStart = computed(() => props.sheet.dataStartRow);
+    const displayStart = DISPLAY_START;
     const lastRow = computed(() => props.sheet.lastRow);
     const columns = computed(() => props.sheet.columns);
 
-    const dataRowCount = computed(() => lastRow.value - dataStart.value + 1);
-    const totalBodyHeight = computed(() => dataRowCount.value * ROW_H);
+    const rowCount = computed(() => lastRow.value - displayStart + 1);
 
     const visibleStart = computed(() => {
       const start = Math.floor(scrollTop.value / ROW_H) - BUFFER;
@@ -42,13 +45,13 @@ export default {
 
     const visibleEnd = computed(() => {
       const count = Math.ceil(viewportH.value / ROW_H) + BUFFER * 2;
-      return Math.min(dataRowCount.value, visibleStart.value + count);
+      return Math.min(rowCount.value, visibleStart.value + count);
     });
 
     const visibleRows = computed(() => {
       const rows = [];
       for (let i = visibleStart.value; i < visibleEnd.value; i++) {
-        rows.push(dataStart.value + i);
+        rows.push(displayStart + i);
       }
       return rows;
     });
@@ -56,23 +59,13 @@ export default {
     const topSpacer = computed(() => visibleStart.value * ROW_H);
     const bottomSpacer = computed(() => {
       const shown = visibleEnd.value - visibleStart.value;
-      const remaining = dataRowCount.value - visibleStart.value - shown;
+      const remaining = rowCount.value - visibleStart.value - shown;
       return Math.max(0, remaining * ROW_H);
     });
 
     function colStyle(col) {
       const w = widthMap.value.get(col) || 72;
       return { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
-    }
-
-    function headerCell(row, col) {
-      const hr = props.sheet.headerRows?.[row];
-      if (!hr?.[col]) {
-        if (row === 1) return props.sheet.headers[col] || '';
-        return '';
-      }
-      const c = hr[col];
-      return c.v ?? c.f ?? '';
     }
 
     function onScroll(e) {
@@ -107,53 +100,46 @@ export default {
 
     return {
       scrollEl,
-      search,
       columns,
-      dataStart,
+      displayStart,
       visibleRows,
       topSpacer,
       bottomSpacer,
-      totalBodyHeight,
       colStyle,
-      headerCell,
       getCell: (r, c) => getCell(cellMap.value, r, c),
       displayValue,
-      isReadonlyCell: (cell, row) => isReadonlyCell(cell, row, dataStart.value),
-      isAddBlueRow: (row) => isAddBlueRow(cellMap.value, row),
+      displayCellValue: (r, c) => displayCellValue(cellMap.value, r, c),
+      isReadonlyCell: (cell, row) => isReadonlyCell(cell, row, props.sheet.dataStartRow),
+      rowStyleClass: (row) => rowStyleClass(cellMap.value, row),
+      cellInlineStyle: (row, col) =>
+        cellInlineStyle(getCell(cellMap.value, row, col), cellMap.value, row, col),
       onScroll,
       onCellInput,
-      ROW_H,
     };
   },
   template: `
     <div class="bd-grid-root">
-      <div class="bd-grid-toolbar">
-        <strong>Sheet: BD</strong>
-        <span>Rows {{ dataStart }}–{{ sheet.lastRow }} ({{ sheet.cells.length }} populated cells)</span>
-        <label>
-          <span>Go to row</span>
-          <input type="number" :min="dataStart" :max="sheet.lastRow" style="width:72px" />
-        </label>
-      </div>
       <div class="bd-grid-scroll" ref="scrollEl" @scroll="onScroll">
         <table class="bd-table" role="grid">
           <thead>
-            <tr class="hdr-row-1">
+            <tr class="hdr-row-letters">
               <th class="corner"></th>
+              <th
+                v-for="col in columns"
+                :key="'letter-' + col"
+                class="col-letter"
+                :style="colStyle(col)"
+              >{{ col }}</th>
+            </tr>
+            <tr class="hdr-row-1">
+              <th class="corner">1</th>
               <th
                 v-for="col in columns"
                 :key="'h1-' + col"
                 class="col-hdr"
                 :style="colStyle(col)"
+                :title="sheet.headers[col] || col"
               >{{ sheet.headers[col] || col }}</th>
-            </tr>
-            <tr v-for="hr in [2,3,4,5]" :key="'hr-' + hr" :class="'hdr-row-' + hr">
-              <th class="corner">{{ hr }}</th>
-              <th
-                v-for="col in columns"
-                :key="hr + '-' + col"
-                :style="colStyle(col)"
-              >{{ headerCell(hr, col) }}</th>
             </tr>
           </thead>
           <tbody>
@@ -163,7 +149,7 @@ export default {
             <tr
               v-for="row in visibleRows"
               :key="row"
-              :class="{ 'row-addblue': isAddBlueRow(row) }"
+              :class="rowStyleClass(row)"
             >
               <td class="row-num">{{ row }}</td>
               <td
@@ -171,15 +157,15 @@ export default {
                 :key="row + '-' + col"
                 class="data-cell"
                 :class="{ readonly: isReadonlyCell(getCell(row, col), row) }"
-                :style="colStyle(col)"
+                :style="[colStyle(col), cellInlineStyle(row, col)]"
               >
                 <template v-if="isReadonlyCell(getCell(row, col), row)">
-                  <span :title="getCell(row, col)?.f || ''">{{ displayValue(getCell(row, col)) }}</span>
+                  <span :title="getCell(row, col)?.f || ''">{{ displayCellValue(row, col) }}</span>
                 </template>
                 <input
                   v-else
                   type="text"
-                  :value="displayValue(getCell(row, col))"
+                  :value="displayCellValue(row, col)"
                   @change="onCellInput(row, col, $event.target.value)"
                 />
               </td>

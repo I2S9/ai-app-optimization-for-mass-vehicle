@@ -10,7 +10,15 @@
    ```
 2. Open **http://127.0.0.1:5173/** in your browser (Chrome / Edge).
 
-Uses only **PowerShell** (already on Windows). No installation.
+Uses only **PowerShell** (already on Windows). **Node.js is not used** to run the app.
+
+### Still see the old page after an update?
+
+1. **Stop** the server (Ctrl+C in the black window), run **`run-bd-server.bat`** again.
+2. In the browser: **Ctrl+F5** (hard refresh) or Ctrl+Shift+R.
+3. Check the top bar shows the current page name; use the **burger menu** (☰) for navigation.
+
+Opening `index.html` directly from the folder (double-click) **does not work** — you must use the URL above while the server is running.
 
 ### If PowerShell blocks scripts
 
