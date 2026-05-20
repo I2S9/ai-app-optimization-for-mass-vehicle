@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-
 const shared = [];
 const sx = fs.readFileSync(path.join(process.env.TEMP, 'xlsm-analyze/xl/sharedStrings.xml'), 'utf8');
 let sm;
@@ -12,7 +11,6 @@ while ((sm = sre.exec(sx)) !== null) {
   while ((t = tr.exec(sm[1])) !== null) p.push(t[1]);
   shared.push(p.join(''));
 }
-
 const xml = fs.readFileSync(path.join(process.env.TEMP, 'xlsm-analyze/xl/worksheets/sheet4.xml'), 'utf8');
 const cells = new Map();
 const cre = /<c r="([A-Z]+\d+)"([^>]*)>([\s\S]*?)<\/c>/g;
@@ -30,7 +28,6 @@ while ((cm = cre.exec(xml)) !== null) {
   if (vM) value = t === 's' ? shared[parseInt(vM[1], 10)] : vM[1];
   cells.set(ref, { formula, value });
 }
-
 function colNum(c) {
   let n = 0;
   for (const x of c) n = n * 26 + x.charCodeAt(0) - 64;
@@ -44,7 +41,6 @@ function numCol(n) {
   }
   return s;
 }
-
 // Vehicle columns: cols with SUMPRODUCT in row 27
 const vehicleCols = [];
 for (let i = 7; i <= colNum('NI'); i++) {
@@ -55,7 +51,6 @@ for (let i = 7; i <= colNum('NI'); i++) {
 console.log('Vehicle columns with SUMPRODUCT (count):', vehicleCols.length);
 console.log('First 20:', vehicleCols.slice(0, 20).join(', '));
 console.log('Last 10:', vehicleCols.slice(-10).join(', '));
-
 // Data rows: F column labels from row 15 to 530
 const dataRows = [];
 for (let r = 15; r <= 530; r++) {
@@ -65,7 +60,6 @@ for (let r = 15; r <= 530; r++) {
 console.log('\nSynthesis aggregation rows (F col):', dataRows.length);
 console.log('Sample labels:', dataRows.slice(0, 15).map((x) => x.label));
 console.log('Last labels:', dataRows.slice(-5).map((x) => x.label));
-
 // Map synthesis filter rows to BD columns (from SUMPRODUCT)
 const filterMap = {
   R3: 'A Date/Org',
@@ -82,7 +76,6 @@ const filterMap = {
 };
 console.log('\nFilter row mapping (SYNTHESIS row → BD column):');
 for (const [sr, label] of Object.entries(filterMap)) console.log(sr, label);
-
 for (const ref of ['G27', 'H27', 'I27', 'P27', 'R27']) {
   const c = cells.get(ref);
   console.log(ref, c?.formula ? 'FORMULA ' + c.formula.slice(0, 80) : 'VALUE ' + c?.value);

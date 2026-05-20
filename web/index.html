@@ -3,21 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Cache-Control" content="no-cache" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>WGHT Dashboard</title>
-    <link rel="stylesheet" href="/css/app.css?v=20260520-11" />
-    <link rel="stylesheet" href="/css/bd-grid.css?v=20260520-11" />
-    <link rel="stylesheet" href="/css/sidebar.css?v=20260520-11" />
-    <script type="importmap">
-      {
-        "imports": {
-          "vue": "https://esm.sh/vue@3.5.13/dist/vue.esm-browser.js"
-        }
-      }
-    </script>
+    <link rel="stylesheet" href="/css/app.css?v=20260520-edge" />
+    <link rel="stylesheet" href="/css/bd-grid.css?v=20260520-edge" />
+    <link rel="stylesheet" href="/css/sidebar.css?v=20260520-edge" />
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/js/main.js?v=20260520-18"></script>
+    <div id="app">
+      <p style="margin: 24px; font-family: Segoe UI, sans-serif; font-size: 14px">
+        Loading application…
+      </p>
+    </div>
+    <script>
+      window.addEventListener('error', function (e) {
+        var msg = e.message || String(e);
+        var el = document.getElementById('app');
+        if (el) {
+          el.innerHTML =
+            '<pre style="margin:24px;color:#b00020;font:14px/1.4 Segoe UI,sans-serif;white-space:pre-wrap">' +
+            'Startup error:\n' +
+            msg +
+            '\n\nTry: close Edge, double-click run-bd-server.bat, then Ctrl+F5.</pre>';
+        }
+      });
+    </script>
+    <script type="module" src="/js/main.js?v=20260520-edge3"></script>
   </body>
 </html>

@@ -1,12 +1,10 @@
 import { readFileSync } from 'fs';
 import { buildCellMap, getAsLabel, displayValue, getCell } from '../web/js/bdStore.js';
 import { transformBdSheet } from '../web/js/sheetTransform.js';
-
 const sheet = transformBdSheet(
   JSON.parse(readFileSync('web/public/data/bd-sheet.json', 'utf8'))
 );
 const map = buildCellMap(sheet.cells, sheet.headerRows);
-
 function isAllCapsSection(v) {
   if (!v || v.length < 3 || v.length > 45) return false;
   if (v.startsWith('_') || v.startsWith('-')) return false;
@@ -14,7 +12,6 @@ function isAllCapsSection(v) {
     return false;
   return v === v.toUpperCase() && /^[A-Z0-9][A-Z0-9 \/\-–]*$/.test(v);
 }
-
 function isSection(map, row) {
   if (row === 5) return true;
   const a = displayValue(getCell(map, row, 'A'));
@@ -40,13 +37,11 @@ function isSection(map, row) {
   if (row === 139) return true;
   return false;
 }
-
 function isSubSection(map, row) {
   const as = getAsLabel(map, row);
   if (!as.startsWith('_')) return false;
   return as !== getAsLabel(map, row - 1);
 }
-
 const sections = [];
 const subs = [];
 for (let r = 2; r <= 400; r++) {

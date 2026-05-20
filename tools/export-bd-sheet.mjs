@@ -5,19 +5,16 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const WB = path.join(ROOT, 'workbooks', 'base-de-donnees-complete-avec-liens.xlsm');
 const TMP = path.join(process.env.TEMP || '/tmp', 'xlsm-bd-export');
 const OUT = path.join(ROOT, 'web', 'public', 'data', 'bd-sheet.json');
-
 function colToNum(col) {
   let n = 0;
   for (const c of col) n = n * 26 + (c.charCodeAt(0) - 64);
   return n;
 }
-
 function numToCol(n) {
   let s = '';
   while (n > 0) {
@@ -26,7 +23,6 @@ function numToCol(n) {
   }
   return s;
 }
-
 function parseSharedStrings(xml) {
   const strings = [];
   const re = /<si>([\s\S]*?)<\/si>/g;
@@ -40,7 +36,6 @@ function parseSharedStrings(xml) {
   }
   return strings;
 }
-
 function parseStyles(stylesXml) {
   const fills = [{ fg: null, bg: null }];
   const fillRe = /<fill>([\s\S]*?)<\/fill>/g;
@@ -58,7 +53,6 @@ function parseStyles(stylesXml) {
       bg: bg ? (bg.length === 6 ? '#' + bg : bg) : null,
     });
   }
-
   const fonts = [{}];
   const fontRe = /<font>([\s\S]*?)<\/font>/g;
   let fontm;
@@ -71,7 +65,6 @@ function parseStyles(stylesXml) {
       size: block.match(/<sz val="([^"]+)"/)?.[1],
     });
   }
-
   const xfs = [];
   const xfRe = /<xf([^/]*)(?:\/>|>([\s\S]*?)<\/xf>)/g;
   let xfm;
@@ -91,7 +84,6 @@ function parseStyles(stylesXml) {
   }
   return xfs;
 }
-
 function decodeXml(s) {
   return s
     .replace(/&lt;/g, '<')
@@ -99,13 +91,11 @@ function decodeXml(s) {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"');
 }
-
 async function main() {
   if (!fs.existsSync(WB)) {
     console.error('Workbook not found:', WB);
     process.exit(1);
   }
-
   const { execSync } = await import('child_process');
   if (!fs.existsSync(path.join(TMP, 'xl', 'worksheets', 'sheet3.xml'))) {
     fs.mkdirSync(TMP, { recursive: true });
@@ -116,13 +106,11 @@ async function main() {
       { stdio: 'inherit' }
     );
   }
-
   const shared = parseSharedStrings(
     fs.readFileSync(path.join(TMP, 'xl', 'sharedStrings.xml'), 'utf8')
   );
   const styles = parseStyles(fs.readFileSync(path.join(TMP, 'xl', 'styles.xml'), 'utf8'));
   const sheetXml = fs.readFileSync(path.join(TMP, 'xl', 'worksheets', 'sheet3.xml'), 'utf8');
-
   const colWidths = [];
   const colsM = sheetXml.match(/<cols>([\s\S]*?)<\/cols>/);
   if (colsM) {
@@ -134,15 +122,12 @@ async function main() {
       }
     }
   }
-
   const maxCol = colToNum('AV');
   const columns = [];
   for (let i = 1; i <= maxCol; i++) columns.push(numToCol(i));
-
   const headers = {};
   const headerRows = {};
   const cells = [];
-
   const cellRe = /<c r="([A-Z]+\d+)"([^>]*)>([\s\S]*?)<\/c>/g;
   let m;
   while ((m = cellRe.exec(sheetXml)) !== null) {
@@ -161,18 +146,14 @@ async function main() {
     if (vM) value = t === 's' ? shared[parseInt(vM[1], 10)] ?? vM[1] : vM[1];
     const is = inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
     if (is) value = is[1];
-
     const display = value ?? (formula ? null : '');
     const style = styleIdx >= 0 ? styles[styleIdx] : null;
-
     if (row === 1 && display) headers[col] = display;
-
     if (row <= 5) {
       if (!headerRows[row]) headerRows[row] = {};
       if (display != null || formula)
         headerRows[row][col] = { v: display ?? '', f: formula, s: style };
     }
-
     if (row >= 6) {
       const entry = { r: row, c: col };
       if (display != null && display !== '') entry.v = String(display);
@@ -183,7 +164,6 @@ async function main() {
       cells.push(entry);
     }
   }
-
   const EN_HEADERS = {
     Date: 'Date',
     Projet: 'Project',
@@ -225,12 +205,10 @@ async function main() {
     'Sub-System Level2': 'Sub-system L2',
     'Sub-System Design Dpt': 'Design dept',
   };
-
   const headerEn = {};
   for (const [col, label] of Object.entries(headers)) {
     headerEn[col] = EN_HEADERS[label] || label;
   }
-
   let lastRow = cells.reduce((max, c) => Math.max(max, c.r), 6);
   const finCell = cells.find((c) => c.c === 'A' && String(c.v || '').trim().toUpperCase() === 'FIN');
   if (finCell) {
@@ -239,7 +217,6 @@ async function main() {
     cells.length = 0;
     cells.push(...trimmed);
   }
-
   const payload = {
     version: 1,
     sheet: 'BD',
@@ -252,13 +229,11 @@ async function main() {
     headerRows,
     cells,
   };
-
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(payload));
   console.log('Written:', OUT);
   console.log('Cells:', cells.length, 'Last row:', lastRow, 'Size MB:', (fs.statSync(OUT).size / 1e6).toFixed(2));
 }
-
 main().catch((e) => {
   console.error(e);
   process.exit(1);

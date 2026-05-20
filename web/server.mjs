@@ -6,10 +6,8 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = 5173;
-
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -17,7 +15,6 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.ico': 'image/x-icon',
 };
-
 const server = http.createServer((req, res) => {
   let urlPath = req.url?.split('?')[0] || '/';
   if (urlPath === '/') urlPath = '/index.html';
@@ -34,14 +31,16 @@ const server = http.createServer((req, res) => {
       return;
     }
     const ext = path.extname(filePath);
-    res.writeHead(200, {
+    const noStore = ['.html', '.js', '.css', '.json'].includes(ext);
+    const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
-      'Cache-Control': ext === '.json' ? 'no-cache' : 'public, max-age=3600',
-    });
+      'Cache-Control': noStore ? 'no-store, no-cache, must-revalidate' : 'public, max-age=3600',
+    };
+    if (noStore) headers.Pragma = 'no-cache';
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
-
 server.listen(PORT, () => {
   console.log(`BD page: http://localhost:${PORT}/`);
 });

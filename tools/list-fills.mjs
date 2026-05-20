@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-
 const styles = fs.readFileSync(
   path.join(process.env.TEMP, 'xlsm-bd-export', 'xl', 'styles.xml'),
   'utf8'

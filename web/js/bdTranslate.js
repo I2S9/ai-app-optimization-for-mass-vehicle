@@ -1,5 +1,4 @@
 /** French → English for BD sheet values (headers, sections, cell text). */
-
 export const HEADER_FR_EN = {
   Date: 'Date',
   Projet: 'Project',
@@ -43,13 +42,11 @@ export const HEADER_FR_EN = {
   'Ligne avec formules': 'Row with formulas',
   'A recopier': 'To copy',
 };
-
 /** CA chapter bands only (yellow). */
 export const CA_BAND_EN = {
   '-ADAPTATION': '-ADAPTATION',
   '-ADTH': '-ADTH',
 };
-
 /** Sub-system L1 labels (blue) — column AP / W / A. */
 export const L1_SECTION_EN = {
   AILES: 'WINGS',
@@ -97,7 +94,6 @@ export const L1_SECTION_EN = {
   'SPECIFIQUE PICK-UP': 'PICK-UP SPECIFIC',
   '-Non affecté': '-Unassigned',
 };
-
 /** Yellow section rows — exact labels from the BD template (FR + EN). */
 export const SECTION_ALLOWLIST = new Set([
   ...Object.keys(L1_SECTION_EN),
@@ -107,7 +103,6 @@ export const SECTION_ALLOWLIST = new Set([
   '_Non affecté',
   '_Unassigned',
 ]);
-
 /** Sub-system L2 (_prefix) and common AS labels. */
 export const L2_SECTION_EN = {
   _ADDBLUE: '_ADDBLUE',
@@ -131,7 +126,6 @@ export const L2_SECTION_EN = {
   '_Système de refroidissement par huile': '_OIL COOLING SYSTEM',
   '_Non affecté': '_Unassigned',
 };
-
 /** Frequent cell values (exact match). */
 export const CELL_VALUE_EN = {
   'Ligne avec formules': 'Row with formulas',
@@ -170,25 +164,20 @@ export const CELL_VALUE_EN = {
   COFFRE: 'TRUNK',
   CARROSSERIE: 'BODY',
 };
-
 const LABEL_COLS = new Set(['A', 'AP', 'AS', 'W']);
-
 /** Nomination / label columns visible on structure rows (yellow & blue). */
 export function isLabelColumn(col) {
   return LABEL_COLS.has(col);
 }
-
 export function translateValue(raw) {
   if (raw == null || raw === '') return raw;
   const v = String(raw).trim();
   if (!v) return v;
-
   if (HEADER_FR_EN[v]) return HEADER_FR_EN[v];
   if (CA_BAND_EN[v]) return CA_BAND_EN[v];
   if (L1_SECTION_EN[v]) return L1_SECTION_EN[v];
   if (L2_SECTION_EN[v]) return L2_SECTION_EN[v];
   if (CELL_VALUE_EN[v]) return CELL_VALUE_EN[v];
-
   if (v.startsWith('_')) {
     const key = v.toUpperCase().replace(/\s+/g, ' ');
     for (const [fr, en] of Object.entries(L2_SECTION_EN)) {
@@ -196,15 +185,12 @@ export function translateValue(raw) {
     }
     return '_' + translateFrenchPhrase(v.slice(1));
   }
-
   if (v === v.toUpperCase() && /^[A-Z0-9][A-Z0-9 /\-–]+$/.test(v) && v.length >= 3) {
     if (L1_SECTION_EN[v]) return L1_SECTION_EN[v];
     return translateFrenchPhrase(v);
   }
-
   return translateFrenchPhrase(v);
 }
-
 /** Rule-based translation for remaining French phrases. */
 export function translateFrenchPhrase(text) {
   let s = String(text);

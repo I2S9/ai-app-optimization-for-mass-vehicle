@@ -1,10 +1,9 @@
-import { createApp, ref, computed, onMounted } from 'vue';
-import BdGrid from './BdGrid.js?v=20260520-18';
-import AppSidebar from './AppSidebar.js?v=20260520-18';
-import EmptyPage from './EmptyPage.js?v=20260520-18';
-import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=20260520-18';
-import { transformBdSheet } from './sheetTransform.js?v=20260520-18';
-
+import { createApp, ref, computed, onMounted } from '/vendor/vue.esm-browser.js';
+import BdGrid from './BdGrid.js?v=20260520-edge3';
+import AppSidebar from './AppSidebar.js?v=20260520-edge';
+import EmptyPage from './EmptyPage.js?v=20260520-edge';
+import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=20260520-edge';
+import { transformBdSheet } from './sheetTransform.js?v=20260520-edge';
 const App = {
   components: { BdGrid, AppSidebar, EmptyPage },
   setup() {
@@ -15,11 +14,9 @@ const App = {
     const route = ref(DEFAULT_ROUTE);
     const menuOpen = ref(false);
     const outlineOnly = ref(false);
-
     const currentNav = computed(
       () => NAV_ITEMS.find((n) => n.id === route.value) || NAV_ITEMS[0]
     );
-
     onMounted(async () => {
       document.title = 'WGHT Dashboard';
       try {
@@ -32,20 +29,16 @@ const App = {
         loading.value = false;
       }
     });
-
     function onCellChange() {
       dirty.value += 1;
     }
-
     function navigate(id) {
       route.value = id;
       menuOpen.value = false;
     }
-
     function toggleOutline() {
       outlineOnly.value = !outlineOnly.value;
     }
-
     return {
       loading,
       error,
@@ -126,5 +119,4 @@ const App = {
     </div>
   `,
 };
-
 createApp(App).mount('#app');

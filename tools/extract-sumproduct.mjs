@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-
 const xml = fs.readFileSync(
   path.join(process.env.TEMP, 'xlsm-analyze/xl/worksheets/sheet4.xml'),
   'utf8'
@@ -19,7 +18,6 @@ while ((m = re.exec(xml)) && c < 2) {
     c++;
   }
 }
-
 // SYNTHESIS layout: row 14 = first data row with vehicle config, row 15+ = component groups
 // Find column groups - row 4 project names
 import { readFileSync } from 'fs';
@@ -37,7 +35,6 @@ while ((sm = sre.exec(sx)) !== null) {
   while ((t = tr.exec(sm[1])) !== null) p.push(t[1]);
   shared.push(p.join(''));
 }
-
 function parseCells(file) {
   const x = readFileSync(file, 'utf8');
   const cells = new Map();
@@ -62,17 +59,14 @@ function parseCells(file) {
   }
   return cells;
 }
-
 const syn = parseCells(
   path.join(process.env.TEMP, 'xlsm-analyze/xl/worksheets/sheet4.xml')
 );
-
 console.log('=== SYNTHESIS vehicle columns row 4 (G onwards sample) ===');
 for (const col of ['G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T']) {
   const cell = syn.get(`${col}4`);
   if (cell) console.log(col, cell.value || cell.formula?.slice(0, 30));
 }
-
 console.log('\n=== First SUMPRODUCT cell with value - scan G column rows 15-100 ===');
 for (let r = 15; r <= 100; r++) {
   const cell = syn.get(`G${r}`);
@@ -82,7 +76,6 @@ for (let r = 15; r <= 100; r++) {
     break;
   }
 }
-
 console.log('\n=== SYNTHESIS editable header block rows 3-13 col G-T ===');
 for (let r = 3; r <= 13; r++) {
   const vals = [];

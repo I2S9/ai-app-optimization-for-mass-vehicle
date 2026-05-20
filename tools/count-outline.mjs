@@ -1,9 +1,7 @@
 import { readFileSync } from 'fs';
-
 const j = JSON.parse(
   readFileSync('web/public/data/bd-sheet.json', 'utf8')
 );
-
 function buildMap(cells, hr) {
   const m = new Map();
   for (const c of cells) m.set(`${c.r}:${c.c}`, c);
@@ -15,14 +13,12 @@ function buildMap(cells, hr) {
   }
   return m;
 }
-
 const m = buildMap(j.cells, j.headerRows);
 const g = (r, c) => {
   const x = m.get(`${r}:${c}`);
   return x?.v != null ? String(x.v) : '';
 };
 const gas = (r) => g(r, 'AS');
-
 function isCaps(v) {
   if (!v || v.length < 3 || v.length > 45) return false;
   if (v.startsWith('_') || v.startsWith('-')) return false;
@@ -30,7 +26,6 @@ function isCaps(v) {
     return false;
   return v === v.toUpperCase() && /^[A-Z0-9][A-Z0-9 /-]+$/.test(v);
 }
-
 const subs = [];
 const secs = [];
 for (let r = 2; r <= 350; r++) {

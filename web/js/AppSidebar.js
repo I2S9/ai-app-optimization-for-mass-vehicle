@@ -1,5 +1,4 @@
-import { NAV_ITEMS } from './navConfig.js?v=20260520-6';
-
+import { NAV_ITEMS } from './navConfig.js?v=20260520-edge';
 export default {
   name: 'AppSidebar',
   props: {

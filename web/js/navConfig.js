@@ -10,5 +10,4 @@ export const NAV_ITEMS = [
   { id: 'portfolio', label: 'Portfolio', path: '/portfolio' },
   { id: 'split', label: 'Split', path: '/split' },
 ];
-
 export const DEFAULT_ROUTE = 'database';

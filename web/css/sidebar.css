@@ -3,7 +3,6 @@
   min-height: 0;
   display: flex;
 }
-
 .sidebar-backdrop {
   display: none;
   position: fixed;
@@ -11,11 +10,9 @@
   background: rgba(0, 0, 0, 0.35);
   z-index: 200;
 }
-
 .sidebar-backdrop.open {
   display: block;
 }
-
 .app-sidebar {
   position: fixed;
   top: 0;
@@ -32,11 +29,9 @@
   flex-direction: column;
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.2);
 }
-
 .app-sidebar.open {
   transform: translateX(0);
 }
-
 .sidebar-head {
   display: flex;
   align-items: center;
@@ -44,14 +39,12 @@
   padding: 12px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
 }
-
 .sidebar-menu-label {
   font-size: 11px;
   font-weight: 500;
   opacity: 0.85;
   letter-spacing: 0.02em;
 }
-
 .sidebar-close {
   display: inline-flex;
   align-items: center;
@@ -65,18 +58,15 @@
   border-radius: 4px;
   cursor: pointer;
 }
-
 .sidebar-close:hover {
   background: rgba(255, 255, 255, 0.15);
 }
-
 .sidebar-nav {
   display: flex;
   flex-direction: column;
   padding: 8px 0;
   overflow-y: auto;
 }
-
 .sidebar-link {
   text-align: left;
   border: none;
@@ -87,16 +77,13 @@
   cursor: pointer;
   font-family: inherit;
 }
-
 .sidebar-link:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .sidebar-link.active {
   background: rgba(255, 255, 255, 0.18);
   font-weight: 600;
 }
-
 .app-content {
   flex: 1 1 auto;
   min-width: 0;
@@ -104,7 +91,6 @@
   display: flex;
   flex-direction: column;
 }
-
 .empty-page {
   flex: 1;
   display: flex;
@@ -115,13 +101,11 @@
   color: #444;
   background: #fff;
 }
-
 .empty-page h2 {
   margin: 0;
   font-size: 18px;
   color: #1e3a5f;
 }
-
 .empty-page p {
   margin: 0;
   font-size: 13px;
