@@ -41,6 +41,15 @@ const server = http.createServer((req, res) => {
     res.end(data);
   });
 });
-server.listen(PORT, () => {
-  console.log(`BD page: http://localhost:${PORT}/`);
+const HOST = '127.0.0.1';
+server.listen(PORT, HOST, () => {
+  console.log(`BD page: http://${HOST}:${PORT}/`);
+});
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Close the other server or use run-bd-server.bat.`);
+  } else {
+    console.error(err.message);
+  }
+  process.exit(1);
 });

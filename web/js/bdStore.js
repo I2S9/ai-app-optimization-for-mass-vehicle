@@ -171,35 +171,6 @@ export function isStructureRow(map, row, sectionHeaderRows) {
     isSubSectionRow(map, row, sectionHeaderRows)
   );
 }
-export function isOutlineRow(map, row, sectionHeaderRows) {
-  return isStructureRow(map, row, sectionHeaderRows);
-}
-/** Outline = separator + yellow L1 sections + blue L2 sub-sections. */
-export function computeOutlineRows(sheet) {
-  const map = buildCellMap(sheet.cells, sheet.headerRows);
-  const sectionRows = asSectionRowSet(
-    sheet.sectionHeaderRows ||
-      computeSectionHeaderRows(sheet).rows
-  );
-  const rows = [];
-  for (let r = 2; r <= sheet.lastRow; r++) {
-    if (
-      isSeparatorRow(r) ||
-      sectionRows.has(r) ||
-      isSubSectionRow(map, r, sectionRows)
-    )
-      rows.push(r);
-  }
-  return rows;
-}
-/** Yellow/blue band or other title in frozen column A. */
-export function hasFrozenTitle(map, row, sheet) {
-  const sectionHeaderRows = sheet.sectionHeaderRows;
-  const canonical = sheet.canonicalSectionByLabel;
-  if (isStructureRow(map, row, sectionHeaderRows)) return true;
-  const a = displayCellValue(map, row, 'A', sectionHeaderRows, canonical);
-  return a != null && String(a).trim() !== '';
-}
 export function shouldDisplayBodyRow(map, row, sheet) {
   const dataStart = sheet.dataStartRow || 6;
   if (row < dataStart && !isStructureRow(map, row, sheet.sectionHeaderRows)) {
@@ -244,20 +215,75 @@ export function isReadonlyCell(cell, row, dataStartRow) {
   if (!cell) return false;
   return Boolean(cell.f);
 }
-export function isRecopierRow(map, row, sectionHeaderRows) {
-  return getRowLabel(map, row, sectionHeaderRows) === 'To copy';
+/** Raw title in frozen column A (Date). */
+export function colATitle(map, row) {
+  const a = displayValue(getCell(map, row, 'A'));
+  return a ? String(a).trim() : '';
 }
+/** Yellow/blue band or other title in frozen column A. */
+export function hasFrozenTitle(map, row, sheet) {
+  const sectionHeaderRows = sheet.sectionHeaderRows;
+  if (isStructureRow(map, row, sectionHeaderRows)) return true;
+  return Boolean(colATitle(map, row));
+}
+export function isFinDeLotRow(map, row) {
+  const t = colATitle(map, row);
+  return /^Fin de Lot\b/i.test(t) || /^End of lot\b/i.test(t);
+}
+export function isRecopierRow(map, row, sectionHeaderRows) {
+  const t = colATitle(map, row);
+  return t === 'A recopier' || t === 'To copy';
+}
+/** STLA/S rows: green frozen Date column (Excel). */
 export function isDataGreenColA(map, row, sectionHeaderRows) {
   if (isStructureRow(map, row, sectionHeaderRows)) return false;
-  const a = displayValue(getCell(map, row, 'A'));
+  const a = colATitle(map, row);
   return a === 'STLA/S' || a === 'STLA-S';
+}
+/** Blue title row (full row): label in A only, no component data. */
+export function shouldDateColBlue(map, row, sectionHeaderRows) {
+  if (isStructureRow(map, row, sectionHeaderRows)) return false;
+  if (isFinDeLotRow(map, row)) return false;
+  if (isRecopierRow(map, row, sectionHeaderRows)) return false;
+  if (isDataGreenColA(map, row, sectionHeaderRows)) return false;
+  return Boolean(colATitle(map, row));
 }
 export function rowStyleClass(map, row, sectionHeaderRows) {
   if (isSeparatorRow(row)) return 'row-separator';
   if (isSectionRow(map, row, sectionHeaderRows)) return 'row-section';
   if (isSubSectionRow(map, row, sectionHeaderRows)) return 'row-subsection';
+  if (isFinDeLotRow(map, row)) return 'row-fin-lot';
   if (isRecopierRow(map, row, sectionHeaderRows)) return 'row-recopier';
+  if (isDataGreenColA(map, row, sectionHeaderRows)) return 'row-date-green';
+  if (shouldDateColBlue(map, row, sectionHeaderRows)) return 'row-date-blue';
   return '';
+}
+/** Title-only markers (blue / fin de lot / to copy) — no project data. */
+export function isTitleMarkerRow(map, row, sectionHeaderRows) {
+  return (
+    shouldDateColBlue(map, row, sectionHeaderRows) ||
+    isFinDeLotRow(map, row) ||
+    isRecopierRow(map, row, sectionHeaderRows)
+  );
+}
+export function isOutlineRow(map, row, sectionHeaderRows) {
+  return (
+    isStructureRow(map, row, sectionHeaderRows) ||
+    isTitleMarkerRow(map, row, sectionHeaderRows)
+  );
+}
+/** Outline = structure bands + title-only marker rows. */
+export function computeOutlineRows(sheet) {
+  const map = buildCellMap(sheet.cells, sheet.headerRows);
+  const sectionRows = asSectionRowSet(
+    sheet.sectionHeaderRows ||
+      computeSectionHeaderRows(sheet).rows
+  );
+  const rows = [];
+  for (let r = 2; r <= sheet.lastRow; r++) {
+    if (isOutlineRow(map, r, sectionRows)) rows.push(r);
+  }
+  return rows;
 }
 export function cellInlineStyle(cell, map, row, col, sectionHeaderRows) {
   const style = {};
@@ -277,13 +303,50 @@ export function cellInlineStyle(cell, map, row, col, sectionHeaderRows) {
   }
   return style;
 }
-/** Hide TT / project fillers on structure rows except nomination columns. */
-function maskStructureValue(map, row, col, v, sectionHeaderRows) {
-  if (!isStructureRow(map, row, sectionHeaderRows)) return v;
-  if (isLabelColumn(col)) return v;
-  if (v === 'TT' || v === '0') return '';
-  if (row === 5 && col !== 'A' && col !== 'W') return '';
+/**
+ * Yellow / blue bookmark rows: show section or sub-section title only, never data.
+ * Returns null when the row is not a structure bookmark.
+ */
+function structureBookmarkDisplay(
+  map,
+  row,
+  col,
+  sectionHeaderRows,
+  canonicalByLabel
+) {
+  if (!isStructureRow(map, row, sectionHeaderRows)) return null;
+  if (isSeparatorRow(row)) {
+    if (col === 'A') {
+      const v = displayValue(getCell(map, row, 'A'));
+      return v || '4';
+    }
+    return '';
+  }
+  if (isSectionRow(map, row, sectionHeaderRows)) {
+    const title = getRowLabel(map, row, sectionHeaderRows, canonicalByLabel);
+    if (!title) return '';
+    if (col === 'A') return title;
+    if (isCaBandRow(map, row)) {
+      if (col === 'W') return title;
+      return '';
+    }
+    if (col === 'AP' && canonicalByLabel.get(title) === row) return title;
+    if (col === 'AS' && isUnassignedSectionLabel(title)) return title;
+    return '';
+  }
+  if (isSubSectionRow(map, row, sectionHeaderRows)) {
+    const title = getSubSectionLabel(map, row);
+    if (!title) return '';
+    if (col === 'A') return title;
+    return '';
+  }
   return '';
+}
+/** Hide TT / project fillers on data rows only. */
+function maskStructureValue(map, row, col, v, sectionHeaderRows) {
+  if (isStructureRow(map, row, sectionHeaderRows)) return v;
+  if (v === 'TT' || v === '0') return '';
+  return v;
 }
 function isInheritedBandOrSection(v) {
   if (!v) return false;
@@ -344,6 +407,14 @@ export function displayCellValue(
   canonicalSectionByLabel
 ) {
   const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
+  const bookmark = structureBookmarkDisplay(
+    map,
+    row,
+    col,
+    sectionHeaderRows,
+    canonicalByLabel
+  );
+  if (bookmark !== null) return bookmark;
   const cell = getCell(map, row, col);
   let v = displayValue(cell);
   if (col === 'AS' && cell && (cell.v == null || cell.v === '') && cell.f) v = '';
@@ -351,15 +422,8 @@ export function displayCellValue(
   v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel);
   v = maskInheritedSubSectionLabel(map, row, col, v, sectionHeaderRows);
   v = maskRepeatedUnassigned(map, row, col, v);
-  // Yellow L1: title in frozen column A.
-  if (col === 'A' && isSectionRow(map, row, sectionHeaderRows)) {
-    const title = getRowLabel(map, row, sectionHeaderRows, canonicalByLabel);
-    if (title) return title;
-  }
-  // Blue L2 (_ADDBLUE…): title in frozen column A (Excel: A7=_ADDBLUE).
-  if (col === 'A' && isSubSectionRow(map, row, sectionHeaderRows)) {
-    const title = getSubSectionLabel(map, row);
-    if (title) return title;
+  if (isTitleMarkerRow(map, row, sectionHeaderRows) && col !== 'A') {
+    return '';
   }
   if (col !== 'A' || v) return v;
   return '';

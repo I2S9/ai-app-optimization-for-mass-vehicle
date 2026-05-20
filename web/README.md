@@ -20,5 +20,8 @@ node web/server.mjs
 ```
 ## Notes
 - Data file: `public/data/bd-sheet.json` (~5 MB), generated once from `workbooks/base-de-donnees-complete-avec-liens.xlsm`.
-- Formula cells are **read-only** (grey); manual cells are editable in the browser (not persisted until Laravel API exists).
+- **Calculation engine** (HyperFormula): formula cells recalculate in real time when you edit a cell they depend on. Cross-sheet refs (`BD!…`, `SYNTHESIS!…`) work when both JSON files are loaded.
+- Formula cells are **read-only**; manual cells are editable. **HyperFormula** recalculates BD formulas when you edit a cell; **Synthesis** SUMPRODUCT columns update from live BD data.
+- Synthesis data: `public/data/synthesis-sheet.json` — generate with `node tools/export-synthesis-sheet.mjs` (after BD export / same workbook unzip cache).
+- **Synthesis** page: `/` → menu → Synthesis (needs `public/data/synthesis-sheet.json` from `node tools/export-synthesis-sheet.mjs`).
 - Rows with `A = _ADDBLUE` use light blue highlighting like Excel.

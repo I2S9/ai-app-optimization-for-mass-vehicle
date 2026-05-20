@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted, watch } from '/vendor/vue.esm-browser.js';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import {
   buildCellMap,
   buildWidthMap,
@@ -7,16 +7,20 @@ import {
   displayValue,
   displayCellValue,
   isReadonlyCell,
+  isStructureRow,
+  isTitleMarkerRow,
   rowStyleClass,
   cellInlineStyle,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=20260520-edge3';
+} from './bdStore.js?v=calc-syn5';
 const ROW_H = 21;
 const BUFFER = 12;
 export default {
   name: 'BdGrid',
   props: {
     sheet: { type: Object, required: true },
+    sheetName: { type: String, default: 'BD' },
+    session: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
   },
   emits: ['cell-change'],
@@ -31,6 +35,14 @@ export default {
       buildWidthMap(props.sheet.colWidths, props.sheet.columns, props.sheet.headers)
     );
     const bodyRows = computed(() => {
+      if (props.sheetName === 'SYNTHESIS') {
+        const last = props.sheet.lastRow || 1;
+        const rows = [];
+        for (let r = 1; r <= last; r++) {
+          rows.push({ excelRow: r, displayRow: r });
+        }
+        return rows;
+      }
       if (props.outlineOnly) {
         const map = cellMap.value;
         let displayRow = 1;
@@ -62,6 +74,9 @@ export default {
     const sectionHeaderRows = computed(
       () => props.sheet.sectionHeaderRows
     );
+    const calcRevision = computed(
+      () => props.session?.revision?.value ?? 0
+    );
     function colStyle(col) {
       const w = widthMap.value.get(col) || 72;
       return { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
@@ -83,7 +98,59 @@ export default {
         cell.v = value;
         delete cell.f;
       }
+      if (props.session?.ready?.value) {
+        props.session.setCellValue(props.sheetName, row, col, value);
+      }
       emit('cell-change', { row, col, value });
+    }
+    function cellReadonly(row, col) {
+      const cell = getCell(cellMap.value, row, col);
+      if (props.session?.ready?.value) {
+        return props.session.isFormulaCell(
+          props.sheetName,
+          row,
+          col,
+          cell
+        );
+      }
+      return isReadonlyCell(cell, row, props.sheet.dataStartRow);
+    }
+    function cellDisplay(row, col) {
+      void calcRevision.value;
+      const map = cellMap.value;
+      const sh = sectionHeaderRows.value;
+      const canon = props.sheet.canonicalSectionByLabel;
+      const cell = getCell(map, row, col);
+
+      if (props.sheetName === 'BD') {
+        const masked = displayCellValue(map, row, col, sh, canon);
+        const bookmark =
+          isStructureRow(map, row, sh) || isTitleMarkerRow(map, row, sh);
+        const useFormula =
+          !bookmark &&
+          props.session?.ready?.value &&
+          props.session.isFormulaCell(props.sheetName, row, col, cell);
+        if (useFormula) {
+          const computed = props.session.getDisplayValue(
+            props.sheetName,
+            row,
+            col,
+            cell
+          );
+          if (computed !== '' && computed !== '#REF!') return computed;
+        }
+        return masked;
+      }
+
+      if (props.session?.ready?.value) {
+        return props.session.getDisplayValue(
+          props.sheetName,
+          row,
+          col,
+          cell
+        );
+      }
+      return displayValue(cell);
     }
     function updateViewport() {
       if (scrollEl.value) viewportH.value = scrollEl.value.clientHeight;
@@ -96,6 +163,11 @@ export default {
       }
     );
     onMounted(() => {
+      if (props.sheetName === 'SYNTHESIS' && props.session?.bindSynthesisGrid) {
+        props.session.bindSynthesisGrid((row, col) =>
+          getCell(cellMap.value, row, col)
+        );
+      }
       updateViewport();
       window.addEventListener('resize', updateViewport);
     });
@@ -108,20 +180,13 @@ export default {
       visibleRows,
       topSpacer,
       bottomSpacer,
+      calcRevision,
       colStyle,
       isStickyDateCol,
       getCell: (r, c) => getCell(cellMap.value, r, c),
       displayValue,
-      displayCellValue: (r, c) =>
-        displayCellValue(
-          cellMap.value,
-          r,
-          c,
-          sectionHeaderRows.value,
-          props.sheet.canonicalSectionByLabel
-        ),
-      isReadonlyCell: (cell, row) =>
-        isReadonlyCell(cell, row, props.sheet.dataStartRow),
+      cellDisplay,
+      cellReadonly,
       rowStyleClass: (row) =>
         rowStyleClass(cellMap.value, row, sectionHeaderRows.value),
       cellInlineStyle: (row, col) =>
@@ -178,18 +243,18 @@ export default {
                 :key="entry.excelRow + '-' + col"
                 class="data-cell"
                 :class="{
-                  readonly: isReadonlyCell(getCell(entry.excelRow, col), entry.excelRow),
+                  readonly: cellReadonly(entry.excelRow, col),
                   'col-sticky-date': isStickyDateCol(col),
                 }"
                 :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"
               >
-                <template v-if="isReadonlyCell(getCell(entry.excelRow, col), entry.excelRow)">
-                  <span :title="getCell(entry.excelRow, col)?.f || ''">{{ displayCellValue(entry.excelRow, col) }}</span>
+                <template v-if="cellReadonly(entry.excelRow, col)">
+                  <span :title="getCell(entry.excelRow, col)?.f || ''">{{ cellDisplay(entry.excelRow, col) }}</span>
                 </template>
                 <input
                   v-else
                   type="text"
-                  :value="displayCellValue(entry.excelRow, col)"
+                  :value="cellDisplay(entry.excelRow, col)"
                   @change="onCellInput(entry.excelRow, col, $event.target.value)"
                 />
               </td>

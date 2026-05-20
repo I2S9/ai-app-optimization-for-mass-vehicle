@@ -73,26 +73,24 @@
 .bd-table tbody td.col-sticky-date {
   background: #fff;
 }
+.bd-table tbody tr.row-fin-lot td.col-sticky-date,
+.bd-table tbody tr.row-recopier td.col-sticky-date {
+  background: #fff;
+}
+.bd-table tbody tr.row-date-green td.col-sticky-date,
+.bd-table tbody tr.row-date-green td.col-sticky-date.readonly {
+  background: #c6efce;
+}
 .bd-table tbody tr.row-separator td.col-sticky-date {
   background: #1f3864;
   color: #fff;
 }
-.bd-table tbody tr.row-section td.col-sticky-date {
+.bd-table tbody tr.row-section td.col-sticky-date,
+.bd-table tbody tr.row-section td.col-sticky-date.readonly {
   background: #ffff00;
   color: #000;
 }
-.bd-table tbody tr.row-subsection td.col-sticky-date {
-  background: #00b0f0;
-}
-.bd-table tbody tr.row-recopier td.col-sticky-date {
-  background: #fff;
-}
-.bd-table tbody td.col-sticky-date.readonly {
-  background: inherit;
-}
-.bd-table tbody tr.row-section td.col-sticky-date.readonly {
-  background: #ffff00;
-}
+.bd-table tbody tr.row-subsection td.col-sticky-date,
 .bd-table tbody tr.row-subsection td.col-sticky-date.readonly {
   background: #00b0f0;
 }
@@ -140,6 +138,16 @@
 }
 .bd-table tbody tr.row-recopier td.data-cell {
   background: #fff;
+}
+/* Title-only rows (blue band, full width) */
+.bd-table tbody tr.row-date-blue td.data-cell,
+.bd-table tbody tr.row-date-blue td.col-sticky-date {
+  background: #00b0f0;
+  color: #000;
+}
+.bd-table tbody tr.row-date-blue td.data-cell.readonly,
+.bd-table tbody tr.row-date-blue td.col-sticky-date.readonly {
+  background: #00b0f0;
 }
 /* Sections (yellow): -ADAPTATION, -ADTH, AILES, ASSISES, BATTERIE… */
 .bd-table tbody tr.row-section td.data-cell {

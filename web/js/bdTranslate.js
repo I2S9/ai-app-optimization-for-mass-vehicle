@@ -41,6 +41,7 @@ export const HEADER_FR_EN = {
   'Ligne N°': 'Line #',
   'Ligne avec formules': 'Row with formulas',
   'A recopier': 'To copy',
+  'Fin de Lot - Ne pas supprimer': 'End of lot - do not delete',
 };
 /** CA chapter bands only (yellow). */
 export const CA_BAND_EN = {
@@ -130,6 +131,7 @@ export const L2_SECTION_EN = {
 export const CELL_VALUE_EN = {
   'Ligne avec formules': 'Row with formulas',
   'A recopier': 'To copy',
+  'Fin de Lot - Ne pas supprimer': 'End of lot - do not delete',
   FIN: 'END',
   TT: 'TT',
   'STLA/S': 'STLA/S',

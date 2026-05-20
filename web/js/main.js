@@ -1,53 +1,113 @@
-import { createApp, ref, computed, onMounted } from '/vendor/vue.esm-browser.js';
-import BdGrid from './BdGrid.js?v=20260520-edge3';
-import AppSidebar from './AppSidebar.js?v=20260520-edge';
-import EmptyPage from './EmptyPage.js?v=20260520-edge';
-import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=20260520-edge';
-import { transformBdSheet } from './sheetTransform.js?v=20260520-edge';
+import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import BdGrid from './BdGrid.js?v=calc-syn5';
+import AppSidebar from './AppSidebar.js?v=calc-syn5';
+import EmptyPage from './EmptyPage.js?v=calc-syn5';
+import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=calc-syn5';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=calc-syn5';
+import { createWorkbookSession } from './workbookSession.js?v=calc-syn5';
+
 const App = {
   components: { BdGrid, AppSidebar, EmptyPage },
   setup() {
     const loading = ref(true);
+    const calcLoading = ref(false);
     const error = ref(null);
-    const sheet = ref(null);
+    const calcError = ref(null);
+    const bdSheet = ref(null);
+    const synthesisSheet = ref(null);
+    const bdRaw = ref(null);
+    const synthesisRaw = ref(null);
     const dirty = ref(0);
     const route = ref(DEFAULT_ROUTE);
     const menuOpen = ref(false);
     const outlineOnly = ref(false);
+    const session = createWorkbookSession();
+
     const currentNav = computed(
       () => NAV_ITEMS.find((n) => n.id === route.value) || NAV_ITEMS[0]
     );
+
+    const activeSheet = computed(() => {
+      if (route.value === 'synthesis') return synthesisSheet.value;
+      if (route.value === 'database') return bdSheet.value;
+      return null;
+    });
+
+    const activeSheetName = computed(() =>
+      route.value === 'synthesis' ? 'SYNTHESIS' : 'BD'
+    );
+
+    async function ensureEngine() {
+      if (session.ready.value || session.loading.value) return;
+      if (!bdRaw.value) return;
+      const sheets = [{ name: 'BD', data: bdRaw.value }];
+      calcLoading.value = true;
+      calcError.value = null;
+      try {
+        await session.loadSheets(sheets);
+        if (session.error.value) calcError.value = session.error.value;
+      } finally {
+        calcLoading.value = false;
+      }
+    }
+
     onMounted(async () => {
       document.title = 'WGHT Dashboard';
       try {
-        const res = await fetch('/public/data/bd-sheet.json');
-        if (!res.ok) throw new Error(`Failed to load BD data (${res.status})`);
-        sheet.value = transformBdSheet(await res.json());
+        const bdRes = await fetch('/public/data/bd-sheet.json');
+        if (!bdRes.ok) throw new Error(`Failed to load BD data (${bdRes.status})`);
+        const rawBd = await bdRes.json();
+        bdRaw.value = rawBd;
+        bdSheet.value = transformBdSheet(rawBd);
+
+        const synRes = await fetch('/public/data/synthesis-sheet.json');
+        if (synRes.ok) {
+          const rawSyn = await synRes.json();
+          synthesisRaw.value = rawSyn;
+          synthesisSheet.value = transformSynthesisSheet(rawSyn);
+        }
+        await ensureEngine();
       } catch (e) {
         error.value = e.message;
       } finally {
         loading.value = false;
       }
     });
+
+    watch(route, async (id) => {
+      if (id === 'database' || id === 'synthesis') await ensureEngine();
+    });
+
+    onUnmounted(() => session.destroy());
+
     function onCellChange() {
       dirty.value += 1;
     }
+
     function navigate(id) {
       route.value = id;
       menuOpen.value = false;
     }
+
     function toggleOutline() {
       outlineOnly.value = !outlineOnly.value;
     }
+
     return {
       loading,
+      calcLoading,
       error,
-      sheet,
+      calcError,
+      bdSheet,
+      synthesisSheet,
+      activeSheet,
+      activeSheetName,
       dirty,
       route,
       menuOpen,
       outlineOnly,
       currentNav,
+      session,
       onCellChange,
       navigate,
       toggleOutline,
@@ -72,6 +132,7 @@ const App = {
             <span></span><span></span><span></span>
           </button>
           <span v-if="route === 'database'" class="page-title">Database</span>
+          <span v-else-if="route === 'synthesis'" class="page-title">Synthesis</span>
           <span v-else class="page-title">{{ currentNav.label }}</span>
           <template v-if="route === 'database'">
             <button type="button" class="icon-btn icon-btn-sm" title="Matrix view" aria-label="Matrix view">
@@ -97,19 +158,29 @@ const App = {
             </button>
           </template>
         </div>
-        <span class="status" v-if="route === 'database' && sheet && dirty">
+        <span class="status" v-if="calcLoading">Building calculation engine…</span>
+        <span class="status error-text" v-else-if="calcError">{{ calcError }}</span>
+        <span class="status" v-else-if="(route === 'database' || route === 'synthesis') && activeSheet && dirty">
           Unsaved changes
+        </span>
+        <span class="status" v-else-if="session.ready && (route === 'database' || route === 'synthesis')">
+          Live formulas
         </span>
       </header>
       <div class="app-body">
         <main class="app-content">
           <div v-if="loading" class="loading-overlay">Loading…</div>
           <div v-else-if="error" class="loading-overlay error-text">{{ error }}</div>
+          <div v-else-if="route === 'synthesis' && !synthesisSheet" class="loading-overlay error-text">
+            Missing synthesis-sheet.json — run: node tools/export-synthesis-sheet.mjs
+          </div>
           <template v-else>
             <BdGrid
-              v-if="route === 'database' && sheet"
-              :sheet="sheet"
-              :outline-only="outlineOnly"
+              v-if="(route === 'database' && bdSheet) || (route === 'synthesis' && synthesisSheet)"
+              :sheet="activeSheet"
+              :sheet-name="activeSheetName"
+              :session="session"
+              :outline-only="outlineOnly && route === 'database'"
               @cell-change="onCellChange"
             />
             <EmptyPage v-else :title="currentNav.label" />
@@ -119,4 +190,5 @@ const App = {
     </div>
   `,
 };
+
 createApp(App).mount('#app');

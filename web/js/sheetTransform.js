@@ -91,3 +91,38 @@ export function transformBdSheet(sheet) {
   );
   return prepared;
 }
+
+/** Synthesis grid: config rows + vehicle comparison columns. */
+export function transformSynthesisSheet(sheet) {
+  const columns = [...(sheet.columns || [])];
+  const headers = { ...(sheet.headers || {}) };
+  for (const col of columns) {
+    const raw = headers[col];
+    if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
+    else if (raw) headers[col] = translateValue(String(raw));
+  }
+  const cells = (sheet.cells || []).map((c) => {
+    if (c.v == null || c.v === '') return c;
+    const v = translateCellValue(String(c.v));
+    return v === c.v ? c : { ...c, v };
+  });
+  const headerRows = {};
+  for (const [row, cols] of Object.entries(sheet.headerRows || {})) {
+    headerRows[row] = {};
+    for (const [col, cell] of Object.entries(cols)) {
+      let v = cell.v;
+      if (v != null && v !== '') v = translateCellValue(String(v));
+      headerRows[row][col] = { ...cell, v };
+    }
+  }
+  return {
+    ...sheet,
+    columns,
+    headers,
+    cells,
+    headerRows,
+    dataStartRow: sheet.dataStartRow || 3,
+    sectionHeaderRows: new Set(),
+    outlineRows: [],
+  };
+}
