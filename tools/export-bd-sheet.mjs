@@ -231,7 +231,14 @@ async function main() {
     headerEn[col] = EN_HEADERS[label] || label;
   }
 
-  const lastRow = cells.reduce((max, c) => Math.max(max, c.r), 6);
+  let lastRow = cells.reduce((max, c) => Math.max(max, c.r), 6);
+  const finCell = cells.find((c) => c.c === 'A' && String(c.v || '').trim().toUpperCase() === 'FIN');
+  if (finCell) {
+    lastRow = finCell.r;
+    const trimmed = cells.filter((c) => c.r <= lastRow);
+    cells.length = 0;
+    cells.push(...trimmed);
+  }
 
   const payload = {
     version: 1,

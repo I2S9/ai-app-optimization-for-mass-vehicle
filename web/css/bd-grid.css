@@ -22,7 +22,7 @@
 .bd-table thead {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 20;
 }
 
 .bd-table th,
@@ -40,6 +40,7 @@
   white-space: nowrap;
 }
 
+/* Frozen row numbers */
 .bd-table th.corner,
 .bd-table td.row-num {
   position: sticky;
@@ -51,6 +52,68 @@
   color: #333;
   min-width: 42px;
   width: 42px;
+  box-shadow: 2px 0 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Frozen "Date" column (A) — row context visible when scrolling right */
+.bd-table th.col-sticky-date,
+.bd-table td.col-sticky-date {
+  position: sticky;
+  left: 42px;
+  z-index: 3;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
+}
+
+.bd-table thead th.corner {
+  z-index: 26;
+  left: 0;
+}
+
+.bd-table thead th.col-sticky-date {
+  z-index: 25;
+}
+
+.bd-table thead tr.hdr-row-letters th.col-sticky-date {
+  background: #d9d9d9;
+}
+
+.bd-table thead tr.hdr-row-1 th.col-sticky-date {
+  background: #4472c4;
+  color: #fff;
+}
+
+.bd-table tbody td.col-sticky-date {
+  background: #fff;
+}
+
+.bd-table tbody tr.row-separator td.col-sticky-date {
+  background: #1f3864;
+  color: #fff;
+}
+
+.bd-table tbody tr.row-section td.col-sticky-date {
+  background: #ffff00;
+  color: #000;
+}
+
+.bd-table tbody tr.row-subsection td.col-sticky-date {
+  background: #00b0f0;
+}
+
+.bd-table tbody tr.row-recopier td.col-sticky-date {
+  background: #fff;
+}
+
+.bd-table tbody td.col-sticky-date.readonly {
+  background: inherit;
+}
+
+.bd-table tbody tr.row-section td.col-sticky-date.readonly {
+  background: #ffff00;
+}
+
+.bd-table tbody tr.row-subsection td.col-sticky-date.readonly {
+  background: #00b0f0;
 }
 
 .bd-table thead tr.hdr-row-letters th.col-letter {
@@ -71,7 +134,7 @@
 .bd-table thead tr.hdr-row-1 th.col-hdr {
   position: sticky;
   top: 0;
-  z-index: 5;
+  z-index: 20;
   background: #4472c4;
   color: #fff;
   font-weight: 600;
@@ -102,33 +165,29 @@
   color: #fff;
 }
 
-.bd-table tbody tr.row-adaptation td.data-cell {
-  background: #ffc000;
-  color: #000;
-  font-weight: bold;
-}
-
-.bd-table tbody tr.row-adaptation td.data-cell.readonly {
-  background: #ffc000;
-}
-
 .bd-table tbody tr.row-recopier td.data-cell {
   background: #fff;
 }
 
+/* Sections (yellow): -ADAPTATION, -ADTH, AILES, ASSISES, BATTERIE… */
 .bd-table tbody tr.row-section td.data-cell {
-  background: #00b0f0;
-  color: #c00000;
+  background: #ffff00;
+  color: #000;
   font-weight: bold;
 }
 
 .bd-table tbody tr.row-section td.data-cell.readonly {
-  background: #00b0f0;
+  background: #ffff00;
 }
 
-.bd-table tbody tr.row-section td.col-a-label,
-.bd-table tbody tr.row-adaptation td.col-a-label {
-  font-weight: bold;
+/* Sub-sections (blue): _ADDBLUE, _FUEL, _ADTH MISC… */
+.bd-table tbody tr.row-subsection td.data-cell {
+  background: #00b0f0;
+  color: #000;
+}
+
+.bd-table tbody tr.row-subsection td.data-cell.readonly {
+  background: #00b0f0;
 }
 
 .bd-table tbody td.data-cell input {

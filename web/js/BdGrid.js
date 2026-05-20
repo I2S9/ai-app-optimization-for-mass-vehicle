@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import {
   buildCellMap,
   buildWidthMap,
@@ -8,7 +8,7 @@ import {
   isReadonlyCell,
   rowStyleClass,
   cellInlineStyle,
-} from './bdStore.js?v=20260520-4';
+} from './bdStore.js?v=20260520-18';
 
 const ROW_H = 21;
 const BUFFER = 12;
@@ -18,6 +18,7 @@ export default {
   name: 'BdGrid',
   props: {
     sheet: { type: Object, required: true },
+    outlineOnly: { type: Boolean, default: false },
   },
   emits: ['cell-change'],
   setup(props, { emit }) {
@@ -32,11 +33,20 @@ export default {
       buildWidthMap(props.sheet.colWidths, props.sheet.columns, props.sheet.headers)
     );
 
-    const displayStart = DISPLAY_START;
-    const lastRow = computed(() => props.sheet.lastRow);
-    const columns = computed(() => props.sheet.columns);
+    const allBodyRows = computed(() => {
+      const last = props.sheet.lastRow;
+      const rows = [];
+      for (let r = DISPLAY_START; r <= last; r++) rows.push(r);
+      return rows;
+    });
 
-    const rowCount = computed(() => lastRow.value - displayStart + 1);
+    const bodyRows = computed(() =>
+      props.outlineOnly
+        ? props.sheet.outlineRows || []
+        : allBodyRows.value
+    );
+
+    const rowCount = computed(() => bodyRows.value.length);
 
     const visibleStart = computed(() => {
       const start = Math.floor(scrollTop.value / ROW_H) - BUFFER;
@@ -48,13 +58,9 @@ export default {
       return Math.min(rowCount.value, visibleStart.value + count);
     });
 
-    const visibleRows = computed(() => {
-      const rows = [];
-      for (let i = visibleStart.value; i < visibleEnd.value; i++) {
-        rows.push(displayStart + i);
-      }
-      return rows;
-    });
+    const visibleRows = computed(() =>
+      bodyRows.value.slice(visibleStart.value, visibleEnd.value)
+    );
 
     const topSpacer = computed(() => visibleStart.value * ROW_H);
     const bottomSpacer = computed(() => {
@@ -63,9 +69,18 @@ export default {
       return Math.max(0, remaining * ROW_H);
     });
 
+    const columns = computed(() => props.sheet.columns);
+    const sectionHeaderRows = computed(
+      () => props.sheet.sectionHeaderRows
+    );
+
     function colStyle(col) {
       const w = widthMap.value.get(col) || 72;
       return { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
+    }
+
+    function isStickyDateCol(col) {
+      return col === 'A';
     }
 
     function onScroll(e) {
@@ -90,6 +105,14 @@ export default {
       if (scrollEl.value) viewportH.value = scrollEl.value.clientHeight;
     }
 
+    watch(
+      () => props.outlineOnly,
+      () => {
+        scrollTop.value = 0;
+        if (scrollEl.value) scrollEl.value.scrollTop = 0;
+      }
+    );
+
     onMounted(() => {
       updateViewport();
       window.addEventListener('resize', updateViewport);
@@ -101,18 +124,33 @@ export default {
     return {
       scrollEl,
       columns,
-      displayStart,
       visibleRows,
       topSpacer,
       bottomSpacer,
       colStyle,
+      isStickyDateCol,
       getCell: (r, c) => getCell(cellMap.value, r, c),
       displayValue,
-      displayCellValue: (r, c) => displayCellValue(cellMap.value, r, c),
-      isReadonlyCell: (cell, row) => isReadonlyCell(cell, row, props.sheet.dataStartRow),
-      rowStyleClass: (row) => rowStyleClass(cellMap.value, row),
+      displayCellValue: (r, c) =>
+        displayCellValue(
+          cellMap.value,
+          r,
+          c,
+          sectionHeaderRows.value,
+          props.sheet.canonicalSectionByLabel
+        ),
+      isReadonlyCell: (cell, row) =>
+        isReadonlyCell(cell, row, props.sheet.dataStartRow),
+      rowStyleClass: (row) =>
+        rowStyleClass(cellMap.value, row, sectionHeaderRows.value),
       cellInlineStyle: (row, col) =>
-        cellInlineStyle(getCell(cellMap.value, row, col), cellMap.value, row, col),
+        cellInlineStyle(
+          getCell(cellMap.value, row, col),
+          cellMap.value,
+          row,
+          col,
+          sectionHeaderRows.value
+        ),
       onScroll,
       onCellInput,
     };
@@ -128,6 +166,7 @@ export default {
                 v-for="col in columns"
                 :key="'letter-' + col"
                 class="col-letter"
+                :class="{ 'col-sticky-date': isStickyDateCol(col) }"
                 :style="colStyle(col)"
               >{{ col }}</th>
             </tr>
@@ -137,6 +176,7 @@ export default {
                 v-for="col in columns"
                 :key="'h1-' + col"
                 class="col-hdr"
+                :class="{ 'col-sticky-date': isStickyDateCol(col) }"
                 :style="colStyle(col)"
                 :title="sheet.headers[col] || col"
               >{{ sheet.headers[col] || col }}</th>
@@ -156,7 +196,10 @@ export default {
                 v-for="col in columns"
                 :key="row + '-' + col"
                 class="data-cell"
-                :class="{ readonly: isReadonlyCell(getCell(row, col), row) }"
+                :class="{
+                  readonly: isReadonlyCell(getCell(row, col), row),
+                  'col-sticky-date': isStickyDateCol(col),
+                }"
                 :style="[colStyle(col), cellInlineStyle(row, col)]"
               >
                 <template v-if="isReadonlyCell(getCell(row, col), row)">

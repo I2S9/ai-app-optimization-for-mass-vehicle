@@ -1,5 +1,4 @@
-import { ref } from 'vue';
-import { NAV_ITEMS } from './navConfig.js?v=20260520-3';
+import { NAV_ITEMS } from './navConfig.js?v=20260520-6';
 
 export default {
   name: 'AppSidebar',
@@ -19,7 +18,12 @@ export default {
     <div class="sidebar-backdrop" :class="{ open }" @click="$emit('close')"></div>
     <aside class="app-sidebar" :class="{ open }">
       <div class="sidebar-head">
-        <strong>WGHT</strong>
+        <span class="sidebar-menu-label">Menu</span>
+        <button type="button" class="sidebar-close" aria-label="Close menu" @click="$emit('close')">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
       </div>
       <nav class="sidebar-nav">
         <button

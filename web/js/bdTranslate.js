@@ -1,0 +1,301 @@
+/** French → English for BD sheet values (headers, sections, cell text). */
+
+export const HEADER_FR_EN = {
+  Date: 'Date',
+  Projet: 'Project',
+  Silhouette: 'Silhouette',
+  'Plaque de conception': 'Design plate',
+  Hybridation: 'Hybridization',
+  Sièges: 'Seats',
+  'Spécificité technique': 'Technical spec',
+  'Charge utile': 'Payload',
+  'Pack technique': 'Technical pack',
+  Roues: 'Wheels',
+  Pôle: 'Pole',
+  Energie: 'Energy',
+  Moteur: 'Engine',
+  Boite: 'Gearbox',
+  Finition: 'Trim',
+  Equipts: 'Equipment',
+  Option: 'Option',
+  Codification: 'Codification',
+  Découpage: 'Breakdown',
+  Intitulé: 'Title',
+  BVH: 'BVH',
+  Masse: 'Mass',
+  AV: 'Front (AV)',
+  AR: 'Rear (AR)',
+  'Désignation technique': 'Technical designation',
+  Source: 'Source',
+  Pack: 'Pack',
+  Reference: 'Reference',
+  Metier: 'Trade',
+  'Positionnement en X': 'X position',
+  'Champ libre': 'Free field',
+  'CODE MODULE ': 'Module code',
+  'LOT DECPSA': 'Lot DECPSA',
+  'Type modulaire': 'Modular type',
+  'Attribut technique': 'Technical attribute',
+  'Sub-System Level1': 'Sub-system L1',
+  'Sub-System Level2': 'Sub-system L2',
+  'Sub-System Design Dpt': 'Sub-System Design Dpt',
+  'Ligne N°': 'Line #',
+  'Ligne avec formules': 'Row with formulas',
+  'A recopier': 'To copy',
+};
+
+/** CA chapter bands only (yellow). */
+export const CA_BAND_EN = {
+  '-ADAPTATION': '-ADAPTATION',
+  '-ADTH': '-ADTH',
+};
+
+/** Sub-system L1 labels (blue) — column AP / W / A. */
+export const L1_SECTION_EN = {
+  AILES: 'WINGS',
+  ALTERNATEUR: 'ALTERNATOR',
+  ASSISES: 'SEATS',
+  ATTELAGE: 'TOWING',
+  BATTERIE: 'BATTERY',
+  'BATTERIE TRACTION': 'TRACTION BATTERY',
+  'BOUCLIER AR': 'REAR BUMPER',
+  'BOUCLIER AV': 'FRONT BUMPER',
+  BV: 'GEARBOX',
+  'CAISSE EN BLANC': 'BODY IN WHITE',
+  CAPOT: 'HOOD',
+  'CIELO / TO': 'HEADLINER / SR',
+  COLONNE: 'STEERING COLUMN',
+  CONSOLE: 'CONSOLE',
+  DAE: 'EPS',
+  DEMARREUR: 'STARTER',
+  'DIVERS CAISSE': 'BODY MISC',
+  'DIVERS EE': 'EE MISC',
+  'DIVERS INT': 'INTERIOR MISC',
+  'DIVERS LAS': 'CHASSIS MISC',
+  ECLAIRAGE: 'LIGHTING',
+  'ECRAN AERO': 'AERO SCREENS',
+  ESSUYAGE: 'WIPERS',
+  'FACADE AV': 'FRONT END',
+  FAISCEAUX: 'HARNESS',
+  FREINAGE: 'BRAKING',
+  GARNISSAGE: 'TRIM',
+  GMP: 'POWERTRAIN',
+  'HAYON / COFFRE / PORTE COFFRE': 'TAILGATE / TRUNK / TRUNK LID',
+  INSONORISATION: 'INSULATION',
+  LAS: 'CHASSIS',
+  'MOYENS DE RETENU': 'RESTRAINT SYSTEMS',
+  'PARE BRISE': 'WINDSHIELD',
+  'PLANCHE DE BORD': 'INSTRUMENT PANEL',
+  'PORTES AR': 'REAR DOORS',
+  'PORTES AV': 'FRONT DOORS',
+  'SAC AR': 'REAR AIRBAG',
+  'SAC AV': 'FRONT AIRBAG',
+  TAPIS: 'CARPET',
+  TRANS: 'TRANSMISSION',
+  'VITRAGE CAISSE': 'BODY GLAZING',
+  VOLANT: 'STEERING WHEEL',
+  'SPECIFIQUE PICK-UP': 'PICK-UP SPECIFIC',
+  '-Non affecté': '-Unassigned',
+};
+
+/** Yellow section rows — exact labels from the BD template (FR + EN). */
+export const SECTION_ALLOWLIST = new Set([
+  ...Object.keys(L1_SECTION_EN),
+  ...Object.values(L1_SECTION_EN),
+  '-Non affecté',
+  '-Unassigned',
+  '_Non affecté',
+  '_Unassigned',
+]);
+
+/** Sub-system L2 (_prefix) and common AS labels. */
+export const L2_SECTION_EN = {
+  _ADDBLUE: '_ADDBLUE',
+  _CARBURANT: '_FUEL',
+  '_CIRCUIT AIR': '_AIR CIRCUIT',
+  '_CIRCUIT EAU': '_COOLANT CIRCUIT',
+  '_COMMANDE VITESSE': '_GEAR SHIFT CONTROL',
+  '_COMPRESSEUR CLIM': '_AC COMPRESSOR',
+  '_DIVERS ADTH': '_ADTH MISC',
+  _ECHAPPEMENT: '_EXHAUST',
+  '_ECRANS THERMIQUE': '_THERMAL SHIELDS',
+  _FACADE: '_FRONT END',
+  '_GROUP CLIM': '_HVAC GROUP',
+  '_GROUPE ADDITIONNEL': '_ADD-ON GROUP',
+  '_LIQUIDE ADDITIF': '_ADDITIVE FLUID',
+  '_LIQUIDE REFROIDISSEMENT': '_COOLANT',
+  _PEDALIER: '_PEDAL ASSEMBLY',
+  '_RESERVOIR ADDITIF': '_ADDITIVE TANK',
+  '_RESERVOIR CARBURANT': '_FUEL TANK',
+  '_Supports GMP': '_POWERTRAIN SUPPORTS',
+  '_Système de refroidissement par huile': '_OIL COOLING SYSTEM',
+  '_Non affecté': '_Unassigned',
+};
+
+/** Frequent cell values (exact match). */
+export const CELL_VALUE_EN = {
+  'Ligne avec formules': 'Row with formulas',
+  'A recopier': 'To copy',
+  FIN: 'END',
+  TT: 'TT',
+  'STLA/S': 'STLA/S',
+  'STLA-S': 'STLA-S',
+  'Ailes avant': 'Front wings',
+  'Ailes arrière': 'Rear wings',
+  'Avant gauche (ancien process)': 'Front left (legacy process)',
+  'Avant droite (ancien process)': 'Front right (legacy process)',
+  'Système batterie 12V': '12V battery system',
+  'Système batterie traction': 'Traction battery system',
+  'Caisse en blanc (avec peinture)': 'Body in white (with paint)',
+  'Système barre de direction': 'Steering column system',
+  'Système téléphone': 'Telephone system',
+  'Système volant': 'Steering wheel system',
+  'Système rétroviseur': 'Mirror system',
+  'Câblage de puissance': 'Power wiring',
+  'Support non utilisé': 'Unused support',
+  'Fixation non utilisée': 'Unused fixing',
+  'Ecrans aérodynamiques': 'Aerodynamic screens',
+  'SYSTÈME LAVAGE': 'WASH SYSTEM',
+  'Fixations ISOFIX': 'ISOFIX mountings',
+  'Système module de charge HT (IDCM)': 'HV charging module system (IDCM)',
+  'ASSISE AR RG2': 'REAR SEAT RG2',
+  'ASSISE AR RG3': 'REAR SEAT RG3',
+  'ASSISE AV': 'FRONT SEAT',
+  ENJO: 'HUB',
+  'ENJO CAISSE': 'BODY HUB',
+  TOLERIE: 'SHEET METAL',
+  EQUIPEMENT: 'EQUIPMENT',
+  PAVILLON: 'ROOF',
+  HABITACLE: 'CABIN',
+  COFFRE: 'TRUNK',
+  CARROSSERIE: 'BODY',
+};
+
+const LABEL_COLS = new Set(['A', 'AP', 'AS', 'W']);
+
+/** Nomination / label columns visible on structure rows (yellow & blue). */
+export function isLabelColumn(col) {
+  return LABEL_COLS.has(col);
+}
+
+export function translateValue(raw) {
+  if (raw == null || raw === '') return raw;
+  const v = String(raw).trim();
+  if (!v) return v;
+
+  if (HEADER_FR_EN[v]) return HEADER_FR_EN[v];
+  if (CA_BAND_EN[v]) return CA_BAND_EN[v];
+  if (L1_SECTION_EN[v]) return L1_SECTION_EN[v];
+  if (L2_SECTION_EN[v]) return L2_SECTION_EN[v];
+  if (CELL_VALUE_EN[v]) return CELL_VALUE_EN[v];
+
+  if (v.startsWith('_')) {
+    const key = v.toUpperCase().replace(/\s+/g, ' ');
+    for (const [fr, en] of Object.entries(L2_SECTION_EN)) {
+      if (fr.toUpperCase() === key || fr === v) return en;
+    }
+    return '_' + translateFrenchPhrase(v.slice(1));
+  }
+
+  if (v === v.toUpperCase() && /^[A-Z0-9][A-Z0-9 /\-–]+$/.test(v) && v.length >= 3) {
+    if (L1_SECTION_EN[v]) return L1_SECTION_EN[v];
+    return translateFrenchPhrase(v);
+  }
+
+  return translateFrenchPhrase(v);
+}
+
+/** Rule-based translation for remaining French phrases. */
+export function translateFrenchPhrase(text) {
+  let s = String(text);
+  const rules = [
+    [/Non affecté/gi, 'Unassigned'],
+    [/ancien process/gi, 'legacy process'],
+    [/Système/g, 'System'],
+    [/système/g, 'system'],
+    [/Arrière/gi, 'Rear'],
+    [/Avant/gi, 'Front'],
+    [/avant/gi, 'front'],
+    [/arrière/gi, 'rear'],
+    [/gauche/gi, 'left'],
+    [/droite/gi, 'right'],
+    [/Caisse en blanc/gi, 'Body in white'],
+    [/caisse/gi, 'body'],
+    [/Carrosserie/gi, 'body'],
+    [/Porte(s)?/gi, (m) => (m[1] ? 'Doors' : 'Door')],
+    [/Hayon/gi, 'Tailgate'],
+    [/Coffre/gi, 'Trunk'],
+    [/Capot/gi, 'Hood'],
+    [/Bouclier/gi, 'Bumper'],
+    [/Batterie/gi, 'Battery'],
+    [/Volant/gi, 'Steering wheel'],
+    [/Freinage/gi, 'Braking'],
+    [/Garnissage/gi, 'Trim'],
+    [/Console/gi, 'Console'],
+    [/Essuyage/gi, 'Wipers'],
+    [/Eclairage/gi, 'Lighting'],
+    [/éclairage/gi, 'lighting'],
+    [/Insonorisation/gi, 'Insulation'],
+    [/Vitrage/gi, 'Glazing'],
+    [/Tapis/gi, 'Carpet'],
+    [/Planche de bord/gi, 'Instrument panel'],
+    [/Pare brise/gi, 'Windshield'],
+    [/Pare-brise/gi, 'Windshield'],
+    [/Attelage/gi, 'Towing'],
+    [/Alternateur/gi, 'Alternator'],
+    [/Démarreur/gi, 'Starter'],
+    [/Colonne/gi, 'Column'],
+    [/Ailes/gi, 'Wings'],
+    [/Assise/gi, 'Seat'],
+    [/Assises/gi, 'Seats'],
+    [/Fixation/gi, 'Mounting'],
+    [/Fixations/gi, 'Mountings'],
+    [/Support/gi, 'Support'],
+    [/Réfroidissement/gi, 'Cooling'],
+    [/refroidissement/gi, 'cooling'],
+    [/Carburant/gi, 'Fuel'],
+    [/Additif/gi, 'Additive'],
+    [/additif/gi, 'additive'],
+    [/Huile/gi, 'Oil'],
+    [/Clim/gi, 'HVAC'],
+    [/Groupe/gi, 'Group'],
+    [/Circuit/gi, 'Circuit'],
+    [/Réservoir/gi, 'Tank'],
+    [/Commande/gi, 'Control'],
+    [/Vitesse/gi, 'Speed'],
+    [/Échappement/gi, 'Exhaust'],
+    [/Echappement/gi, 'Exhaust'],
+    [/Pédalier/gi, 'Pedal assembly'],
+    [/Façade/gi, 'Front end'],
+    [/Facade/gi, 'Front end'],
+    [/Écran/gi, 'Screen'],
+    [/Ecran/gi, 'Screen'],
+    [/aérodynamique/gi, 'aerodynamic'],
+    [/Aéro/gi, 'Aero'],
+    [/Divers/gi, 'Misc'],
+    [/Equipement/gi, 'Equipment'],
+    [/Équipement/gi, 'Equipment'],
+    [/Tolerie/gi, 'Sheet metal'],
+    [/Habitacle/gi, 'Cabin'],
+    [/Pavillon/gi, 'Roof'],
+    [/Câblage/gi, 'Wiring'],
+    [/puissance/gi, 'power'],
+    [/utilisé(e)?/gi, 'used'],
+    [/non utilisé/gi, 'unused'],
+    [/avec peinture/gi, 'with paint'],
+    [/barre de direction/gi, 'steering column'],
+    [/téléphone/gi, 'telephone'],
+    [/rétroviseur/gi, 'mirror'],
+    [/lavage/gi, 'wash'],
+    [/modulaire/gi, 'modular'],
+    [/technique/gi, 'technical'],
+    [/thermique/gi, 'thermal'],
+    [/additionnel/gi, 'additional'],
+    [/Supports/gi, 'Supports'],
+    [/par /gi, ' / '],
+  ];
+  for (const [re, rep] of rules) {
+    s = s.replace(re, rep);
+  }
+  return s;
+}

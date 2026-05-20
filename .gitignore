@@ -9,3 +9,4 @@ web/public/data/bd-sheet.json
 __pycache__/
 .DS_Store
 Thumbs.db
+.cursorrules

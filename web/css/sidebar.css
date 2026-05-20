@@ -4,32 +4,6 @@
   display: flex;
 }
 
-.app-topbar .burger {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  width: 36px;
-  height: 32px;
-  padding: 6px;
-  margin-right: 4px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.app-topbar .burger:hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.app-topbar .burger span {
-  display: block;
-  height: 2px;
-  background: #fff;
-  border-radius: 1px;
-}
-
 .sidebar-backdrop {
   display: none;
   position: fixed;
@@ -64,9 +38,36 @@
 }
 
 .sidebar-head {
-  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-  font-size: 15px;
+}
+
+.sidebar-menu-label {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.sidebar-close:hover {
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .sidebar-nav {
