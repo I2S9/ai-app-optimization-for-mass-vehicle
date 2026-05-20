@@ -11,8 +11,9 @@ import {
   isTitleMarkerRow,
   rowStyleClass,
   cellInlineStyle,
+  projectCellClass,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=calc-syn5';
+} from './bdStore.js?v=calc-syn6';
 const ROW_H = 21;
 const BUFFER = 12;
 export default {
@@ -189,6 +190,7 @@ export default {
       cellReadonly,
       rowStyleClass: (row) =>
         rowStyleClass(cellMap.value, row, sectionHeaderRows.value),
+      projectCellClass,
       cellInlineStyle: (row, col) =>
         cellInlineStyle(
           getCell(cellMap.value, row, col),
@@ -242,10 +244,13 @@ export default {
                 v-for="col in columns"
                 :key="entry.excelRow + '-' + col"
                 class="data-cell"
-                :class="{
-                  readonly: cellReadonly(entry.excelRow, col),
-                  'col-sticky-date': isStickyDateCol(col),
-                }"
+                :class="[
+                  {
+                    readonly: cellReadonly(entry.excelRow, col),
+                    'col-sticky-date': isStickyDateCol(col),
+                  },
+                  projectCellClass(cellDisplay(entry.excelRow, col), col),
+                ]"
                 :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"
               >
                 <template v-if="cellReadonly(entry.excelRow, col)">

@@ -36,21 +36,55 @@ function parseSharedStrings(xml) {
   }
   return strings;
 }
+/** Default Excel indexed palette (OOXML spec). */
+const EXCEL_INDEXED = [
+  '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+  '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+  '#800000', '#008000', '#000080', '#808000', '#800080', '#008080', '#C0C0C0', '#808080',
+  '#9999FF', '#993366', '#FFFFCC', '#CCFFFF', '#660066', '#FF8080', '#0066CC', '#CCCCFF',
+  '#000080', '#FF00FF', '#FFFF00', '#00FFFF', '#800080', '#800000', '#008080', '#0000FF',
+  '#00CCFF', '#CCFFFF', '#CCFFCC', '#FFFF99', '#99CCFF', '#FF99CC', '#CC99FF', '#FFCC99',
+  '#3366FF', '#33CCCC', '#99CC00', '#FFCC00', '#FF9900', '#FF6600', '#666699', '#969696',
+  '#003366', '#339966', '#003300', '#333300', '#993300', '#993366', '#333399', '#333333',
+  '#000000', '#FFFFFF',
+];
+
+function resolveColor(attrs, themeColors) {
+  if (!attrs) return null;
+  const rgb = attrs.match(/rgb="([^"]+)"/)?.[1];
+  if (rgb) return '#' + rgb.replace(/^FF/i, '').slice(-6);
+  const idx = attrs.match(/indexed="(\d+)"/)?.[1];
+  if (idx != null && EXCEL_INDEXED[+idx]) return EXCEL_INDEXED[+idx];
+  const theme = attrs.match(/theme="(\d+)"/)?.[1];
+  if (theme != null && themeColors[+theme]) return themeColors[+theme];
+  return null;
+}
+
+function parseThemeColors(stylesXml) {
+  const themeColors = [];
+  const scheme = stylesXml.match(/<clrScheme[^>]*>([\s\S]*?)<\/clrScheme>/);
+  if (!scheme) return themeColors;
+  for (const m of scheme[1].matchAll(/<a:srgbClr val="([^"]+)"/g)) {
+    themeColors.push('#' + m[1]);
+  }
+  for (const m of scheme[1].matchAll(/<srgbClr val="([^"]+)"/g)) {
+    themeColors.push('#' + m[1]);
+  }
+  return themeColors;
+}
+
 function parseStyles(stylesXml) {
+  const themeColors = parseThemeColors(stylesXml);
   const fills = [{ fg: null, bg: null }];
   const fillRe = /<fill>([\s\S]*?)<\/fill>/g;
   let fm;
   while ((fm = fillRe.exec(stylesXml)) !== null) {
     const block = fm[1];
-    const fg =
-      block.match(/<fgColor[^>]*rgb="([^"]+)"/)?.[1] ||
-      block.match(/<fgColor[^>]*indexed="(\d+)"/)?.[1];
-    const bg =
-      block.match(/<bgColor[^>]*rgb="([^"]+)"/)?.[1] ||
-      block.match(/<bgColor[^>]*indexed="(\d+)"/)?.[1];
+    const fgAttrs = block.match(/<fgColor([^/]*)\/?>/)?.[1];
+    const bgAttrs = block.match(/<bgColor([^/]*)\/?>/)?.[1];
     fills.push({
-      fg: fg ? (fg.length === 6 ? '#' + fg : fg) : null,
-      bg: bg ? (bg.length === 6 ? '#' + bg : bg) : null,
+      fg: resolveColor(fgAttrs, themeColors),
+      bg: resolveColor(bgAttrs, themeColors),
     });
   }
   const fonts = [{}];

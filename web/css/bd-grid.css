@@ -33,6 +33,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
 }
 /* Frozen row numbers */
 .bd-table th.corner,
@@ -77,9 +78,17 @@
 .bd-table tbody tr.row-recopier td.col-sticky-date {
   background: #fff;
 }
+/* STLA/S data rows — green band (Excel) */
+.bd-table tbody tr.row-date-green td.data-cell,
 .bd-table tbody tr.row-date-green td.col-sticky-date,
+.bd-table tbody tr.row-date-green td.data-cell.readonly,
 .bd-table tbody tr.row-date-green td.col-sticky-date.readonly {
   background: #c6efce;
+}
+/* Vehicle / project header rows (SPC, TARGET, no STLA/S in A) */
+.bd-table tbody tr.row-project-config td.col-sticky-date,
+.bd-table tbody tr.row-project-config td.col-sticky-date.readonly {
+  background: #e2efda;
 }
 .bd-table tbody tr.row-separator td.col-sticky-date {
   background: #1f3864;
@@ -204,6 +213,62 @@
 .bd-table tbody td.data-cell.readonly span {
   display: block;
   padding: 0 4px;
+  text-align: center;
+}
+/* Project columns B–P (row 5 legend + STLA/S blocks) */
+.bd-table tbody td.cell-proj-tt,
+.bd-table tbody td.cell-proj-tt.readonly {
+  background: #d9d9d9 !important;
+  color: #000;
+  font-weight: 600;
+}
+.bd-table tbody td.cell-proj-spc,
+.bd-table tbody td.cell-proj-spc.readonly {
+  background: #fff2cc !important;
+  color: #000;
+  font-weight: 600;
+}
+.bd-table tbody td.cell-proj-energy,
+.bd-table tbody td.cell-proj-energy.readonly {
+  background: #c6e0b4 !important;
+  color: #000;
+  font-weight: 600;
+}
+.bd-table tbody td.cell-proj-target,
+.bd-table tbody td.cell-proj-target.readonly {
+  background: #bdd7ee !important;
+  color: #000;
+  font-weight: 700;
+}
+.bd-table tbody td.cell-proj-status,
+.bd-table tbody td.cell-proj-status.readonly {
+  background: #a9d08e !important;
+  color: #000;
+  font-weight: 700;
+}
+.bd-table tbody td.cell-proj-drivetrain,
+.bd-table tbody td.cell-proj-drivetrain.readonly {
+  background: #ddebf7 !important;
+  color: #000;
+}
+.bd-table tbody td.cell-proj-ptf,
+.bd-table tbody td.cell-proj-ptf.readonly {
+  background: #f4b084 !important;
+  color: #000;
+  font-weight: 600;
+}
+.bd-table tbody td.cell-proj-value,
+.bd-table tbody td.cell-proj-value.readonly {
+  background: #f2f2f2 !important;
+  color: #000;
+}
+.bd-table tbody tr.row-section td.cell-proj-tt,
+.bd-table tbody tr.row-section td.cell-proj-energy,
+.bd-table tbody tr.row-section td.cell-proj-spc,
+.bd-table tbody tr.row-section td.cell-proj-target,
+.bd-table tbody tr.row-section td.cell-proj-status,
+.bd-table tbody tr.row-section td.cell-proj-value {
+  background-color: #ffff00 !important;
 }
 .bd-spacer-top {
   height: 0;

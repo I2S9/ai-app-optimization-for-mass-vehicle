@@ -79,6 +79,33 @@ const SKIP_LABELS = new Set([
   'END',
   'FIN',
 ]);
+/** Columns B–P: project / silhouette / vehicle filters (Excel row 5 + data rows). */
+export const PROJECT_COLS = new Set([
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+]);
+const ENERGY_VALUES = new Set([
+  'BEV',
+  'HEV',
+  'MHEVP2',
+  'PHEV',
+  'ICE',
+  'MHEV',
+  'PHEV2',
+]);
 function isUnassignedSectionLabel(v) {
   const t = String(v || '').trim();
   return (
@@ -181,12 +208,41 @@ export function isStructureRow(map, row, sectionHeaderRows) {
     isSubSectionRow(map, row, sectionHeaderRows)
   );
 }
+/** Row 5: project filter legend (TT, BEV, …) under -ADAPTATION. */
+export function isProjectLegendRow(row) {
+  return row === 5;
+}
+/** Vehicle header before STLA/S lines (SPC, TARGET, mass in V…). */
+export function isProjectConfigRow(map, row, sectionHeaderRows) {
+  if (isStructureRow(map, row, sectionHeaderRows)) return false;
+  if (isDataGreenColA(map, row, sectionHeaderRows)) return false;
+  if (isProjectLegendRow(row)) return true;
+  const i = displayValue(getCell(map, row, 'I'));
+  if (i === 'TARGET' || i === 'STATUS') return true;
+  const b = displayValue(getCell(map, row, 'B'));
+  if (b && b !== 'TT' && b !== '0' && !String(b).startsWith('_')) return true;
+  const c = displayValue(getCell(map, row, 'C'));
+  if (c && c !== 'TT' && c !== '0') return true;
+  return false;
+}
+function isSignificantDataRow(map, row, sectionHeaderRows) {
+  if (isStructureRow(map, row, sectionHeaderRows)) return false;
+  const v = displayValue(getCell(map, row, 'V'));
+  if (v && v !== '0' && !String(v).startsWith('#')) return true;
+  const s = displayValue(getCell(map, row, 'S'));
+  if (s && s !== '0' && !String(s).startsWith('#')) return true;
+  const ae = displayValue(getCell(map, row, 'AE'));
+  if (ae && ae !== '0') return true;
+  return isProjectConfigRow(map, row, sectionHeaderRows);
+}
 export function shouldDisplayBodyRow(map, row, sheet) {
   const dataStart = sheet.dataStartRow || 6;
-  if (row < dataStart && !isStructureRow(map, row, sheet.sectionHeaderRows)) {
-    return false;
-  }
-  return hasFrozenTitle(map, row, sheet);
+  const sh = sheet.sectionHeaderRows;
+  if (row < dataStart && !isStructureRow(map, row, sh)) return false;
+  if (isStructureRow(map, row, sh)) return true;
+  if (colATitle(map, row)) return true;
+  if (isSignificantDataRow(map, row, sh)) return true;
+  return false;
 }
 /** Body rows for the grid — skips untitled white lines; consecutive display numbers. */
 export function computeBodyDisplayRows(sheet) {
@@ -265,8 +321,23 @@ export function rowStyleClass(map, row, sectionHeaderRows) {
   if (isFinDeLotRow(map, row)) return 'row-fin-lot';
   if (isRecopierRow(map, row, sectionHeaderRows)) return 'row-recopier';
   if (isDataGreenColA(map, row, sectionHeaderRows)) return 'row-date-green';
+  if (isProjectConfigRow(map, row, sectionHeaderRows)) return 'row-project-config';
   if (shouldDateColBlue(map, row, sectionHeaderRows)) return 'row-date-blue';
   return '';
+}
+/** Semantic fill for project columns (SPC, TT, BEV, TARGET…). */
+export function projectCellClass(displayText, col) {
+  if (!PROJECT_COLS.has(col) || !displayText) return '';
+  const v = String(displayText).trim().toUpperCase();
+  if (!v) return '';
+  if (v === 'TT') return 'cell-proj-tt';
+  if (v === 'TARGET') return 'cell-proj-target';
+  if (v === 'STATUS') return 'cell-proj-status';
+  if (v === 'SPC' || /^SP\d+$/.test(v) || v === 'SP1' || v === 'SP2') return 'cell-proj-spc';
+  if (ENERGY_VALUES.has(v)) return 'cell-proj-energy';
+  if (v === 'FWD' || v === 'AWD' || v === 'RWD') return 'cell-proj-drivetrain';
+  if (v === 'PTF') return 'cell-proj-ptf';
+  return 'cell-proj-value';
 }
 /** Title-only markers (blue / fin de lot / to copy) — no project data. */
 export function isTitleMarkerRow(map, row, sectionHeaderRows) {
@@ -301,6 +372,11 @@ export function cellInlineStyle(cell, map, row, col, sectionHeaderRows) {
   if (cell?.bg) style.backgroundColor = cell.bg;
   if (cell?.fc) style.color = cell.fc;
   const cls = rowStyleClass(map, row, sectionHeaderRows);
+  if (cls === 'row-date-green' || cls === 'row-project-config') {
+    if (col === 'A' || PROJECT_COLS.has(col)) {
+      if (col === 'A') style.backgroundColor = '#c6efce';
+    }
+  }
   if (col === 'A' && isDataGreenColA(map, row, sectionHeaderRows)) {
     style.backgroundColor = '#c6efce';
   }
@@ -355,11 +431,18 @@ function structureBookmarkDisplay(
   }
   return '';
 }
-/** Hide TT / project fillers on data rows only. */
+/** Hide TT / 0 only on inherited filler rows — keep on STLA/S & project rows. */
 function maskStructureValue(map, row, col, v, sectionHeaderRows) {
   if (isStructureRow(map, row, sectionHeaderRows)) return v;
+  if (isProjectLegendRow(row)) return v;
+  if (isDataGreenColA(map, row, sectionHeaderRows)) return v;
+  if (isProjectConfigRow(map, row, sectionHeaderRows)) return v;
   if (v === 'TT' || v === '0') return '';
   return v;
+}
+function projectLegendDisplay(map, row, col) {
+  if (!isProjectLegendRow(row) || !PROJECT_COLS.has(col)) return null;
+  return displayValue(getCell(map, row, col)) || '';
 }
 function isInheritedBandOrSection(v) {
   if (!v) return false;
@@ -426,6 +509,8 @@ export function displayCellValue(
   canonicalSectionByLabel
 ) {
   const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
+  const legend = projectLegendDisplay(map, row, col);
+  if (legend !== null) return legend;
   const bookmark = structureBookmarkDisplay(
     map,
     row,
