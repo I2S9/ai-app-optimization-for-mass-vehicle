@@ -2,18 +2,29 @@
  * Synthesis grid — Excel A–E hidden; display letters F→A, G→B, …
  */
 import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from 'vue';
-import { getCell } from './bdStore.js?v=syn-perf5';
+import { getCell } from './bdStore.js?v=syn-perf30';
 import {
   computeSynBodyRows,
   synDisplayValue,
   synIsReadonly,
+  buildSynPillarColumns,
+  synCellInlineStyle,
   synProjectCellClass,
+  synMetricCellClass,
   synRowStyleClass,
-} from './synStore.js?v=syn-perf5';
+  isSynPillarCol,
+  isSynPillarColAtRow,
+  synPillarLetterForRow,
+  isSynMetricRow,
+  isSynHeaderPanelRow,
+} from './synStore.js?v=syn-perf30';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
-} from './synthesisPerf.js?v=syn-perf5';
+  synStickyColWidth,
+  SYN_PILLAR_COL_WIDTH,
+} from './synthesisPerf.js?v=syn-perf30';
+import { isSumproductCell } from './synthesisCalc.js?v=syn-perf30';
 
 const ROW_H = 21;
 const ROW_NUM_W = 56;
@@ -36,19 +47,35 @@ export default {
     const viewportW = ref(1000);
     const cellMap = shallowRef(props.sheet?.cellMap || new Map());
 
+    const pillarColumns = computed(() => {
+      const raw = props.sheet?.pillarColumns;
+      if (raw && Object.keys(raw).length) {
+        return new Map(Object.entries(raw).map(([col, meta]) => [col, meta]));
+      }
+      return buildSynPillarColumns(props.sheet, cellMap.value);
+    });
+
     const displayColumns = computed(() => props.sheet.columns || []);
 
     const widthByCol = computed(() => {
       const m = new Map();
+      const labelW = synStickyColWidth(props.sheet);
       for (const w of props.sheet.colWidths || []) {
-        m.set(w.col, Math.min(w.width || 64, 100));
+        if (w.col === SYN_STICKY_COL) continue;
+        const wPx = pillarColumns.value.has(w.col)
+          ? SYN_PILLAR_COL_WIDTH
+          : Math.min(w.width || 64, 100);
+        m.set(w.col, wPx);
       }
       for (const col of displayColumns.value) {
-        if (!m.has(col)) {
-          m.set(col, col === SYN_STICKY_COL ? 160 : 54);
+        if (!m.has(col) && col !== SYN_STICKY_COL) {
+          m.set(
+            col,
+            pillarColumns.value.has(col) ? SYN_PILLAR_COL_WIDTH : 54
+          );
         }
       }
-      m.set(SYN_STICKY_COL, Math.max(m.get(SYN_STICKY_COL) || 160, 160));
+      m.set(SYN_STICKY_COL, labelW);
       return m;
     });
 
@@ -164,6 +191,8 @@ export default {
     }
 
     function cellReadonly(row, col) {
+      if (row == null) return true;
+      if (isSynPillarColAtRow(col, row, pillarColumns.value)) return true;
       const cell = getCell(cellMap.value, row, col);
       return Boolean(cell?.f) || synIsReadonly(cell, row, props.sheet);
     }
@@ -178,20 +207,115 @@ export default {
     }
 
     function cellDisplay(row, col) {
+      if (row == null) return '';
+      if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
+        return synPillarLetterForRow(
+          row,
+          col,
+          pillarColumns.value,
+          cellMap.value,
+          props.sheet
+        );
+      }
       const cell = getCell(cellMap.value, row, col);
-      if (!cell) return '';
-      if (cell.v != null && cell.v !== '') return formatVal(cell.v);
-      if (cell.f === 'SUMPRODUCT') return '0';
-      return formatVal(synDisplayValue(cell, cellMap.value, row, col));
+      if (props.session?.getDisplayValue) {
+        const fromSession = props.session.getDisplayValue(
+          'SYNTHESIS',
+          row,
+          col,
+          cell
+        );
+        if (fromSession != null && fromSession !== '') {
+          if (isSynMetricRow(row)) {
+            return synDisplayValue(
+              { ...cell, v: fromSession },
+              cellMap.value,
+              row,
+              col,
+              props.sheet,
+              pillarColumns.value
+            );
+          }
+          return formatVal(fromSession);
+        }
+      }
+      if (!cell) {
+        return formatVal(
+          synDisplayValue(cell, cellMap.value, row, col, props.sheet, pillarColumns.value)
+        );
+      }
+      if (cell.v != null && cell.v !== '' && !isSynMetricRow(row) && !isSumproductCell(cell)) {
+        return formatVal(cell.v);
+      }
+      const shown = synDisplayValue(
+        cell,
+        cellMap.value,
+        row,
+        col,
+        props.sheet,
+        pillarColumns.value
+      );
+      if (isSynMetricRow(row)) return shown;
+      return formatVal(shown);
     }
 
-    function rowClass(row) {
-      return synRowStyleClass(cellMap.value, row, props.sheet);
+    function headerEdgeRight(row, colIdx, colsLen) {
+      return isSynHeaderPanelRow(row) && colsLen > 0 && colIdx === colsLen - 1;
+    }
+
+    function headerLabelEdgeRight(row) {
+      return isSynHeaderPanelRow(row) && visibleScrollCols.value.length === 0;
+    }
+
+    function entryRowClasses(entry) {
+      if (entry.gapAfterPanel) return ['syn-panel-gap-row', 'syn-panel-gap'];
+      const row = entry.excelRow;
+      const cls = synRowStyleClass(cellMap.value, row, props.sheet);
+      const list = [cls];
+      if (isSynHeaderPanelRow(row)) list.push('syn-header-block');
+      if (row >= 3 && row <= 14) list.push('syn-filter-band');
+      if (row >= 15 && row <= 22) list.push('syn-metric-band');
+      if (row === 16 || row === 18) list.push('syn-metric-curb');
+      if (row === 3) list.push('syn-header-edge-top');
+      if (row === 22) list.push('syn-header-panel-end');
+      return list;
+    }
+
+    function isGapEntry(entry) {
+      return Boolean(entry.gapAfterPanel);
+    }
+
+    function pillarTitle(col) {
+      return pillarColumns.value.get(col)?.title ?? '';
+    }
+
+    function cellInlineStyle(row, col) {
+      const cell = getCell(cellMap.value, row, col);
+      return synCellInlineStyle(
+        cell,
+        cellMap.value,
+        row,
+        col,
+        props.sheet,
+        pillarColumns.value
+      );
     }
 
     function cellExtraClass(row, col, display) {
-      const rc = rowClass(row);
-      if (rc === 'syn-row-section' || rc === 'syn-row-subsection') return '';
+      if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
+        return display ? 'syn-pillar-has-char' : '';
+      }
+      const rc = synRowStyleClass(cellMap.value, row, props.sheet);
+      if (
+        rc === 'syn-row-section' ||
+        rc === 'syn-row-subsection' ||
+        rc === 'syn-row-separator'
+      ) {
+        return '';
+      }
+      if (isSynMetricRow(row)) {
+        return synMetricCellClass(row, col, display) || '';
+      }
       return synProjectCellClass(display, col);
     }
 
@@ -236,8 +360,16 @@ export default {
       stickyStyle,
       cellDisplay,
       cellReadonly,
-      rowClass,
+      entryRowClasses,
+      isGapEntry,
+      pillarTitle,
+      isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
+      isSynPillarColAtRow: (col, row) =>
+        isSynPillarColAtRow(col, row, pillarColumns.value),
+      cellInlineStyle,
       cellExtraClass,
+      headerEdgeRight,
+      headerLabelEdgeRight,
       onScroll,
       onCellInput,
     };
@@ -268,25 +400,6 @@ export default {
               >{{ entry.letter }}</th>
               <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
             </tr>
-            <tr class="hdr-row-1">
-              <th class="corner syn-row-num-hdr">1</th>
-              <th
-                v-for="entry in pinnedCols"
-                :key="'H-' + entry.col"
-                class="col-hdr col-sticky-label"
-                :style="[colStyle(entry.col, entry.width), stickyStyle(entry.col)]"
-                :title="sheet.headers[entry.col] || entry.letter"
-              >{{ sheet.headers[entry.col] || entry.letter }}</th>
-              <th v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></th>
-              <th
-                v-for="entry in visibleScrollCols"
-                :key="'H-' + entry.col"
-                class="col-hdr"
-                :style="colStyle(entry.col, entry.width)"
-                :title="sheet.headers[entry.col] || entry.letter"
-              >{{ sheet.headers[entry.col] || entry.letter }}</th>
-              <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
-            </tr>
           </thead>
           <tbody>
             <tr v-if="topSpacer > 0" class="bd-spacer-top">
@@ -294,22 +407,32 @@ export default {
             </tr>
             <tr
               v-for="entry in visibleRows"
-              :key="entry.excelRow"
-              :class="rowClass(entry.excelRow)"
+              :key="entry.gapAfterPanel ? 'panel-gap-after-22' : entry.excelRow"
+              :class="entryRowClasses(entry)"
             >
               <td class="row-num syn-row-num">{{ entry.displayRow }}</td>
               <td
                 v-for="p in pinnedCols"
-                :key="entry.excelRow + '-p-' + p.col"
+                :key="(entry.gapAfterPanel ? 'gap' : entry.excelRow) + '-p-' + p.col"
                 class="data-cell col-sticky-label syn-label-col"
                 :class="[
                   { readonly: cellReadonly(entry.excelRow, p.col) },
-                  cellExtraClass(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col)),
+                  isGapEntry(entry)
+                    ? ''
+                    : cellExtraClass(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col)),
+                  {
+                    'syn-header-edge-right':
+                      !isGapEntry(entry) && headerLabelEdgeRight(entry.excelRow),
+                  },
                 ]"
-                :style="[colStyle(p.col, p.width), stickyStyle(p.col)]"
+                :style="[
+                  colStyle(p.col, p.width),
+                  stickyStyle(p.col),
+                  isGapEntry(entry) ? {} : cellInlineStyle(entry.excelRow, p.col),
+                ]"
               >
-                <template v-if="cellReadonly(entry.excelRow, p.col)">
-                  <span>{{ cellDisplay(entry.excelRow, p.col) }}</span>
+                <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, p.col)">
+                  <span>{{ isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, p.col) }}</span>
                 </template>
                 <input
                   v-else
@@ -320,17 +443,36 @@ export default {
               </td>
               <td v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></td>
               <td
-                v-for="colEntry in visibleScrollCols"
-                :key="entry.excelRow + '-' + colEntry.col"
+                v-for="(colEntry, colIdx) in visibleScrollCols"
+                :key="(entry.gapAfterPanel ? 'gap' : entry.excelRow) + '-' + colEntry.col"
                 class="data-cell"
                 :class="[
                   { readonly: cellReadonly(entry.excelRow, colEntry.col) },
-                  cellExtraClass(entry.excelRow, colEntry.col, cellDisplay(entry.excelRow, colEntry.col)),
+                  isGapEntry(entry)
+                    ? ''
+                    : cellExtraClass(
+                        entry.excelRow,
+                        colEntry.col,
+                        cellDisplay(entry.excelRow, colEntry.col)
+                      ),
+                  {
+                    'syn-pillar-col':
+                      !isGapEntry(entry) &&
+                      isSynPillarColAtRow(colEntry.col, entry.excelRow),
+                    'syn-header-edge-right':
+                      !isGapEntry(entry) &&
+                      headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
+                  },
                 ]"
-                :style="colStyle(colEntry.col, colEntry.width)"
+                :style="[
+                  colStyle(colEntry.col, colEntry.width),
+                  isGapEntry(entry) ? {} : cellInlineStyle(entry.excelRow, colEntry.col),
+                ]"
               >
-                <template v-if="cellReadonly(entry.excelRow, colEntry.col)">
-                  <span>{{ cellDisplay(entry.excelRow, colEntry.col) }}</span>
+                <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, colEntry.col)">
+                  <span>{{
+                    isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, colEntry.col)
+                  }}</span>
                 </template>
                 <input
                   v-else

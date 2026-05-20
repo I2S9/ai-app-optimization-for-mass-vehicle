@@ -105,6 +105,7 @@ export function transformBdSheet(sheet) {
 }
 
 import { buildCellMap } from './bdStore.js';
+import { buildSynPillarColumns, computeSynEffectiveLastRow } from './synStore.js';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 
 /** Synthesis grid: columns F… only in UI (A–E hidden), cell map keeps all cols for filters. */
@@ -118,15 +119,24 @@ export function transformSynthesisSheet(sheet) {
   }
   const cells = sheet.cells || [];
   const headerRows = sheet.headerRows || {};
+  const cellMap = buildCellMap(cells, headerRows);
+  const pillarColumns = Object.fromEntries(
+    buildSynPillarColumns(sheet, cellMap)
+  );
+  const effectiveLastRow = computeSynEffectiveLastRow(sheet, cellMap);
   return {
     ...sheet,
     columns,
     headers,
     cells,
     headerRows,
-    cellMap: buildCellMap(cells, headerRows),
+    cellMap,
+    pillarColumns,
+    effectiveLastRow,
+    lastRow: effectiveLastRow,
     dataStartRow: sheet.dataStartRow || 15,
     filterRows: sheet.filterRows || [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    rowBands: sheet.rowBands || {},
     sectionHeaderRows: new Set(),
     outlineRows: [],
   };

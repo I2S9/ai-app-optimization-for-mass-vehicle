@@ -12,6 +12,7 @@ const TMP = path.join(process.env.TEMP || '/tmp', 'xlsm-bd-export');
 const OUT = path.join(ROOT, 'web', 'public', 'data', 'synthesis-sheet.json');
 const MAX_ROW = 530;
 const MAX_COL = 'NI';
+const LABEL_COL = 'F';
 
 /** Excel indexed palette (common defaults). */
 const INDEXED_COLORS = {
@@ -99,7 +100,10 @@ function parseSharedStrings(xml) {
 function resolveColor(node) {
   if (!node) return null;
   const rgb = node.match(/rgb="([^"]+)"/)?.[1];
-  if (rgb) return rgb.length === 6 ? `#${rgb}` : `#${rgb}`;
+  if (rgb) {
+    const hex = rgb.length === 8 ? rgb.slice(2) : rgb;
+    return `#${hex}`.toLowerCase();
+  }
   const indexed = node.match(/indexed="(\d+)"/)?.[1];
   if (indexed != null) return INDEXED_COLORS[indexed] ?? null;
   const theme = node.match(/theme="(\d+)"/)?.[1];
@@ -238,6 +242,7 @@ async function main() {
   const headers = {};
   const headerRows = {};
   const cells = [];
+  const labelMeta = new Map();
 
   const cellRe = /<c r="([A-Z]+\d+)"([^>]*)>([\s\S]*?)<\/c>/g;
   let m;
@@ -284,11 +289,44 @@ async function main() {
       // SUMPRODUCT strings are huge — web recalculates from BD when filters change.
       if (formula && !/SUMPRODUCT/i.test(formula)) entry.f = formula;
       else if (formula && (display == null || display === '')) entry.f = 'SUMPRODUCT';
-      if (row <= 14 && style?.backgroundColor) entry.bg = style.backgroundColor;
+      if (style?.backgroundColor) entry.bg = style.backgroundColor;
       if (style?.color) entry.fc = style.color;
       if (style?.fontWeight === 'bold') entry.b = 1;
       cells.push(entry);
+      if (col === LABEL_COL) {
+        const meta = labelMeta.get(row) || {};
+        if (display != null && display !== '') meta.label = String(display).trim();
+        if (style?.backgroundColor) meta.bg = style.backgroundColor;
+        labelMeta.set(row, meta);
+      }
     }
+  }
+
+  function classifyLabelBand(row, meta = {}) {
+    if (row === 4) return 'separator';
+    if (row >= 3 && row <= 14) return 'filter';
+    const bg = meta.bg?.toLowerCase();
+    if (
+      bg === '#ccffcc' ||
+      bg === '#ffffcc' ||
+      bg === '#ffff00' ||
+      bg === '#ff99cc'
+    ) {
+      return 'section';
+    }
+    const label = meta.label || '';
+    if (label.startsWith('_')) return 'subsection';
+    if (label.startsWith('-')) return 'section';
+    return null;
+  }
+
+  const rowBands = {};
+  for (let row = 3; row <= 14; row++) {
+    rowBands[String(row)] = row === 4 ? 'separator' : 'filter';
+  }
+  for (let row = 15; row <= MAX_ROW; row++) {
+    const band = classifyLabelBand(row, labelMeta.get(row));
+    if (band) rowBands[String(row)] = band;
   }
 
   const columns = [];
@@ -300,18 +338,79 @@ async function main() {
     width: widthByCol.get(col) || (col === 'F' ? 180 : col <= 'G' ? 72 : 56),
   }));
 
+  const FILTER_LABELS = {
+    3: 'Date',
+    4: 'Projet',
+    5: 'Silhouette',
+    6: 'Hybridation',
+    7: 'Plaque de conception',
+    8: 'Sièges',
+    9: 'Spécificité technique',
+    10: '',
+    11: 'Pôle',
+    12: 'Energie',
+    13: 'Pack technique',
+    14: 'Finition',
+  };
+  for (const [rowStr, label] of Object.entries(FILTER_LABELS)) {
+    const row = parseInt(rowStr, 10);
+    const hasF = cells.some((c) => c.r === row && c.c === LABEL_COL && c.v);
+    if (!hasF && label) {
+      cells.push({ r: row, c: LABEL_COL, v: label });
+      if (!headerRows[row]) headerRows[row] = {};
+      headerRows[row][LABEL_COL] = { v: label };
+    }
+  }
+  const METRIC_LABELS = {
+    16: 'Curb mass :',
+    17: 'PM pre-target',
+    18: 'Curb mass : last update',
+    19: 'Control',
+    20: 'Portfolio',
+    21: 'Forecast',
+    22: '% Forecast/target',
+  };
+  for (const [rowStr, label] of Object.entries(METRIC_LABELS)) {
+    const row = parseInt(rowStr, 10);
+    const hasF = cells.some((c) => c.r === row && c.c === LABEL_COL && c.v);
+    if (!hasF) {
+      cells.push({ r: row, c: LABEL_COL, v: label });
+      if (!headerRows[row]) headerRows[row] = {};
+      headerRows[row][LABEL_COL] = { v: label };
+    }
+  }
+
+  let lastUsedRow = 14;
+  for (const cell of cells) {
+    if (!cell.v && !cell.f) continue;
+    if (cell.r > lastUsedRow) lastUsedRow = cell.r;
+  }
+  for (const [rowStr, cols] of Object.entries(headerRows)) {
+    const row = parseInt(rowStr, 10);
+    if (
+      row > lastUsedRow &&
+      Object.values(cols).some((c) => c.v || c.f)
+    ) {
+      lastUsedRow = row;
+    }
+  }
+  for (const rowStr of Object.keys(rowBands)) {
+    lastUsedRow = Math.max(lastUsedRow, parseInt(rowStr, 10));
+  }
+
   const payload = {
     version: 2,
     sheet: 'SYNTHESIS',
     dataStartRow: 15,
     filterRows: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
-    lastRow: MAX_ROW,
+    lastRow: lastUsedRow,
     columns,
     colWidths: fullColWidths,
     headers,
     headerRows,
     merges,
     rowHeights,
+    rowBands,
     cells: cells.filter((c) => c.r <= MAX_ROW),
   };
 
@@ -327,6 +426,8 @@ async function main() {
     merges.length,
     'Last row:',
     MAX_ROW,
+    'Row bands:',
+    Object.keys(rowBands).length,
     'Size MB:',
     (fs.statSync(OUT).size / 1e6).toFixed(2)
   );

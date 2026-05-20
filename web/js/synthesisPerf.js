@@ -1,6 +1,16 @@
 /** Excel columns A–E hidden in UI; F→A, G→B, … */
 export const SYN_HIDDEN_COLS = new Set(['A', 'B', 'C', 'D', 'E']);
 export const SYN_STICKY_COL = 'F';
+/** Display column A (Excel F) — sub-system labels. */
+export const SYN_LABEL_COL_MIN_W = 240;
+/** SP1 / SP2 TARGET pillar — wide column for large vertical label. */
+export const SYN_PILLAR_COL_WIDTH = 72;
+
+export function synStickyColWidth(sheet) {
+  const fromSheet = sheet?.colWidths?.find((w) => w.col === SYN_STICKY_COL)?.width;
+  return Math.max(fromSheet || SYN_LABEL_COL_MIN_W, SYN_LABEL_COL_MIN_W);
+}
+
 const HIDDEN_OFFSET = 5;
 
 export function colToNum(col) {
