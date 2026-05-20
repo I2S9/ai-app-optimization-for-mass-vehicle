@@ -29,11 +29,19 @@
   line-height: 21px;
   vertical-align: middle;
 }
-.bd-table tbody td {
+.bd-table tbody td.data-cell {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+}
+/* Date column (A): left-aligned chapter / row labels */
+.bd-table tbody td.data-cell.col-sticky-date {
+  text-align: left;
+}
+.bd-table tbody td.data-cell.col-sticky-date input,
+.bd-table tbody td.data-cell.col-sticky-date.readonly span {
+  text-align: left;
 }
 /* Frozen row numbers */
 .bd-table th.corner,
@@ -201,6 +209,8 @@
   border: none;
   background: transparent;
   font: inherit;
+  font-size: 11px;
+  text-align: center;
   padding: 0 4px;
   margin: 0;
   outline: none;
@@ -212,6 +222,7 @@
 }
 .bd-table tbody td.data-cell.readonly span {
   display: block;
+  width: 100%;
   padding: 0 4px;
   text-align: center;
 }

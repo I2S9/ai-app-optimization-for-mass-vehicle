@@ -13,7 +13,7 @@ import {
   cellInlineStyle,
   projectCellClass,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=calc-syn6';
+} from './bdStore.js?v=calc-syn7';
 const ROW_H = 21;
 const BUFFER = 12;
 export default {
@@ -33,7 +33,12 @@ export default {
       buildCellMap(props.sheet.cells, props.sheet.headerRows)
     );
     const widthMap = computed(() =>
-      buildWidthMap(props.sheet.colWidths, props.sheet.columns, props.sheet.headers)
+      buildWidthMap(
+        props.sheet.colWidths,
+        props.sheet.columns,
+        props.sheet.headers,
+        props.sheet.cells
+      )
     );
     const bodyRows = computed(() => {
       if (props.sheetName === 'SYNTHESIS') {
@@ -248,9 +253,11 @@ export default {
                   {
                     readonly: cellReadonly(entry.excelRow, col),
                     'col-sticky-date': isStickyDateCol(col),
+                    'col-free-field': col === 'AE',
                   },
                   projectCellClass(cellDisplay(entry.excelRow, col), col),
                 ]"
+                :title="col === 'AE' ? cellDisplay(entry.excelRow, col) : undefined"
                 :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"
               >
                 <template v-if="cellReadonly(entry.excelRow, col)">

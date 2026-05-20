@@ -25,8 +25,19 @@ export function buildCellMap(cells, headerRows = {}) {
   }
   return map;
 }
-export function buildWidthMap(colWidths, columns, headers = {}) {
+/** Column AE ("Free field") — long text; width from longest cell value. */
+export function measureFreeFieldWidth(cells = []) {
+  let maxLen = String('Free field').length;
+  for (const cell of cells) {
+    if (cell.c !== 'AE' || cell.v == null || cell.v === '') continue;
+    maxLen = Math.max(maxLen, String(cell.v).length);
+  }
+  return Math.min(720, Math.max(420, Math.ceil(maxLen * 6.5 + 32)));
+}
+
+export function buildWidthMap(colWidths, columns, headers = {}, cells = []) {
   const map = new Map();
+  const freeFieldWidth = measureFreeFieldWidth(cells);
   for (const w of colWidths || []) {
     map.set(w.col, w.width);
   }
@@ -35,8 +46,11 @@ export function buildWidthMap(colWidths, columns, headers = {}) {
     const fromHeader = Math.ceil(label.length * 7.5 + 24);
     const fromExcel = map.get(col) ?? 72;
     let wide = Math.max(fromExcel, fromHeader, 56);
-    if (col === 'AE') wide = Math.max(wide, 220);
-    map.set(col, Math.min(wide, col === 'AE' ? 320 : 280));
+    if (col === 'AE') {
+      map.set(col, Math.max(wide, freeFieldWidth));
+      continue;
+    }
+    map.set(col, Math.min(wide, 280));
   }
   return map;
 }
@@ -137,9 +151,17 @@ export function isSectionLabel(v) {
 export function isSubsystemL1Label(v) {
   return isSectionLabel(v);
 }
+/** Rows hidden from the grid (Excel meta + duplicate pre-band filler). */
+const HIDDEN_META_ROWS = new Set([2, 3, 138]);
 /** Yellow CA chapter bands: -ADAPTATION (row 5) and -ADTH (row 139). */
 export function isCaBandRow(map, row) {
   return row === 5 || row === 139;
+}
+/** Label in Date column on yellow CA band rows only (one row per chapter). */
+export function caChapterDateLabel(row) {
+  if (row === 5) return 'ADAPTATION';
+  if (row === 139) return 'ADTH';
+  return '';
 }
 export function isSectionBandRow(map, row) {
   return isCaBandRow(map, row);
@@ -208,15 +230,10 @@ export function isStructureRow(map, row, sectionHeaderRows) {
     isSubSectionRow(map, row, sectionHeaderRows)
   );
 }
-/** Row 5: project filter legend (TT, BEV, …) under -ADAPTATION. */
-export function isProjectLegendRow(row) {
-  return row === 5;
-}
 /** Vehicle header before STLA/S lines (SPC, TARGET, mass in V…). */
 export function isProjectConfigRow(map, row, sectionHeaderRows) {
   if (isStructureRow(map, row, sectionHeaderRows)) return false;
   if (isDataGreenColA(map, row, sectionHeaderRows)) return false;
-  if (isProjectLegendRow(row)) return true;
   const i = displayValue(getCell(map, row, 'I'));
   if (i === 'TARGET' || i === 'STATUS') return true;
   const b = displayValue(getCell(map, row, 'B'));
@@ -236,6 +253,7 @@ function isSignificantDataRow(map, row, sectionHeaderRows) {
   return isProjectConfigRow(map, row, sectionHeaderRows);
 }
 export function shouldDisplayBodyRow(map, row, sheet) {
+  if (HIDDEN_META_ROWS.has(row)) return false;
   const dataStart = sheet.dataStartRow || 6;
   const sh = sheet.sectionHeaderRows;
   if (row < dataStart && !isStructureRow(map, row, sh)) return false;
@@ -308,6 +326,7 @@ export function isDataGreenColA(map, row, sectionHeaderRows) {
 }
 /** Blue title row (full row): label in A only, no component data. */
 export function shouldDateColBlue(map, row, sectionHeaderRows) {
+  if (HIDDEN_META_ROWS.has(row)) return false;
   if (isStructureRow(map, row, sectionHeaderRows)) return false;
   if (isFinDeLotRow(map, row)) return false;
   if (isRecopierRow(map, row, sectionHeaderRows)) return false;
@@ -316,6 +335,7 @@ export function shouldDateColBlue(map, row, sectionHeaderRows) {
 }
 export function rowStyleClass(map, row, sectionHeaderRows) {
   if (isSeparatorRow(row)) return 'row-separator';
+  if (isCaBandRow(map, row)) return 'row-section';
   if (isSectionRow(map, row, sectionHeaderRows)) return 'row-section';
   if (isSubSectionRow(map, row, sectionHeaderRows)) return 'row-subsection';
   if (isFinDeLotRow(map, row)) return 'row-fin-lot';
@@ -347,14 +367,16 @@ export function isTitleMarkerRow(map, row, sectionHeaderRows) {
     isRecopierRow(map, row, sectionHeaderRows)
   );
 }
-/** Outline view (eye): yellow L1 + all blue bands (L2 and component titles). */
+/** Outline view (eye): CA bands (5/139) + yellow/blue structure rows. */
 export function isOutlineRow(map, row, sectionHeaderRows) {
+  if (HIDDEN_META_ROWS.has(row)) return false;
   return (
+    isCaBandRow(map, row) ||
     isStructureRow(map, row, sectionHeaderRows) ||
     shouldDateColBlue(map, row, sectionHeaderRows)
   );
 }
-/** Outline = yellow sections + every blue-highlighted row. */
+/** Outline = ADAPTATION/ADTH on rows 5/139 + structure rows. */
 export function computeOutlineRows(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
   const sectionRows = asSectionRowSet(
@@ -414,11 +436,13 @@ function structureBookmarkDisplay(
   if (isSectionRow(map, row, sectionHeaderRows)) {
     const title = getRowLabel(map, row, sectionHeaderRows, canonicalByLabel);
     if (!title) return '';
-    if (col === 'A') return title;
+    /* CA bands 5 / 139: Date (A) + W; row 5 sans contenu projet (TT…) */
     if (isCaBandRow(map, row)) {
+      if (col === 'A') return caChapterDateLabel(row);
       if (col === 'W') return title;
       return '';
     }
+    if (col === 'A') return title;
     if (col === 'AP' && canonicalByLabel.get(title) === row) return title;
     if (col === 'AS' && isUnassignedSectionLabel(title)) return title;
     return '';
@@ -434,15 +458,10 @@ function structureBookmarkDisplay(
 /** Hide TT / 0 only on inherited filler rows — keep on STLA/S & project rows. */
 function maskStructureValue(map, row, col, v, sectionHeaderRows) {
   if (isStructureRow(map, row, sectionHeaderRows)) return v;
-  if (isProjectLegendRow(row)) return v;
   if (isDataGreenColA(map, row, sectionHeaderRows)) return v;
   if (isProjectConfigRow(map, row, sectionHeaderRows)) return v;
   if (v === 'TT' || v === '0') return '';
   return v;
-}
-function projectLegendDisplay(map, row, col) {
-  if (!isProjectLegendRow(row) || !PROJECT_COLS.has(col)) return null;
-  return displayValue(getCell(map, row, col)) || '';
 }
 function isInheritedBandOrSection(v) {
   if (!v) return false;
@@ -509,8 +528,6 @@ export function displayCellValue(
   canonicalSectionByLabel
 ) {
   const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
-  const legend = projectLegendDisplay(map, row, col);
-  if (legend !== null) return legend;
   const bookmark = structureBookmarkDisplay(
     map,
     row,

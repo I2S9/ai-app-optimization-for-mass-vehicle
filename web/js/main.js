@@ -1,10 +1,10 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'vue';
-import BdGrid from './BdGrid.js?v=calc-syn6';
-import AppSidebar from './AppSidebar.js?v=calc-syn6';
-import EmptyPage from './EmptyPage.js?v=calc-syn6';
-import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=calc-syn6';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=calc-syn6';
-import { createWorkbookSession } from './workbookSession.js?v=calc-syn6';
+import BdGrid from './BdGrid.js?v=calc-syn7';
+import AppSidebar from './AppSidebar.js?v=calc-syn7';
+import EmptyPage from './EmptyPage.js?v=calc-syn7';
+import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=calc-syn7';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=calc-syn7';
+import { createWorkbookSession } from './workbookSession.js?v=calc-syn7';
 
 const App = {
   components: { BdGrid, AppSidebar, EmptyPage },
