@@ -1,11 +1,11 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=syn-perf30';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-perf30';
-import AppSidebar from './AppSidebar.js?v=syn-perf30';
-import EmptyPage from './EmptyPage.js?v=syn-perf30';
-import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf30';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-perf30';
-import { createWorkbookSession } from './workbookSession.js?v=syn-perf30';
+import BdGrid from './BdGrid.js?v=syn-perf32';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-perf32';
+import AppSidebar from './AppSidebar.js?v=syn-perf32';
+import EmptyPage from './EmptyPage.js?v=syn-perf32';
+import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-perf32';
+import { createWorkbookSession } from './workbookSession.js?v=syn-perf32';
 
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage },
