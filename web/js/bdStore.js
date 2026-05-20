@@ -1,7 +1,6 @@
 /** BD sheet model: row types, colors, outline filter, display. */
 import {
   translateValue,
-  isLabelColumn,
   SECTION_ALLOWLIST,
 } from './bdTranslate.js';
 export function buildCellMap(cells, headerRows = {}) {
@@ -88,6 +87,17 @@ function isUnassignedSectionLabel(v) {
     t === '-Unassigned' ||
     t === '_Unassigned'
   );
+}
+/** Blue band label: leading "_" + full uppercase (L2 and component title rows). */
+export function formatBlueBandLabel(label) {
+  const t = String(label || '').trim();
+  if (!t || isUnassignedSectionLabel(t)) return t;
+  const withPrefix = t.startsWith('_') ? t : `_${t}`;
+  return withPrefix.toUpperCase();
+}
+/** @deprecated use formatBlueBandLabel */
+export function ensureSubSectionPrefix(label) {
+  return formatBlueBandLabel(label);
 }
 /** Yellow section title — must match the official section list. */
 export function isSectionLabel(v) {
@@ -266,11 +276,14 @@ export function isTitleMarkerRow(map, row, sectionHeaderRows) {
     isRecopierRow(map, row, sectionHeaderRows)
   );
 }
-/** Outline view (eye): yellow L1 + blue L2 bands only — no white title rows. */
+/** Outline view (eye): yellow L1 + all blue bands (L2 and component titles). */
 export function isOutlineRow(map, row, sectionHeaderRows) {
-  return isStructureRow(map, row, sectionHeaderRows);
+  return (
+    isStructureRow(map, row, sectionHeaderRows) ||
+    shouldDateColBlue(map, row, sectionHeaderRows)
+  );
 }
-/** Outline = yellow section + blue sub-section structure rows. */
+/** Outline = yellow sections + every blue-highlighted row. */
 export function computeOutlineRows(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
   const sectionRows = asSectionRowSet(
@@ -291,13 +304,15 @@ export function cellInlineStyle(cell, map, row, col, sectionHeaderRows) {
   if (col === 'A' && isDataGreenColA(map, row, sectionHeaderRows)) {
     style.backgroundColor = '#c6efce';
   }
-  if (col === 'A' && cls === 'row-subsection') {
-    style.color = '#c00000';
-    style.fontWeight = 'bold';
+  if (col === 'A' && (cls === 'row-subsection' || cls === 'row-date-blue')) {
+    style.color = cls === 'row-subsection' ? '#c00000' : '#000';
+    style.fontSize = '11px';
+    style.fontWeight = '700';
   }
   if (col === 'A' && cls === 'row-section') {
     style.color = '#000';
-    style.fontWeight = 'bold';
+    style.fontSize = '11px';
+    style.fontWeight = '700';
   }
   return style;
 }
@@ -333,9 +348,9 @@ function structureBookmarkDisplay(
     return '';
   }
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
-    const title = getSubSectionLabel(map, row);
+    const title = formatBlueBandLabel(getSubSectionLabel(map, row));
     if (!title) return '';
-    if (col === 'A') return title;
+    if (col === 'A' || col === 'AS') return title;
     return '';
   }
   return '';
@@ -393,9 +408,15 @@ function maskInheritedSubSectionLabel(map, row, col, v, sectionHeaderRows) {
       const a = displayValue(getCell(map, row, 'A'));
       if (a && a.trim() === t) return '';
     }
-    return v;
+    return formatBlueBandLabel(v);
   }
   return '';
+}
+function blueTitleDisplay(map, row, col, sectionHeaderRows) {
+  if (!shouldDateColBlue(map, row, sectionHeaderRows) || col !== 'A') return null;
+  const title = colATitle(map, row);
+  if (!title) return '';
+  return formatBlueBandLabel(title);
 }
 export function displayCellValue(
   map,
@@ -413,6 +434,8 @@ export function displayCellValue(
     canonicalByLabel
   );
   if (bookmark !== null) return bookmark;
+  const blueTitle = blueTitleDisplay(map, row, col, sectionHeaderRows);
+  if (blueTitle !== null) return blueTitle;
   const cell = getCell(map, row, col);
   let v = displayValue(cell);
   if (col === 'AS' && cell && (cell.v == null || cell.v === '') && cell.f) v = '';

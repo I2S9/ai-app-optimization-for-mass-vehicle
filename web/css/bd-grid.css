@@ -159,12 +159,32 @@
   background: #ffff00;
 }
 /* Sub-sections (blue): _ADDBLUE, _FUEL, _ADTH MISC… */
-.bd-table tbody tr.row-subsection td.data-cell {
+.bd-table tbody tr.row-subsection td.data-cell,
+.bd-table tbody tr.row-subsection td.col-sticky-date,
+.bd-table tbody tr.row-subsection td.data-cell.readonly,
+.bd-table tbody tr.row-subsection td.col-sticky-date.readonly {
   background: #00b0f0;
   color: #000;
+  font-weight: 700;
+  font-size: 11px;
 }
-.bd-table tbody tr.row-subsection td.data-cell.readonly {
-  background: #00b0f0;
+.bd-table tbody tr.row-subsection td.data-cell input,
+.bd-table tbody tr.row-subsection td.data-cell.readonly span {
+  font-weight: 700;
+  font-size: 11px;
+}
+/* Title-only blue rows (component band) */
+.bd-table tbody tr.row-date-blue td.data-cell,
+.bd-table tbody tr.row-date-blue td.col-sticky-date,
+.bd-table tbody tr.row-date-blue td.data-cell.readonly,
+.bd-table tbody tr.row-date-blue td.col-sticky-date.readonly {
+  font-weight: 700;
+  font-size: 11px;
+}
+.bd-table tbody tr.row-date-blue td.data-cell input,
+.bd-table tbody tr.row-date-blue td.data-cell.readonly span {
+  font-weight: 700;
+  font-size: 11px;
 }
 .bd-table tbody td.data-cell input {
   width: 100%;

@@ -147,7 +147,7 @@ const App = {
               type="button"
               class="icon-btn icon-btn-sm"
               :class="{ active: outlineOnly }"
-              title="Show sections and sub-sections only"
+              title="Show yellow sections and blue bands only"
               aria-label="Toggle outline view"
               @click="toggleOutline"
             >
