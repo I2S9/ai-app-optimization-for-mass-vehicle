@@ -266,13 +266,11 @@ export function isTitleMarkerRow(map, row, sectionHeaderRows) {
     isRecopierRow(map, row, sectionHeaderRows)
   );
 }
+/** Outline view (eye): yellow L1 + blue L2 bands only — no white title rows. */
 export function isOutlineRow(map, row, sectionHeaderRows) {
-  return (
-    isStructureRow(map, row, sectionHeaderRows) ||
-    isTitleMarkerRow(map, row, sectionHeaderRows)
-  );
+  return isStructureRow(map, row, sectionHeaderRows);
 }
-/** Outline = structure bands + title-only marker rows. */
+/** Outline = yellow section + blue sub-section structure rows. */
 export function computeOutlineRows(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
   const sectionRows = asSectionRowSet(
