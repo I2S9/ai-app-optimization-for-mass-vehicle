@@ -20,7 +20,7 @@ import {
   bdMassCol,
   bdTitleCol,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=20260521-codif-hdr';
+} from './bdStore.js?v=20260521-mass4';
 import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
 import {
   BD_FREE_FIELD_COL,

@@ -1,6 +1,10 @@
 import { ref } from 'vue';
 import { WorkbookEngine } from './workbookEngine.js';
-import { displayValue, stripExcelErrorValue } from './bdStore.js';
+import {
+  displayValue,
+  stripExcelErrorValue,
+  formatMassDisplayValue,
+} from './bdStore.js';
 import { BD_MASS_COL } from './bdColumnConfig.js';
 import {
   buildBdColumnIndex,
@@ -112,9 +116,8 @@ export function createWorkbookSession() {
       return out;
     }
     if (sheetName === 'BD' && col === BD_MASS_COL && cell) {
-      const cached = stripExcelErrorValue(
-        cell.v != null && cell.v !== '' ? String(cell.v) : ''
-      );
+      const cached =
+        cell.v != null && cell.v !== '' ? formatMassDisplayValue(cell.v) : '';
       if (cached !== '') return cached;
     }
     if (sheetName === 'BD' && ready.value && engine.hasFormula(sheetName, row, col)) {

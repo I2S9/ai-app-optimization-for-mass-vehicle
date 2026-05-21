@@ -1,5 +1,5 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=20260521-codif-hdr';
+import BdGrid from './BdGrid.js?v=20260521-mass4';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-perf32';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';

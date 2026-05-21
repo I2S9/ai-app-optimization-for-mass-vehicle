@@ -754,14 +754,24 @@ function maskInheritedSubSectionLabel(
   }
   return '';
 }
+/** Mass column: at most 4 decimal places (Excel Masse). */
+export function formatMassDisplayValue(raw) {
+  if (raw == null || raw === '') return '';
+  const s = stripExcelErrorValue(String(raw).trim());
+  if (!s) return '';
+  if (!/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(s)) return s;
+  const n = Number(s);
+  if (Number.isNaN(n)) return s;
+  const rounded = Math.round(n * 10000) / 10000;
+  if (Number.isInteger(rounded)) return String(rounded);
+  return parseFloat(rounded.toFixed(4)).toString();
+}
 /** Excel cached mass (V) — never masked as section labels; keep 0 and negatives. */
 function massDisplayValue(map, row, col) {
   const cell = getCell(map, row, col);
   if (!cell) return '';
   if (cell.v != null && cell.v !== '') {
-    const v = stripExcelErrorValue(String(cell.v));
-    if (v !== '') return v;
-    if (cell.v === 0 || cell.v === '0') return '0';
+    return formatMassDisplayValue(cell.v);
   }
   return '';
 }
