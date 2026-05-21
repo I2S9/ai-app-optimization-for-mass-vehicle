@@ -1,6 +1,7 @@
 /** BD sheet model: row types, colors, outline filter, display. */
 import {
   translateValue,
+  translateSubsystemLabel,
   SECTION_ALLOWLIST,
 } from './bdTranslate.js';
 import {
@@ -163,7 +164,7 @@ export function buildWidthMap(
       continue;
     }
     if (col === BD_CODIFICATION_COL) {
-      map.set(col, BD_CODIFICATION_WIDTH);
+      map.set(col, Math.max(BD_CODIFICATION_WIDTH, fromHeader));
       continue;
     }
     if (col === BD_TITLE_COL) {
@@ -661,6 +662,7 @@ function structureBookmarkDisplay(
 }
 /** Hide TT / 0 only on inherited filler rows — keep on STLA/S & project rows. */
 function maskStructureValue(map, row, col, v, sectionHeaderRows) {
+  if (isMassCol(col)) return v;
   if (isStructureRow(map, row, sectionHeaderRows)) return v;
   if (isDataGreenColA(map, row, sectionHeaderRows)) return v;
   if (isProjectConfigRow(map, row, sectionHeaderRows)) return v;
@@ -670,7 +672,12 @@ function maskStructureValue(map, row, col, v, sectionHeaderRows) {
 function isInheritedBandOrSection(v) {
   if (!v) return false;
   const t = String(v).trim();
+  if (/^-?\d+(\.\d+)?$/.test(t)) return false;
   return isSectionLabel(v) || (t.startsWith('-') && t.length > 1);
+}
+/** Mass / numeric columns must not use section-label masking. */
+function isMassCol(col) {
+  return col === BD_MASS_COL;
 }
 function canonicalByLabelMap(canonicalSectionByLabel) {
   if (!canonicalSectionByLabel) return new Map();
@@ -747,6 +754,17 @@ function maskInheritedSubSectionLabel(
   }
   return '';
 }
+/** Excel cached mass (V) — never masked as section labels; keep 0 and negatives. */
+function massDisplayValue(map, row, col) {
+  const cell = getCell(map, row, col);
+  if (!cell) return '';
+  if (cell.v != null && cell.v !== '') {
+    const v = stripExcelErrorValue(String(cell.v));
+    if (v !== '') return v;
+    if (cell.v === 0 || cell.v === '0') return '0';
+  }
+  return '';
+}
 function blueTitleDisplay(map, row, col, sectionHeaderRows) {
   if (!shouldDateColBlue(map, row, sectionHeaderRows) || col !== 'A') return null;
   const title = colATitle(map, row);
@@ -768,11 +786,14 @@ export function displayCellValue(
       : canonicalByLabelMap(canonicalSectionByLabel);
 
   if (isStructureRow(map, row, sectionHeaderRows)) {
+    if (isMassCol(col)) {
+      return massDisplayValue(map, row, col);
+    }
     if (col === l1Col) {
       const cell = getCell(map, row, col);
       let v = stripExcelErrorValue(displayValue(cell));
       v = maskStructureValue(map, row, col, v, sectionHeaderRows);
-      return v ? translateValue(v) : '';
+      return v ? translateSubsystemLabel(v) : '';
     }
     const bookmark = structureBookmarkDisplay(
       map,
@@ -792,6 +813,9 @@ export function displayCellValue(
       const title = colATitle(map, row);
       return title ? formatBlueBandLabel(title) : '';
     }
+    if (isMassCol(col)) {
+      return massDisplayValue(map, row, col);
+    }
     if (
       col === l1Col ||
       col === l2Col ||
@@ -803,7 +827,7 @@ export function displayCellValue(
       if (col === l2Col && cell && (cell.v == null || cell.v === '') && cell.f) {
         v = '';
       }
-      return v || '';
+      return v ? translateSubsystemLabel(v) : '';
     }
     return '';
   }
@@ -811,13 +835,16 @@ export function displayCellValue(
   if (BD_MASS_AV_AR_COLS.has(col)) return '';
   if (BD_POSITION_COLS.has(col)) return '';
   if (col === BD_TITLE_COL) return '';
+  if (isMassCol(col)) {
+    return massDisplayValue(map, row, col);
+  }
   const cell = getCell(map, row, col);
   let v = displayValue(cell);
   v = stripExcelErrorValue(v);
   if (col === l2Col && cell && (cell.v == null || cell.v === '') && cell.f) v = '';
   if (col === l1Col) {
     v = maskStructureValue(map, row, col, v, sectionHeaderRows);
-    return v || '';
+    return v ? translateSubsystemLabel(v) : '';
   }
   if (col === l2Col) {
     v = maskStructureValue(map, row, col, v, sectionHeaderRows);
@@ -837,7 +864,7 @@ export function displayCellValue(
     ) {
       return '';
     }
-    return v || '';
+    return v ? translateSubsystemLabel(v) : '';
   }
   if (col === BD_DESIGN_DEPT_COL || col === BD_DESIGN_DEPT_COL_RAW) {
     if (
@@ -848,20 +875,22 @@ export function displayCellValue(
       return '';
     }
     if (cell?.v != null && cell.v !== '') {
-      return stripExcelErrorValue(String(cell.v));
+      return translateSubsystemLabel(stripExcelErrorValue(String(cell.v)));
     }
     return '';
   }
   v = maskStructureValue(map, row, col, v, sectionHeaderRows);
-  v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel, l1Col);
-  v = maskInheritedSubSectionLabel(
-    map,
-    row,
-    col,
-    v,
-    sectionHeaderRows,
-    l2Col
-  );
+  if (col !== l1Col && col !== l2Col && !isMassCol(col)) {
+    v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel, l1Col);
+    v = maskInheritedSubSectionLabel(
+      map,
+      row,
+      col,
+      v,
+      sectionHeaderRows,
+      l2Col
+    );
+  }
   v = maskRepeatedUnassigned(map, row, col, v, l2Col);
   if (
     isTitleMarkerRow(map, row, sectionHeaderRows) &&
@@ -870,6 +899,6 @@ export function displayCellValue(
   ) {
     return '';
   }
-  if (col !== 'A' || v) return v || '';
+  if (col !== 'A' || v) return v ? translateValue(v) : '';
   return '';
 }

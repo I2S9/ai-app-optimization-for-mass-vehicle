@@ -9,6 +9,7 @@ import {
 import {
   HEADER_FR_EN,
   translateValue,
+  translateSubsystemLabel,
 } from './bdTranslate.js';
 import { colToIndex, indexToCol } from './formulaUtil.js';
 import {
@@ -321,6 +322,7 @@ export function transformBdSheet(sheet) {
       if (isSubsystemDataCol(c.c) && entry.v != null) {
         entry.v = stripExcelErrors(String(entry.v));
         if (entry.v === '') delete entry.v;
+        else entry.v = translateSubsystemLabel(String(entry.v));
       } else if (entry.v != null && entry.v !== '') {
         const v = translateCellValue(String(entry.v), c.c);
         if (v !== entry.v) entry = { ...entry, v };
