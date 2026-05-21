@@ -624,8 +624,8 @@ function structureBookmarkDisplay(
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
     const title = formatBlueBandLabel(getSubSectionLabel(map, row, l2Col));
     if (!title) return '';
-    if (col === 'A' || col === l2Col) return title;
-    return null;
+    if (col === 'A') return title;
+    return '';
   }
   return null;
 }
@@ -732,24 +732,31 @@ export function displayCellValue(
   l1Col = BD_SUBSYSTEM_L1_COL_RAW,
   l2Col = BD_SUBSYSTEM_L2_COL
 ) {
-  if (BD_MASS_AV_AR_COLS.has(col)) return '';
   const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
-  const bookmark = structureBookmarkDisplay(
-    map,
-    row,
-    col,
-    sectionHeaderRows,
-    canonicalByLabel,
-    l1Col,
-    l2Col
-  );
-  const subsystemCol =
-    col === l1Col || col === l2Col || isDesignDeptCol(col);
-  if (bookmark != null) {
-    if (bookmark !== '' || !subsystemCol) return bookmark;
+
+  if (isStructureRow(map, row, sectionHeaderRows)) {
+    const bookmark = structureBookmarkDisplay(
+      map,
+      row,
+      col,
+      sectionHeaderRows,
+      canonicalByLabel,
+      l1Col,
+      l2Col
+    );
+    if (bookmark != null && bookmark !== '') return bookmark;
+    return '';
   }
-  const blueTitle = blueTitleDisplay(map, row, col, sectionHeaderRows);
-  if (blueTitle !== null) return blueTitle;
+
+  if (shouldDateColBlue(map, row, sectionHeaderRows)) {
+    if (col === 'A') {
+      const title = colATitle(map, row);
+      return title ? formatBlueBandLabel(title) : '';
+    }
+    return '';
+  }
+
+  if (BD_MASS_AV_AR_COLS.has(col)) return '';
   if (BD_POSITION_COLS.has(col)) return '';
   const cell = getCell(map, row, col);
   let v = displayValue(cell);

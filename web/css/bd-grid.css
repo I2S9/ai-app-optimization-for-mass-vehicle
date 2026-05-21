@@ -162,30 +162,43 @@
 }
 /* Title-only rows (blue band, full width) */
 .bd-table tbody tr.row-date-blue td.data-cell,
-.bd-table tbody tr.row-date-blue td.col-sticky-date {
-  background: #00b0f0;
-  color: #000;
-}
 .bd-table tbody tr.row-date-blue td.data-cell.readonly,
-.bd-table tbody tr.row-date-blue td.col-sticky-date.readonly {
-  background: #00b0f0;
+.bd-table tbody tr.row-date-blue td.col-sticky-date,
+.bd-table tbody tr.row-date-blue td.col-sticky-date.readonly,
+.bd-table tbody tr.row-date-blue td.cell-col-gray,
+.bd-table tbody tr.row-date-blue td.cell-col-gray.readonly,
+.bd-table tbody tr.row-date-blue td.col-data-stripe,
+.bd-table tbody tr.row-date-blue td.col-data-stripe.readonly,
+.bd-table tbody tr.row-date-blue td[class*='cell-proj-'] {
+  background: #00b0f0 !important;
+  color: #000 !important;
 }
-/* Sections (yellow): -ADAPTATION, -ADTH, AILES, ASSISES, BATTERIE… */
-.bd-table tbody tr.row-section td.data-cell {
-  background: #ffff00;
-  color: #000;
+/* Sections (yellow): full row — overrides stripes, grey cols, project fills */
+.bd-table tbody tr.row-section td.data-cell,
+.bd-table tbody tr.row-section td.data-cell.readonly,
+.bd-table tbody tr.row-section td.col-sticky-date,
+.bd-table tbody tr.row-section td.col-sticky-date.readonly,
+.bd-table tbody tr.row-section td.cell-col-gray,
+.bd-table tbody tr.row-section td.cell-col-gray.readonly,
+.bd-table tbody tr.row-section td.col-data-stripe,
+.bd-table tbody tr.row-section td.col-data-stripe.readonly,
+.bd-table tbody tr.row-section td[class*='cell-proj-'] {
+  background: #ffff00 !important;
+  color: #000 !important;
   font-weight: bold;
 }
-.bd-table tbody tr.row-section td.data-cell.readonly {
-  background: #ffff00;
-}
-/* Sub-sections (blue): _ADDBLUE, _FUEL, _ADTH MISC… */
+/* Sub-sections (blue): full row — overrides stripes, grey cols, project fills */
 .bd-table tbody tr.row-subsection td.data-cell,
-.bd-table tbody tr.row-subsection td.col-sticky-date,
 .bd-table tbody tr.row-subsection td.data-cell.readonly,
-.bd-table tbody tr.row-subsection td.col-sticky-date.readonly {
-  background: #00b0f0;
-  color: #000;
+.bd-table tbody tr.row-subsection td.col-sticky-date,
+.bd-table tbody tr.row-subsection td.col-sticky-date.readonly,
+.bd-table tbody tr.row-subsection td.cell-col-gray,
+.bd-table tbody tr.row-subsection td.cell-col-gray.readonly,
+.bd-table tbody tr.row-subsection td.col-data-stripe,
+.bd-table tbody tr.row-subsection td.col-data-stripe.readonly,
+.bd-table tbody tr.row-subsection td[class*='cell-proj-'] {
+  background: #00b0f0 !important;
+  color: #000 !important;
   font-weight: 700;
   font-size: 11px;
 }
@@ -295,15 +308,6 @@
   background: #d9d9d9 !important;
   color: #333;
 }
-.bd-table tbody tr.row-section td.cell-col-gray,
-.bd-table tbody tr.row-section td.cell-col-gray.readonly,
-.bd-table tbody tr.row-subsection td.cell-col-gray,
-.bd-table tbody tr.row-subsection td.cell-col-gray.readonly,
-.bd-table tbody tr.row-date-blue td.cell-col-gray,
-.bd-table tbody tr.row-date-blue td.cell-col-gray.readonly {
-  background: #d9d9d9 !important;
-  color: #333;
-}
 .bd-table tbody td.cell-proj-info,
 .bd-table tbody td.cell-proj-info.readonly {
   background: #b4a7d6 !important;
@@ -315,16 +319,6 @@
   background: #5b7db8 !important;
   color: #fff;
   font-weight: 600;
-}
-.bd-table tbody tr.row-section td.cell-proj-tt,
-.bd-table tbody tr.row-section td.cell-proj-energy,
-.bd-table tbody tr.row-section td.cell-proj-spc,
-.bd-table tbody tr.row-section td.cell-proj-target,
-.bd-table tbody tr.row-section td.cell-proj-status,
-.bd-table tbody tr.row-section td.cell-proj-night,
-.bd-table tbody tr.row-section td.cell-proj-info {
-  background-color: #ffff00 !important;
-  color: #000 !important;
 }
 .bd-spacer-top {
   height: 0;
