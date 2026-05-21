@@ -92,6 +92,23 @@
   background: #fafafa;
 }
 
+.matrix-sec-drop-slot {
+  height: 6px;
+  margin: 2px 0;
+  border-radius: 3px;
+  transition: height 0.12s ease, margin 0.12s ease, background 0.12s ease;
+}
+.matrix-sections.is-dragging-sec .matrix-sec-drop-slot {
+  height: 14px;
+  margin: 3px 0;
+}
+.matrix-sec-drop-slot.is-target {
+  height: 22px;
+  margin: 4px 0;
+  background: rgba(30, 58, 95, 0.12);
+  box-shadow: inset 0 0 0 2px #1e3a5f;
+}
+
 .matrix-sec-pick {
   display: flex;
   align-items: center;
@@ -115,6 +132,20 @@
 .matrix-sec-pick.is-selected {
   background: #eef3f9;
   box-shadow: inset 0 0 0 2px #1e3a5f;
+}
+.matrix-sec-pick.is-dragging {
+  opacity: 0.45;
+  border-style: dashed;
+  box-shadow: inset 0 0 0 2px #1e3a5f;
+}
+.matrix-sec-pick.is-dimmed {
+  opacity: 0.65;
+}
+.matrix-sec-pick[draggable='true'] {
+  cursor: grab;
+}
+.matrix-sec-pick:active {
+  cursor: grabbing;
 }
 .matrix-sec-pick-dot {
   flex-shrink: 0;

@@ -99,6 +99,8 @@ export default {
     const selectedIds = ref([]);
     const selectedSubIds = ref([]);
     const subAnchorId = ref(null);
+    const dragSecId = ref(null);
+    const secDropIndex = ref(null);
     const dragSubId = ref(null);
     const dragSubIds = ref([]);
     const dropTarget = ref(null);
@@ -119,6 +121,8 @@ export default {
         itemEditor.value = null;
         confirmDelete.value = null;
         dropTarget.value = null;
+        dragSecId.value = null;
+        secDropIndex.value = null;
         dragSubId.value = null;
         dragSubIds.value = [];
       },
@@ -143,6 +147,46 @@ export default {
       } else {
         selectedIds.value = [...selectedIds.value, id];
       }
+    }
+
+    function isSecDropTarget(index) {
+      return secDropIndex.value === index;
+    }
+
+    function onSecDragStart(secId, e) {
+      dragSecId.value = secId;
+      if (e?.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', secId);
+      }
+    }
+
+    function onSecDragEnd() {
+      dragSecId.value = null;
+      secDropIndex.value = null;
+    }
+
+    function onSecSlotOver(index) {
+      if (!dragSecId.value) return;
+      secDropIndex.value = index;
+    }
+
+    function clearSecDrop() {
+      secDropIndex.value = null;
+    }
+
+    function onDropSection(insertIndex) {
+      const id = dragSecId.value;
+      if (!id || !model.value) return;
+      const sections = model.value.sections;
+      const fromIdx = sections.findIndex((s) => s.id === id);
+      if (fromIdx < 0) return;
+      let idx = insertIndex == null ? sections.length : insertIndex;
+      const [item] = sections.splice(fromIdx, 1);
+      if (fromIdx < idx) idx -= 1;
+      sections.splice(idx, 0, item);
+      dragSecId.value = null;
+      secDropIndex.value = null;
     }
 
     function isEditing(kind, sectionId, subId = null) {
@@ -543,6 +587,8 @@ export default {
       selectedIds,
       selectedSections,
       selectedSubIds,
+      dragSecId,
+      secDropIndex,
       dragSubId,
       dropTarget,
       editing,
@@ -551,6 +597,12 @@ export default {
       colorPick,
       BOOKMARK_COLOR_PALETTE,
       toggleSection,
+      isSecDropTarget,
+      onSecDragStart,
+      onSecDragEnd,
+      onSecSlotOver,
+      clearSecDrop,
+      onDropSection,
       isEditing,
       startEditSection,
       commitEdit,
@@ -597,22 +649,47 @@ export default {
               >{{ saving ? 'Saving…' : 'Save' }}</button>
             </header>
             <div class="matrix-body">
-              <aside class="matrix-sections">
-                <button
-                  v-for="sec in model.sections"
-                  :key="sec.id"
-                  type="button"
-                  class="matrix-sec-pick"
-                  :class="{ 'is-selected': selectedIds.includes(sec.id) }"
-                  @click="toggleSection(sec.id)"
-                >
-                  <span
-                    class="matrix-sec-pick-dot"
-                    :class="{ 'is-on': selectedIds.includes(sec.id) }"
-                    aria-hidden="true"
-                  ></span>
-                  <span class="matrix-sec-pick-label">{{ sec.label }}</span>
-                </button>
+              <aside
+                class="matrix-sections"
+                :class="{ 'is-dragging-sec': dragSecId }"
+                @dragleave="clearSecDrop"
+              >
+                <template v-for="(sec, idx) in model.sections" :key="sec.id">
+                  <div
+                    class="matrix-sec-drop-slot"
+                    :class="{ 'is-target': isSecDropTarget(idx) }"
+                    @dragenter.prevent="onSecSlotOver(idx)"
+                    @dragover.prevent="onSecSlotOver(idx)"
+                    @drop.prevent="onDropSection(idx)"
+                  ></div>
+                  <button
+                    type="button"
+                    class="matrix-sec-pick"
+                    :class="{
+                      'is-selected': selectedIds.includes(sec.id),
+                      'is-dragging': dragSecId === sec.id,
+                      'is-dimmed': dragSecId && dragSecId !== sec.id
+                    }"
+                    draggable="true"
+                    @click="toggleSection(sec.id)"
+                    @dragstart="onSecDragStart(sec.id, $event)"
+                    @dragend="onSecDragEnd"
+                  >
+                    <span
+                      class="matrix-sec-pick-dot"
+                      :class="{ 'is-on': selectedIds.includes(sec.id) }"
+                      aria-hidden="true"
+                    ></span>
+                    <span class="matrix-sec-pick-label">{{ sec.label }}</span>
+                  </button>
+                </template>
+                <div
+                  class="matrix-sec-drop-slot matrix-sec-drop-slot-end"
+                  :class="{ 'is-target': isSecDropTarget(model.sections.length) }"
+                  @dragenter.prevent="onSecSlotOver(model.sections.length)"
+                  @dragover.prevent="onSecSlotOver(model.sections.length)"
+                  @drop.prevent="onDropSection(model.sections.length)"
+                ></div>
               </aside>
               <div class="matrix-columns">
                 <div
