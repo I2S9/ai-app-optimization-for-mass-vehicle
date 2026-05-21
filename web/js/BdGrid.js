@@ -13,10 +13,10 @@ import {
   cellInlineStyle,
   projectCellClass,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=syn-perf2';
+} from './bdStore.js?v=syn-scroll1';
+import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
 
-const ROW_H = 21;
-const BUFFER = 8;
+const ROW_OVERSCAN = 8;
 
 export default {
   name: 'BdGrid',
@@ -67,14 +67,16 @@ export default {
     });
 
     const rowCount = computed(() => bodyRows.value.length);
-    const visibleStart = computed(() => {
-      const start = Math.floor(scrollTop.value / ROW_H) - BUFFER;
-      return Math.max(0, start);
-    });
-    const visibleEnd = computed(() => {
-      const count = Math.ceil(viewportH.value / ROW_H) + BUFFER * 2;
-      return Math.min(rowCount.value, visibleStart.value + count);
-    });
+    const visibleRange = computed(() =>
+      visibleRowRange(
+        scrollTop.value,
+        viewportH.value,
+        rowCount.value,
+        ROW_OVERSCAN
+      )
+    );
+    const visibleStart = computed(() => visibleRange.value.start);
+    const visibleEnd = computed(() => visibleRange.value.end);
     const visibleRows = computed(() =>
       bodyRows.value.slice(visibleStart.value, visibleEnd.value)
     );
@@ -202,7 +204,8 @@ export default {
           cellMap.value,
           row,
           col,
-          sectionHeaderRows.value
+          sectionHeaderRows.value,
+          props.sheet.matrixColors
         ),
       onScroll,
       onCellInput,

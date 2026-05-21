@@ -360,7 +360,17 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     return style;
   }
   const rowCls = synRowStyleClass(map, row, sheet);
-  if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) return style;
+  if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) {
+    const rowColor =
+      sheet?.matrixColors?.[row] ?? sheet?.matrixColors?.[String(row)];
+    if (
+      rowColor &&
+      (rowCls === 'syn-row-section' || rowCls === 'syn-row-subsection')
+    ) {
+      style.backgroundColor = rowColor;
+    }
+    return style;
+  }
   if (cell?.b) style.fontWeight = '700';
   return style;
 }

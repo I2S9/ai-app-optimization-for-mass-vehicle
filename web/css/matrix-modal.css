@@ -1,0 +1,499 @@
+.matrix-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+.matrix-panel {
+  width: min(98vw, 1600px);
+  height: min(96vh, 960px);
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.matrix-header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #d0d0d0;
+  background: #f8f8f8;
+}
+
+.matrix-title-block {
+  text-align: center;
+  min-width: 0;
+}
+
+.matrix-close {
+  justify-self: start;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: #333;
+  border-radius: 4px;
+}
+.matrix-close:hover {
+  background: #eee;
+}
+
+.matrix-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.matrix-subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #555;
+}
+
+.matrix-save {
+  justify-self: end;
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  background: #1e3a5f;
+  color: #fff;
+  cursor: pointer;
+}
+.matrix-save:hover:not(:disabled) {
+  background: #2a5080;
+}
+.matrix-save:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.matrix-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.matrix-sections {
+  flex: 0 0 240px;
+  border-right: 1px solid #d0d0d0;
+  overflow-y: auto;
+  padding: 10px;
+  background: #fafafa;
+}
+
+.matrix-hint {
+  margin: 0 0 10px;
+  font-size: 10px;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.matrix-sec-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  padding: 2px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+}
+.matrix-sec-row.selected {
+  border-color: #1e3a5f;
+  background: rgba(30, 58, 95, 0.06);
+}
+
+.matrix-sec-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 4px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #000;
+}
+.matrix-sec-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-color-input {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid #999;
+  border-radius: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.matrix-icon-btn {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  color: #333;
+}
+.matrix-icon-btn:hover {
+  background: #eef3f9;
+  border-color: #1e3a5f;
+}
+.matrix-icon-btn-light {
+  background: rgba(255, 255, 255, 0.75);
+}
+.matrix-icon-btn-on-color {
+  background: rgba(255, 255, 255, 0.85);
+  margin-left: auto;
+}
+
+.matrix-columns {
+  flex: 1;
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.matrix-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fcfcfc;
+}
+
+.matrix-col-head {
+  padding: 8px 10px;
+  font-weight: 700;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.matrix-col-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-mini-btn {
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid #1e3a5f;
+  background: #fff;
+  color: #1e3a5f;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.matrix-mini-btn:hover {
+  background: #1e3a5f;
+  color: #fff;
+}
+
+.matrix-subs {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 120px;
+}
+
+.matrix-drop-slot {
+  position: relative;
+  height: 10px;
+  margin: 2px 0;
+  border-radius: 3px;
+  transition: height 0.12s ease, margin 0.12s ease;
+}
+.matrix-drop-slot .matrix-drop-line,
+.matrix-drop-slot .matrix-drop-hint {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.matrix-subs.is-dragging .matrix-drop-slot {
+  height: 22px;
+  margin: 4px 0;
+}
+.matrix-subs.is-dragging .matrix-drop-slot .matrix-drop-line {
+  opacity: 0.35;
+}
+.matrix-drop-slot.is-target {
+  height: 36px;
+  margin: 6px 0;
+}
+.matrix-drop-slot.is-target .matrix-drop-line {
+  opacity: 1;
+}
+.matrix-drop-slot.is-target .matrix-drop-hint {
+  opacity: 1;
+}
+
+.matrix-drop-line {
+  display: block;
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  background: #1e3a5f;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.2);
+}
+
+.matrix-drop-hint {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1e3a5f;
+  background: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid #1e3a5f;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.matrix-sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 11px;
+  cursor: grab;
+  border: 2px solid transparent;
+  transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.matrix-sub:active {
+  cursor: grabbing;
+}
+.matrix-sub.is-dragging {
+  opacity: 0.45;
+  transform: scale(0.98);
+  border-color: #1e3a5f;
+  border-style: dashed;
+}
+.matrix-sub.is-dimmed {
+  opacity: 0.55;
+}
+.matrix-sub:hover:not(.is-dragging) {
+  border-color: rgba(30, 58, 95, 0.45);
+}
+
+.matrix-drag-handle {
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 14px;
+  letter-spacing: -2px;
+  user-select: none;
+}
+
+.matrix-sub-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-empty,
+.matrix-placeholder {
+  margin: 0;
+  padding: 16px;
+  color: #666;
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.45;
+}
+
+.matrix-placeholder-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed #c8c8c8;
+  border-radius: 6px;
+  background: #fafafa;
+  padding: 24px;
+}
+
+.matrix-placeholder-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #333;
+}
+
+.matrix-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.matrix-editor {
+  width: min(420px, 96vw);
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 22px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+
+.matrix-editor-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.matrix-editor-hint {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: #555;
+  line-height: 1.4;
+}
+
+.matrix-editor-label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #444;
+}
+
+.matrix-editor-input {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.matrix-editor-input:focus {
+  outline: none;
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.15);
+}
+
+.matrix-editor-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.matrix-editor-color {
+  width: 40px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.matrix-editor-swatch {
+  width: 48px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid #999;
+}
+
+.matrix-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.matrix-editor-cancel {
+  padding: 8px 16px;
+  font-size: 13px;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+.matrix-editor-cancel:hover {
+  background: #f5f5f5;
+}
+
+.matrix-editor-apply {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  background: #1e3a5f;
+  color: #fff;
+  cursor: pointer;
+}
+.matrix-editor-apply:hover {
+  background: #2a5080;
+}
+
+.matrix-fade-enter-active,
+.matrix-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.matrix-fade-enter-active .matrix-panel,
+.matrix-fade-leave-active .matrix-panel {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.matrix-fade-enter-from,
+.matrix-fade-leave-to {
+  opacity: 0;
+}
+.matrix-fade-enter-from .matrix-panel,
+.matrix-fade-leave-to .matrix-panel {
+  transform: scale(0.96);
+  opacity: 0;
+}

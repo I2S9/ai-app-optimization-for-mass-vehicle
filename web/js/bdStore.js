@@ -391,11 +391,22 @@ export function computeOutlineRows(sheet) {
   }
   return rows;
 }
-export function cellInlineStyle(cell, map, row, col, sectionHeaderRows) {
+export function cellInlineStyle(
+  cell,
+  map,
+  row,
+  col,
+  sectionHeaderRows,
+  matrixColors
+) {
   const style = {};
   if (cell?.bg) style.backgroundColor = cell.bg;
   if (cell?.fc) style.color = cell.fc;
   const cls = rowStyleClass(map, row, sectionHeaderRows);
+  const rowColor = matrixColors?.[row] ?? matrixColors?.[String(row)];
+  if (rowColor && (cls === 'row-section' || cls === 'row-subsection')) {
+    style.backgroundColor = rowColor;
+  }
   if (cls === 'row-date-green' || cls === 'row-project-config') {
     if (col === 'A' || PROJECT_COLS.has(col)) {
       if (col === 'A') style.backgroundColor = '#c6efce';

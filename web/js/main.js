@@ -1,14 +1,16 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=syn-perf32';
+import BdGrid from './BdGrid.js?v=syn-scroll2';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-perf32';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
+import MatrixModal from './MatrixModal.js?v=matrix2';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-perf32';
 import { createWorkbookSession } from './workbookSession.js?v=syn-perf32';
+import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix2';
 
 const App = {
-  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage },
+  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
   setup() {
     const loading = ref(true);
     const synthesisLoading = ref(false);
@@ -16,6 +18,10 @@ const App = {
     const bdSheet = ref(null);
     const synthesisSheet = ref(null);
     const bdRaw = ref(null);
+    const synRaw = ref(null);
+    const matrixOpen = ref(false);
+    const matrixState = ref(null);
+    const matrixSaving = ref(false);
     const dirty = ref(0);
     const route = ref(DEFAULT_ROUTE);
     const menuOpen = ref(false);
@@ -55,6 +61,7 @@ const App = {
           return res.json();
         })
         .then((raw) => {
+          synRaw.value = raw;
           synthesisSheet.value = transformSynthesisSheet(raw);
         })
         .catch((e) => {
@@ -105,6 +112,46 @@ const App = {
       outlineOnly.value = !outlineOnly.value;
     }
 
+    async function openMatrix() {
+      if (!bdRaw.value) return;
+      await loadSynthesis();
+      matrixState.value = buildMatrixState(bdRaw.value, synRaw.value);
+      matrixOpen.value = true;
+    }
+
+    function closeMatrix() {
+      matrixOpen.value = false;
+    }
+
+    async function onMatrixSave({ bd: bdModel }) {
+      if (!bdRaw.value || matrixSaving.value) return;
+      matrixSaving.value = true;
+      try {
+        const result = applyMatrixSave(
+          bdRaw.value,
+          synRaw.value,
+          bdModel,
+          matrixState.value?.syn ?? null
+        );
+        bdRaw.value = result.bdRaw;
+        bdSheet.value = transformBdSheet(result.bdRaw);
+        if (synRaw.value && result.synRaw) {
+          synRaw.value = result.synRaw;
+          synthesisSheet.value = transformSynthesisSheet(result.synRaw);
+        }
+        if (engineStarted) {
+          await session.loadSheets([{ name: 'BD', data: bdRaw.value }]);
+        }
+        matrixOpen.value = false;
+        dirty.value += 1;
+      } catch (e) {
+        error.value = e?.message || String(e);
+        console.error('Matrix save failed:', e);
+      } finally {
+        matrixSaving.value = false;
+      }
+    }
+
     return {
       loading,
       synthesisLoading,
@@ -122,6 +169,12 @@ const App = {
       onCellChange,
       navigate,
       toggleOutline,
+      matrixOpen,
+      matrixState,
+      matrixSaving,
+      openMatrix,
+      closeMatrix,
+      onMatrixSave,
     };
   },
   template: `
@@ -146,7 +199,13 @@ const App = {
           <span v-else-if="isSynthesis" class="page-title">Synthesis</span>
           <span v-else class="page-title">{{ currentNav.label }}</span>
           <template v-if="isDatabase || isSynthesis">
-            <button type="button" class="icon-btn icon-btn-sm" title="Matrix view" aria-label="Matrix view">
+            <button
+              type="button"
+              class="icon-btn icon-btn-sm"
+              title="Structure matrix — reorder sections and sub-sections"
+              aria-label="Open structure matrix"
+              @click="openMatrix"
+            >
               <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                 <rect x="1" y="1" width="6" height="6" fill="currentColor"/>
                 <rect x="9" y="1" width="6" height="6" fill="currentColor"/>
@@ -200,6 +259,13 @@ const App = {
           <EmptyPage v-else :title="currentNav.label" />
         </main>
       </div>
+      <MatrixModal
+        :open="matrixOpen"
+        :state="matrixState"
+        :saving="matrixSaving"
+        @close="closeMatrix"
+        @save="onMatrixSave"
+      />
     </div>
   `,
 };
