@@ -276,7 +276,11 @@ export default {
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
       if (row === 16 || row === 18) list.push('syn-metric-curb');
-      if (row === 3) list.push('syn-header-edge-top');
+      if (row === 10 || row === 15) list.push('syn-header-spacer-row');
+      if (row === 9) list.push('syn-header-edge-below-spec');
+      if (row === 11) list.push('syn-header-edge-above-pole');
+      if (row === 14) list.push('syn-header-edge-below-finition');
+      if (row === 16) list.push('syn-header-edge-above-curb');
       if (row === 22) list.push('syn-header-panel-end');
       return list;
     }
