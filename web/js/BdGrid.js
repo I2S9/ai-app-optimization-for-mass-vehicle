@@ -21,7 +21,7 @@ import {
   bdMassCol,
   bdTitleCol,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=20260521-row-num-blue';
+} from './bdStore.js?v=20260521-outline-fin';
 import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
 import {
   BD_FREE_FIELD_COL,

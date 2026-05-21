@@ -486,7 +486,15 @@ export function hasFrozenTitle(map, row, sheet) {
 }
 export function isFinDeLotRow(map, row) {
   const t = colATitle(map, row);
-  return /^Fin de Lot\b/i.test(t) || /^End of lot\b/i.test(t);
+  const u = String(t || '')
+    .trim()
+    .replace(/^_+/, '');
+  return (
+    /^Fin de Lot\b/i.test(u) ||
+    /^End of lot\b/i.test(u) ||
+    /end of lot.*do not delete/i.test(u) ||
+    /fin de lot.*ne pas supprimer/i.test(u)
+  );
 }
 export function isFormulesRow(map, row, sectionHeaderRows) {
   const t = colATitle(map, row);
@@ -525,6 +533,7 @@ export function shouldDateColBlue(map, row, sectionHeaderRows) {
   if (HIDDEN_META_ROWS.has(row)) return false;
   if (isStructureRow(map, row, sectionHeaderRows)) return false;
   if (isPreBandMarkerRow(map, row, sectionHeaderRows)) return false;
+  if (isFinDeLotRow(map, row)) return false;
   if (isDataGreenColA(map, row, sectionHeaderRows)) return false;
   return Boolean(colATitle(map, row));
 }
@@ -582,6 +591,8 @@ export function isTitleMarkerRow(map, row, sectionHeaderRows) {
 /** Outline view (eye): CA bands (5/139) + yellow/blue structure rows. */
 export function isOutlineRow(map, row, sectionHeaderRows) {
   if (HIDDEN_META_ROWS.has(row)) return false;
+  if (isFinDeLotRow(map, row)) return false;
+  if (isPreBandMarkerRow(map, row, sectionHeaderRows)) return false;
   return (
     isCaBandRow(map, row) ||
     isStructureRow(map, row, sectionHeaderRows) ||
