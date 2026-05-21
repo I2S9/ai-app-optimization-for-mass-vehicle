@@ -478,7 +478,7 @@ export function rowStyleClass(map, row, sectionHeaderRows) {
   if (shouldDateColBlue(map, row, sectionHeaderRows)) return 'row-date-blue';
   return '';
 }
-/** Pale green / blue row band from Silhouette (Excel), not on structure rows. */
+/** Alternating pastel bands from Excel row 6 on Silhouette+ (incl. STLA/S data rows). */
 export function rowDataStripeClass(
   map,
   row,
@@ -486,9 +486,8 @@ export function rowDataStripeClass(
   dataStartRow = 6
 ) {
   if (isStructureRow(map, row, sectionHeaderRows)) return '';
-  if (isDataGreenColA(map, row, sectionHeaderRows)) return '';
-  if (isProjectConfigRow(map, row, sectionHeaderRows)) return '';
-  const anchor = Math.max(7, (dataStartRow || 6) + 1);
+  if (shouldDateColBlue(map, row, sectionHeaderRows)) return '';
+  const anchor = dataStartRow || 6;
   if (row < anchor) return '';
   return (row - anchor) % 2 === 0
     ? 'row-data-stripe-green'

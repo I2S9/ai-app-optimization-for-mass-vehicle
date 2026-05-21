@@ -90,12 +90,10 @@
 .bd-table tbody tr.row-recopier td.col-sticky-date {
   background: #fff;
 }
-/* STLA/S data rows — green band (Excel) */
-.bd-table tbody tr.row-date-green td.data-cell,
+/* STLA/S — green on Date (A) only; Silhouette+ uses row-data-stripe-* */
 .bd-table tbody tr.row-date-green td.col-sticky-date,
-.bd-table tbody tr.row-date-green td.data-cell.readonly,
 .bd-table tbody tr.row-date-green td.col-sticky-date.readonly {
-  background: #c6efce;
+  background: #c6efce !important;
 }
 /* Vehicle / project header rows (SPC, TARGET, no STLA/S in A) */
 .bd-table tbody tr.row-project-config td.col-sticky-date,
@@ -291,15 +289,23 @@
   color: #fff;
   font-weight: 600;
 }
-/* Alternating data bands from Silhouette (Excel s79 / s209) */
+/* Alternating pastel from Silhouette (row 6 green, 7 blue) — lighter than STLA/S #c6efce */
 .bd-table tbody tr.row-data-stripe-green td.col-data-stripe,
-.bd-table tbody tr.row-data-stripe-green td.col-data-stripe.readonly {
-  background: #e2efda !important;
+.bd-table tbody tr.row-data-stripe-green td.col-data-stripe.readonly,
+.bd-table tbody tr.row-date-green.row-data-stripe-green td.col-data-stripe,
+.bd-table tbody tr.row-date-green.row-data-stripe-green td.col-data-stripe.readonly,
+.bd-table tbody tr.row-project-config.row-data-stripe-green td.col-data-stripe,
+.bd-table tbody tr.row-project-config.row-data-stripe-green td.col-data-stripe.readonly {
+  background: #dce8d4 !important;
   color: #000;
 }
 .bd-table tbody tr.row-data-stripe-blue td.col-data-stripe,
-.bd-table tbody tr.row-data-stripe-blue td.col-data-stripe.readonly {
-  background: #ddebf7 !important;
+.bd-table tbody tr.row-data-stripe-blue td.col-data-stripe.readonly,
+.bd-table tbody tr.row-date-green.row-data-stripe-blue td.col-data-stripe,
+.bd-table tbody tr.row-date-green.row-data-stripe-blue td.col-data-stripe.readonly,
+.bd-table tbody tr.row-project-config.row-data-stripe-blue td.col-data-stripe,
+.bd-table tbody tr.row-project-config.row-data-stripe-blue td.col-data-stripe.readonly {
+  background: #d4e3f0 !important;
   color: #000;
 }
 /* Codification & Title — always grey (Excel s34 / s35) */

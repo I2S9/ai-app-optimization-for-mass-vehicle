@@ -227,12 +227,9 @@ export default {
         const map = cellMap.value;
         const sh = sectionHeaderRows.value;
         const base = rowStyleClass(map, row, sh);
-        const stripe = rowDataStripeClass(
-          map,
-          row,
-          sh,
-          props.sheet.dataStartRow
-        );
+        const stripe = props.outlineOnly
+          ? ''
+          : rowDataStripeClass(map, row, sh, props.sheet.dataStartRow);
         return [base, stripe].filter(Boolean).join(' ');
       },
       bdColMetaClass: (col) => bdColMetaClass(col, props.sheet),
