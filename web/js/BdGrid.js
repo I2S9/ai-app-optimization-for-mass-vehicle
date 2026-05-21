@@ -3,6 +3,8 @@ import {
   buildCellMap,
   buildWidthMap,
   bdSubsystemL1Col,
+  bdSubsystemL2Col,
+  bdDesignDeptCol,
   computeBodyDisplayRows,
   getCell,
   displayValue,
@@ -11,8 +13,10 @@ import {
   isStructureRow,
   isTitleMarkerRow,
   rowStyleClass,
+  rowDataStripeClass,
   cellInlineStyle,
   projectCellClass,
+  bdColMetaClass,
   shouldDisplayBodyRow,
 } from './bdStore.js?v=syn-scroll1';
 import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
@@ -95,6 +99,8 @@ export default {
 
     const sectionHeaderRows = computed(() => props.sheet.sectionHeaderRows);
     const subsystemL1Col = computed(() => bdSubsystemL1Col(props.sheet));
+    const subsystemL2Col = computed(() => bdSubsystemL2Col(props.sheet));
+    const designDeptCol = computed(() => bdDesignDeptCol(props.sheet));
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
 
     function colStyle(col) {
@@ -154,11 +160,17 @@ export default {
           col,
           sh,
           canon,
-          subsystemL1Col.value
+          subsystemL1Col.value,
+          subsystemL2Col.value
         );
         const bookmark =
           isStructureRow(map, row, sh) || isTitleMarkerRow(map, row, sh);
+        const isSubsystemCol =
+          col === subsystemL1Col.value ||
+          col === subsystemL2Col.value ||
+          col === designDeptCol.value;
         const useFormula =
+          !isSubsystemCol &&
           !BD_POSITION_COLS.has(col) &&
           !BD_MASS_AV_AR_COLS.has(col) &&
           !bookmark &&
@@ -211,8 +223,19 @@ export default {
       getCell: (r, c) => getCell(cellMap.value, r, c),
       cellDisplay,
       cellReadonly,
-      rowStyleClass: (row) =>
-        rowStyleClass(cellMap.value, row, sectionHeaderRows.value),
+      rowStyleClass: (row) => {
+        const map = cellMap.value;
+        const sh = sectionHeaderRows.value;
+        const base = rowStyleClass(map, row, sh);
+        const stripe = rowDataStripeClass(
+          map,
+          row,
+          sh,
+          props.sheet.dataStartRow
+        );
+        return [base, stripe].filter(Boolean).join(' ');
+      },
+      bdColMetaClass: (col) => bdColMetaClass(col, props.sheet),
       projectCellClass,
       cellInlineStyle: (row, col) =>
         cellInlineStyle(
@@ -274,6 +297,7 @@ export default {
                     'col-sticky-date': isStickyDateCol(col),
                     'col-free-field': col === BD_FREE_FIELD_COL,
                   },
+                  bdColMetaClass(col),
                   projectCellClass(cellDisplay(entry.excelRow, col), col),
                 ]"
                 :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"

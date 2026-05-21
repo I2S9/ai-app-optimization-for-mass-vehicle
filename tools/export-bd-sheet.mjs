@@ -125,6 +125,49 @@ function decodeXml(s) {
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"');
 }
+
+/** Resolve shared-string index even when OOXML omits t="s". */
+function resolveCellValue(raw, t, shared) {
+  if (raw == null || raw === '') return raw;
+  if (t === 's') {
+    const idx = parseInt(String(raw), 10);
+    return shared[idx] ?? String(raw);
+  }
+  const s = String(raw).trim();
+  if (/^\d+$/.test(s)) {
+    const hit = shared[parseInt(s, 10)];
+    if (
+      hit != null &&
+      hit !== '' &&
+      !/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(String(hit).trim())
+    ) {
+      return hit;
+    }
+  }
+  return s;
+}
+
+function parseFormula(inner, sharedFormulas) {
+  const open = inner.match(/<f([^>]*)>([\s\S]*?)<\/f>/);
+  if (open) {
+    const attrs = open[1];
+    const body = decodeXml(open[2]);
+    const si = attrs.match(/\bsi="(\d+)"/)?.[1];
+    if (attrs.includes('t="shared"') && si != null) {
+      if (body) sharedFormulas.set(si, body);
+      return body || sharedFormulas.get(si) || null;
+    }
+    return body || null;
+  }
+  const self = inner.match(/<f([^/]*)\/>/);
+  if (!self) return null;
+  const attrs = self[1];
+  const si = attrs.match(/\bsi="(\d+)"/)?.[1];
+  if (attrs.includes('t="shared"') && si != null) {
+    return sharedFormulas.get(si) || null;
+  }
+  return null;
+}
 async function main() {
   if (!fs.existsSync(WB)) {
     console.error('Workbook not found:', WB);
@@ -162,6 +205,7 @@ async function main() {
   const headers = {};
   const headerRows = {};
   let cells = [];
+  const sharedFormulas = new Map();
   /** [^/]*? attrs so self-closing <c r="AC7" s="63"/> is not merged with the next cell. */
   const cellRe = /<c r="([A-Z]+\d+)"([^/]*?)(\/>|>([\s\S]*?)<\/c>)/g;
   let m;
@@ -173,12 +217,10 @@ async function main() {
     const row = parseInt(ref.replace(/^[A-Z]+/, ''), 10);
     const t = attrs.match(/\bt="([^"]+)"/)?.[1];
     const styleIdx = parseInt(attrs.match(/\bs="(\d+)"/)?.[1] ?? '-1', 10);
-    let formula = null;
+    let formula = parseFormula(inner, sharedFormulas);
     let value = null;
-    const fM = inner.match(/<f[^>]*>([\s\S]*?)<\/f>/);
-    if (fM) formula = decodeXml(fM[1]);
     const vM = inner.match(/<v>([^<]*)<\/v>/);
-    if (vM) value = t === 's' ? shared[parseInt(vM[1], 10)] ?? vM[1] : vM[1];
+    if (vM) value = resolveCellValue(vM[1], t, shared);
     const is = inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
     if (is) value = is[1];
     const display = value ?? (formula ? null : '');

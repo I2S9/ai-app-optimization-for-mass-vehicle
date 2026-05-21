@@ -4,13 +4,22 @@ import {
   SECTION_ALLOWLIST,
 } from './bdTranslate.js';
 import {
+  BD_CODIFICATION_COL,
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
   BD_POSITION_COLS,
+  BD_PROJECT_COL,
+  BD_SILHOUETTE_COL,
   BD_SUBSYSTEM_L1_COL,
   BD_SUBSYSTEM_L1_COL_RAW,
+  BD_SUBSYSTEM_L2_COL,
+  BD_SUBSYSTEM_L2_COL_RAW,
+  BD_DESIGN_DEPT_COL,
+  BD_DESIGN_DEPT_COL_RAW,
+  BD_TITLE_COL,
   BD_TRADE_COL,
 } from './bdColumnConfig.js';
+import { colToIndex } from './formulaUtil.js';
 
 /** Column letter for yellow L1 section titles (AP in JSON, AR after transform). */
 export function bdSubsystemL1Col(sheet) {
@@ -22,6 +31,67 @@ export function bdSubsystemL1Col(sheet) {
     return BD_SUBSYSTEM_L1_COL_RAW;
   }
   return BD_SUBSYSTEM_L1_COL;
+}
+/** Column letter for L2 sub-section labels (_ADDBLUE, _FUEL…). */
+export function bdSubsystemL2Col(sheet) {
+  const headers = sheet?.headers || {};
+  for (const col of sheet?.columns || Object.keys(headers)) {
+    if (headers[col] === 'Sub-system L2') return col;
+  }
+  if (sheet?.columns?.includes(BD_SUBSYSTEM_L2_COL_RAW)) {
+    return BD_SUBSYSTEM_L2_COL_RAW;
+  }
+  return BD_SUBSYSTEM_L2_COL;
+}
+export function bdHeaderCol(sheet, headerLabel, fallback) {
+  const headers = sheet?.headers || {};
+  for (const col of sheet?.columns || Object.keys(headers)) {
+    if (headers[col] === headerLabel) return col;
+  }
+  return fallback;
+}
+export function bdCodificationCol(sheet) {
+  return bdHeaderCol(sheet, 'Codification', BD_CODIFICATION_COL);
+}
+export function bdTitleCol(sheet) {
+  return bdHeaderCol(sheet, 'Title', BD_TITLE_COL);
+}
+export function bdSilhouetteCol(sheet) {
+  return bdHeaderCol(sheet, 'Silhouette', BD_SILHOUETTE_COL);
+}
+export function bdDesignDeptCol(sheet) {
+  return bdHeaderCol(sheet, 'Sub-System Design Dpt', BD_DESIGN_DEPT_COL);
+}
+const EXCEL_ERROR_VALUES = new Set([
+  '#NAME?',
+  '#REF!',
+  '#VALUE!',
+  '#N/A',
+  '#NULL!',
+  '#DIV/0!',
+  '#NUM!',
+]);
+export function stripExcelErrorValue(v) {
+  if (v == null || v === '') return '';
+  const t = String(v).trim();
+  if (EXCEL_ERROR_VALUES.has(t) || (t.startsWith('#') && t.endsWith('!'))) return '';
+  return t;
+}
+/** Columns C+ with alternating pale green / blue (not Codification / Title). */
+export function isBdDataStripeCol(col, sheet) {
+  if (col === 'A' || col === BD_PROJECT_COL) return false;
+  const codif = bdCodificationCol(sheet);
+  const title = bdTitleCol(sheet);
+  if (col === codif || col === title) return false;
+  const start = colToIndex(bdSilhouetteCol(sheet));
+  return colToIndex(col) >= start;
+}
+export function bdColMetaClass(col, sheet) {
+  if (col === bdCodificationCol(sheet) || col === bdTitleCol(sheet)) {
+    return 'cell-col-gray';
+  }
+  if (isBdDataStripeCol(col, sheet)) return 'col-data-stripe';
+  return '';
 }
 export function buildCellMap(cells, headerRows = {}) {
   const map = new Map();
@@ -81,22 +151,25 @@ export function getCell(map, row, col) {
 }
 export function displayValue(cell) {
   if (!cell) return '';
-  if (cell.v != null && cell.v !== '') return String(cell.v);
+  if (cell.v != null && cell.v !== '') {
+    const v = stripExcelErrorValue(String(cell.v));
+    if (v) return v;
+  }
   if (cell.f) return cell.f.startsWith('=') ? cell.f : cell.f;
   return '';
 }
-/** Sub-system L2 label from AS (never surface formula text as a label). */
-export function getAsLabel(map, row) {
-  const cell = getCell(map, row, 'AS');
+/** Sub-system L2 label (never surface formula text as a label). */
+export function getAsLabel(map, row, l2Col = BD_SUBSYSTEM_L2_COL) {
+  const cell = getCell(map, row, l2Col);
   if (!cell?.v || cell.v === '') return '';
   return String(cell.v);
 }
-/** Blue sub-section title (_ADDBLUE, _FUEL…) from column A or AS. */
-export function getSubSectionLabel(map, row) {
+/** Blue sub-section title (_ADDBLUE, _FUEL…) — L2 column first (Excel AS), then A. */
+export function getSubSectionLabel(map, row, l2Col = BD_SUBSYSTEM_L2_COL) {
+  const l2 = getAsLabel(map, row, l2Col);
+  if (l2.startsWith('_') && !isUnassignedSectionLabel(l2)) return l2.trim();
   const a = displayValue(getCell(map, row, 'A'));
   if (a.startsWith('_') && !isUnassignedSectionLabel(a)) return a.trim();
-  const as = getAsLabel(map, row);
-  if (as.startsWith('_') && !isUnassignedSectionLabel(as)) return as.trim();
   return '';
 }
 const SKIP_LABELS = new Set([
@@ -198,6 +271,7 @@ function asSectionRowSet(sectionHeaderRows) {
 export function computeSectionHeaderRows(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
   const l1Col = bdSubsystemL1Col(sheet);
+  const l2Col = bdSubsystemL2Col(sheet);
   const rows = new Set();
   const canonicalByLabel = new Map();
   rows.add(5);
@@ -217,7 +291,7 @@ export function computeSectionHeaderRows(sheet) {
   }
   let lastAs = '';
   for (let r = sheet.dataStartRow || 6; r <= sheet.lastRow; r++) {
-    const as = getAsLabel(map, r);
+    const as = getAsLabel(map, r, l2Col);
     if (isUnassignedSectionLabel(as) && as !== lastAs) {
       rows.add(r);
       canonicalByLabel.set(as, r);
@@ -236,11 +310,41 @@ export function isSubSystemL1Row(map, row) {
   return isSectionRow(map, row) && !isCaBandRow(map, row);
 }
 /** Blue row: first row of each L2 block (_ADDBLUE, _FUEL…) per Excel. */
-export function isSubSectionRow(map, row, sectionHeaderRows) {
+export function isSubSectionRow(map, row, sectionHeaderRows, l2Col = BD_SUBSYSTEM_L2_COL) {
   if (isSectionRow(map, row, sectionHeaderRows)) return false;
-  const label = getSubSectionLabel(map, row);
+  const label = getSubSectionLabel(map, row, l2Col);
   if (!label) return false;
-  return label !== getSubSectionLabel(map, row - 1);
+  return label !== getSubSectionLabel(map, row - 1, l2Col);
+}
+/** First row of an L2 bookmark band: _SUB rows or blue title rows (Front wings…). */
+export function isBdL2BookmarkStart(
+  map,
+  row,
+  sectionHeaderRows,
+  l2Col = BD_SUBSYSTEM_L2_COL
+) {
+  if (isSubSectionRow(map, row, sectionHeaderRows, l2Col)) return true;
+  if (!shouldDateColBlue(map, row, sectionHeaderRows)) return false;
+  const title = colATitle(map, row);
+  if (!title) return false;
+  if (!shouldDateColBlue(map, row - 1, sectionHeaderRows)) return true;
+  return title !== colATitle(map, row - 1);
+}
+/** Label for matrix / structure extract (matches Database blue-band display). */
+export function getBdL2BookmarkLabel(
+  map,
+  row,
+  sheet,
+  sectionHeaderRows,
+  l2Col = bdSubsystemL2Col(sheet)
+) {
+  const sub = getSubSectionLabel(map, row, l2Col);
+  if (sub) return formatBlueBandLabel(translateValue(sub));
+  if (shouldDateColBlue(map, row, sectionHeaderRows)) {
+    const title = colATitle(map, row);
+    if (title) return formatBlueBandLabel(translateValue(title));
+  }
+  return '';
 }
 export function isSeparatorRow(row) {
   return row === 4;
@@ -374,19 +478,36 @@ export function rowStyleClass(map, row, sectionHeaderRows) {
   if (shouldDateColBlue(map, row, sectionHeaderRows)) return 'row-date-blue';
   return '';
 }
-/** Semantic fill for project columns (SPC, TT, BEV, TARGET…). */
+/** Pale green / blue row band from Silhouette (Excel), not on structure rows. */
+export function rowDataStripeClass(
+  map,
+  row,
+  sectionHeaderRows,
+  dataStartRow = 6
+) {
+  if (isStructureRow(map, row, sectionHeaderRows)) return '';
+  if (isDataGreenColA(map, row, sectionHeaderRows)) return '';
+  if (isProjectConfigRow(map, row, sectionHeaderRows)) return '';
+  const anchor = Math.max(7, (dataStartRow || 6) + 1);
+  if (row < anchor) return '';
+  return (row - anchor) % 2 === 0
+    ? 'row-data-stripe-green'
+    : 'row-data-stripe-blue';
+}
+/** Semantic fill for column Project (B) only. */
 export function projectCellClass(displayText, col) {
-  if (!PROJECT_COLS.has(col) || !displayText) return '';
+  if (col !== BD_PROJECT_COL || !displayText) return '';
   const v = String(displayText).trim().toUpperCase();
   if (!v) return '';
-  if (v === 'TT') return 'cell-proj-tt';
+  if (v === 'TT') return 'cell-proj-night';
   if (v === 'TARGET') return 'cell-proj-target';
   if (v === 'STATUS') return 'cell-proj-status';
-  if (v === 'SPC' || /^SP\d+$/.test(v) || v === 'SP1' || v === 'SP2') return 'cell-proj-spc';
+  if (v === 'SPC') return 'cell-proj-spc';
+  if (v === 'INFO') return 'cell-proj-info';
   if (ENERGY_VALUES.has(v)) return 'cell-proj-energy';
   if (v === 'FWD' || v === 'AWD' || v === 'RWD') return 'cell-proj-drivetrain';
   if (v === 'PTF') return 'cell-proj-ptf';
-  return 'cell-proj-value';
+  return 'cell-proj-night';
 }
 /** Title-only markers (blue / fin de lot / to copy) — no project data. */
 export function isTitleMarkerRow(map, row, sectionHeaderRows) {
@@ -458,15 +579,21 @@ export function cellInlineStyle(
  * Yellow / blue bookmark rows: show section or sub-section title only, never data.
  * Returns null when the row is not a structure bookmark.
  */
+function isDesignDeptCol(col) {
+  return col === BD_DESIGN_DEPT_COL || col === BD_DESIGN_DEPT_COL_RAW;
+}
+
 function structureBookmarkDisplay(
   map,
   row,
   col,
   sectionHeaderRows,
   canonicalByLabel,
-  l1Col = BD_SUBSYSTEM_L1_COL_RAW
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW,
+  l2Col = BD_SUBSYSTEM_L2_COL
 ) {
   if (!isStructureRow(map, row, sectionHeaderRows)) return null;
+  if (isDesignDeptCol(col)) return null;
   if (isSeparatorRow(row)) {
     if (col === 'A') {
       const v = displayValue(getCell(map, row, 'A'));
@@ -491,16 +618,16 @@ function structureBookmarkDisplay(
     }
     if (col === 'A') return title;
     if (col === l1Col && canonicalByLabel.get(title) === row) return title;
-    if (col === 'AS' && isUnassignedSectionLabel(title)) return title;
+    if (col === l2Col && isUnassignedSectionLabel(title)) return title;
     return '';
   }
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
-    const title = formatBlueBandLabel(getSubSectionLabel(map, row));
+    const title = formatBlueBandLabel(getSubSectionLabel(map, row, l2Col));
     if (!title) return '';
-    if (col === 'A' || col === 'AS') return title;
-    return '';
+    if (col === 'A' || col === l2Col) return title;
+    return null;
   }
-  return '';
+  return null;
 }
 /** Hide TT / 0 only on inherited filler rows — keep on STLA/S & project rows. */
 function maskStructureValue(map, row, col, v, sectionHeaderRows) {
@@ -554,20 +681,33 @@ function maskDuplicateSectionLabel(
   }
   return '';
 }
-/** _Unassigned only on the first row of the block (column AS). */
-function maskRepeatedUnassigned(map, row, col, v) {
-  if (col !== 'AS' || !isUnassignedSectionLabel(v)) return v;
-  const prev = getAsLabel(map, row - 1);
+/** _Unassigned only on the first row of the block (L2 column). */
+function maskRepeatedUnassigned(map, row, col, v, l2Col) {
+  if (col !== l2Col || !isUnassignedSectionLabel(v)) return v;
+  const prev = getAsLabel(map, row - 1, l2Col);
   if (isUnassignedSectionLabel(prev) && String(prev).trim() === String(v).trim()) {
     return '';
   }
   return v;
 }
 /** L2 titles only on blue header rows — hide copies on data rows & duplicate AS when A shows it. */
-function maskInheritedSubSectionLabel(map, row, col, v, sectionHeaderRows) {
+function maskInheritedSubSectionLabel(
+  map,
+  row,
+  col,
+  v,
+  sectionHeaderRows,
+  l2Col
+) {
   if (!v) return v;
   const t = String(v).trim();
   if (!t.startsWith('_') || isUnassignedSectionLabel(t)) return v;
+  if (col === l2Col) {
+    if (isSubSectionRow(map, row, sectionHeaderRows)) {
+      return formatBlueBandLabel(v);
+    }
+    return v;
+  }
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
     if (col === 'AS') {
       const a = displayValue(getCell(map, row, 'A'));
@@ -589,7 +729,8 @@ export function displayCellValue(
   col,
   sectionHeaderRows,
   canonicalSectionByLabel,
-  l1Col = BD_SUBSYSTEM_L1_COL_RAW
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW,
+  l2Col = BD_SUBSYSTEM_L2_COL
 ) {
   if (BD_MASS_AV_AR_COLS.has(col)) return '';
   const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
@@ -599,20 +740,69 @@ export function displayCellValue(
     col,
     sectionHeaderRows,
     canonicalByLabel,
-    l1Col
+    l1Col,
+    l2Col
   );
-  if (bookmark !== null) return bookmark;
+  const subsystemCol =
+    col === l1Col || col === l2Col || isDesignDeptCol(col);
+  if (bookmark != null) {
+    if (bookmark !== '' || !subsystemCol) return bookmark;
+  }
   const blueTitle = blueTitleDisplay(map, row, col, sectionHeaderRows);
   if (blueTitle !== null) return blueTitle;
   if (BD_POSITION_COLS.has(col)) return '';
   const cell = getCell(map, row, col);
   let v = displayValue(cell);
-  if (v === '#REF!') v = '';
-  if (col === 'AS' && cell && (cell.v == null || cell.v === '') && cell.f) v = '';
+  v = stripExcelErrorValue(v);
+  if (col === l2Col && cell && (cell.v == null || cell.v === '') && cell.f) v = '';
+  if (col === l1Col) {
+    v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel, l1Col);
+    return v;
+  }
+  if (col === l2Col) {
+    v = maskStructureValue(map, row, col, v, sectionHeaderRows);
+    v = maskInheritedSubSectionLabel(
+      map,
+      row,
+      col,
+      v,
+      sectionHeaderRows,
+      l2Col
+    );
+    v = maskRepeatedUnassigned(map, row, col, v, l2Col);
+    if (
+      isTitleMarkerRow(map, row, sectionHeaderRows) &&
+      col !== 'A' &&
+      col !== BD_TRADE_COL
+    ) {
+      return '';
+    }
+    return v;
+  }
+  if (col === BD_DESIGN_DEPT_COL || col === BD_DESIGN_DEPT_COL_RAW) {
+    if (
+      isTitleMarkerRow(map, row, sectionHeaderRows) &&
+      col !== 'A' &&
+      col !== BD_TRADE_COL
+    ) {
+      return '';
+    }
+    if (cell?.v != null && cell.v !== '') {
+      return stripExcelErrorValue(String(cell.v));
+    }
+    return '';
+  }
   v = maskStructureValue(map, row, col, v, sectionHeaderRows);
   v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel, l1Col);
-  v = maskInheritedSubSectionLabel(map, row, col, v, sectionHeaderRows);
-  v = maskRepeatedUnassigned(map, row, col, v);
+  v = maskInheritedSubSectionLabel(
+    map,
+    row,
+    col,
+    v,
+    sectionHeaderRows,
+    l2Col
+  );
+  v = maskRepeatedUnassigned(map, row, col, v, l2Col);
   if (
     isTitleMarkerRow(map, row, sectionHeaderRows) &&
     col !== 'A' &&

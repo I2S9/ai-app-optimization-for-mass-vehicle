@@ -168,7 +168,7 @@ export const CELL_VALUE_EN = {
   COFFRE: 'TRUNK',
   CARROSSERIE: 'BODY',
 };
-const LABEL_COLS = new Set(['A', 'AP', 'AS', 'W']);
+const LABEL_COLS = new Set(['A', 'AP', 'AS', 'AR', 'AU', 'W']);
 /** Nomination / label columns visible on structure rows (yellow & blue). */
 export function isLabelColumn(col) {
   return LABEL_COLS.has(col);

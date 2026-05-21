@@ -5,14 +5,15 @@ import {
   buildCellMap,
   displayValue,
   getCell,
-  getSubSectionLabel,
-  isSubSectionRow,
   isSectionRow,
   isCaBandRow,
   formatBlueBandLabel,
   computeSectionHeaderRows,
   computeOutlineRows,
   bdSubsystemL1Col,
+  bdSubsystemL2Col,
+  isBdL2BookmarkStart,
+  getBdL2BookmarkLabel,
 } from './bdStore.js';
 import {
   synLabel,
@@ -22,6 +23,7 @@ import {
   SYN_HEADER_PANEL_LAST_ROW,
   SYN_SKIPPED_ROWS,
 } from './synStore.js';
+import { translateValue } from './bdTranslate.js';
 
 /** Same as bd-grid.css row-section / row-subsection */
 const DEFAULT_SECTION_COLOR = '#ffff00';
@@ -44,9 +46,11 @@ function getBdSectionLabel(map, row, sheet) {
   }
   const l1Col = bdSubsystemL1Col(sheet);
   const ap = displayValue(getCell(map, row, l1Col));
-  if (ap) return String(ap).trim();
+  if (ap) return translateValue(String(ap).trim());
   const a = displayValue(getCell(map, row, 'A'));
-  if (a && String(a).trim().startsWith('-')) return String(a).trim();
+  if (a && String(a).trim().startsWith('-')) {
+    return translateValue(String(a).trim());
+  }
   return `Section ${row}`;
 }
 
@@ -61,7 +65,10 @@ function bdSectionHeaderRows(sheet) {
 
 export function extractBdStructure(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
-  const sh = sheet.sectionHeaderRows;
+  const sh =
+    sheet.sectionHeaderRows ||
+    computeSectionHeaderRows(sheet).rows;
+  const l2Col = bdSubsystemL2Col(sheet);
   const headers = bdSectionHeaderRows(sheet);
   const colors = sheet.matrixColors || {};
   const sections = [];
@@ -72,14 +79,16 @@ export function extractBdStructure(sheet) {
       i + 1 < headers.length ? headers[i + 1] - 1 : sheet.lastRow;
     const subStarts = [];
     for (let r = headerRow + 1; r <= endRow; r++) {
-      if (isSubSectionRow(map, r, sh)) subStarts.push(r);
+      if (isBdL2BookmarkStart(map, r, sh, l2Col)) subStarts.push(r);
     }
     const subsections = [];
     for (let j = 0; j < subStarts.length; j++) {
       const startRow = subStarts[j];
       const subEnd =
         j + 1 < subStarts.length ? subStarts[j + 1] - 1 : endRow;
-      const label = getSubSectionLabel(map, startRow) || `_Row ${startRow}`;
+      const label =
+        getBdL2BookmarkLabel(map, startRow, sheet, sh, l2Col) ||
+        `_Row ${startRow}`;
       subsections.push({
         id: uid('sub'),
         label,
@@ -243,34 +252,38 @@ function isCaChapterRow(row) {
 }
 
 function insertNewBdRows(sheet, model) {
+  const l1Col = bdSubsystemL1Col(sheet);
+  const l2Col = bdSubsystemL2Col(sheet);
   for (const sec of model.sections) {
     for (const sub of sec.subsections) {
       if (!sub.isNew || sub.startRow == null) continue;
       const lbl = formatBlueBandLabel(sub.label);
       setCell(sheet, sub.startRow, 'A', lbl);
-      setCell(sheet, sub.startRow, 'AS', lbl);
-      setCell(sheet, sub.startRow, 'AP', sec.label);
+      setCell(sheet, sub.startRow, l2Col, lbl);
+      setCell(sheet, sub.startRow, l1Col, sec.label);
     }
     for (const line of sec.customLines || []) {
       if (!line.isNew || line.startRow == null) continue;
       setCell(sheet, line.startRow, 'A', line.label);
-      setCell(sheet, line.startRow, 'AP', sec.label);
+      setCell(sheet, line.startRow, l1Col, sec.label);
     }
   }
 }
 
 function applyBdLabels(sheet, model) {
+  const l1Col = bdSubsystemL1Col(sheet);
+  const l2Col = bdSubsystemL2Col(sheet);
   for (const sec of model.sections) {
     const hr = sec.headerRow;
     if (isCaChapterRow(hr)) {
       setCell(sheet, hr, 'A', sec.label);
     } else {
-      setCell(sheet, hr, 'AP', sec.label);
+      setCell(sheet, hr, l1Col, sec.label);
     }
     for (const sub of sec.subsections) {
       const lbl = formatBlueBandLabel(sub.label);
       setCell(sheet, sub.startRow, 'A', lbl);
-      setCell(sheet, sub.startRow, 'AS', lbl);
+      setCell(sheet, sub.startRow, l2Col, lbl);
     }
     for (const line of sec.customLines || []) {
       if (line.isNew) continue;

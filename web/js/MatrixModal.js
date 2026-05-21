@@ -3,10 +3,71 @@ import {
   cloneStructure,
   findSection,
   findSubsection,
-} from './structureModel.js?v=matrix5';
+} from './structureModel.js?v=matrix10';
 
 const DEFAULT_SECTION_COLOR = '#ffff00';
 const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
+
+/** Diverse bookmark palette (sections + sub-sections — not shade families). */
+const BOOKMARK_COLOR_PALETTE = [
+  '#ffff00',
+  '#00b0f0',
+  '#ff0000',
+  '#c00000',
+  '#800000',
+  '#922b21',
+  '#e74c3c',
+  '#ff6600',
+  '#ff9900',
+  '#ffc000',
+  '#92d050',
+  '#00b050',
+  '#c6efce',
+  '#7030a0',
+  '#9966ff',
+  '#ffc0cb',
+  '#f4b084',
+  '#bdd7ee',
+  '#fff2cc',
+  '#ffffff',
+  '#d9d9d9',
+  '#a6a6a6',
+  '#595959',
+  '#000000',
+];
+
+function normalizeHex(color) {
+  if (!color) return null;
+  let s = String(color).trim().toLowerCase();
+  if (!s.startsWith('#')) s = `#${s}`;
+  if (/^#[0-9a-f]{3}$/.test(s)) {
+    const r = s[1];
+    const g = s[2];
+    const b = s[3];
+    s = `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return /^#[0-9a-f]{6}$/.test(s) ? s : null;
+}
+
+/** Presets + colors already used on rows in the current structure. */
+function buildPaletteColors(model) {
+  const seen = new Set();
+  const out = [];
+  const add = (c) => {
+    const n = normalizeHex(c);
+    if (!n || seen.has(n)) return;
+    seen.add(n);
+    out.push(n);
+  };
+  for (const c of BOOKMARK_COLOR_PALETTE) add(c);
+  if (!model?.sections) return out;
+  for (const sec of model.sections) {
+    add(sec.color);
+    for (const sub of sec.subsections) add(sub.color);
+    for (const line of sec.customLines || []) add(line.color);
+  }
+  return out;
+}
 
 function formatSubLabel(name) {
   const t = String(name || '').trim();
@@ -42,8 +103,8 @@ export default {
     const dragSubIds = ref([]);
     const dropTarget = ref(null);
     const editing = ref(null);
+    const itemEditor = ref(null);
     const confirmDelete = ref(null);
-    const colorInputRef = ref(null);
     const colorPick = ref(null);
 
     watch(
@@ -55,6 +116,7 @@ export default {
         selectedSubIds.value = [];
         subAnchorId.value = null;
         editing.value = null;
+        itemEditor.value = null;
         confirmDelete.value = null;
         dropTarget.value = null;
         dragSubId.value = null;
@@ -154,11 +216,6 @@ export default {
       return selectedSubIds.value.includes(subId);
     }
 
-    function clearSubSelection() {
-      selectedSubIds.value = [];
-      subAnchorId.value = null;
-    }
-
     function toggleSubSelect(subId) {
       const idx = selectedSubIds.value.indexOf(subId);
       if (idx >= 0) {
@@ -191,7 +248,7 @@ export default {
     }
 
     function onSubClick(sec, sub, e) {
-      if (e.target.closest('.matrix-icon-btn, .matrix-delete-btn')) return;
+      if (e.target.closest('.matrix-action')) return;
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         toggleSubSelect(sub.id);
@@ -353,7 +410,7 @@ export default {
       confirmDelete.value = null;
     }
 
-    function pickColor(type, sectionId, subId = null) {
+    function pickColor(type, sectionId, subId, ev) {
       let ids = [];
       let current = DEFAULT_SECTION_COLOR;
 
@@ -371,20 +428,29 @@ export default {
           ids = [subId];
           const hit = findSubsection(model.value, subId);
           current = hit?.subsection.color || DEFAULT_SUBSECTION_COLOR;
+        } else {
+          return;
         }
       }
 
-      colorPick.value = { type, ids, sectionId };
-      nextTick(() => {
-        const input = colorInputRef.value;
-        if (!input) return;
-        input.value = current;
-        input.click();
-      });
+      const btn = ev?.currentTarget;
+      const rect = btn?.getBoundingClientRect?.();
+      const colors = buildPaletteColors(model.value);
+      colorPick.value = {
+        type,
+        ids,
+        colors,
+        current: normalizeHex(current) || colors[0],
+        top: rect ? rect.bottom + 6 : 120,
+        left: rect ? Math.max(8, rect.left - 40) : 120,
+      };
     }
 
-    function onColorPicked(e) {
-      const color = e.target?.value;
+    function closeColorPick() {
+      colorPick.value = null;
+    }
+
+    function applyPaletteColor(color) {
       const pick = colorPick.value;
       if (!color || !pick || !model.value) return;
 
@@ -399,23 +465,47 @@ export default {
           if (hit) hit.subsection.color = color;
         }
       }
-      colorPick.value = null;
+      closeColorPick();
     }
 
-    function addSubsection(sec) {
-      const id = `sub-${Date.now()}`;
-      sec.subsections.push({
-        id,
+    function openAddSubsection(sec) {
+      itemEditor.value = {
+        kind: 'add-subsection',
+        sectionId: sec.id,
         label: '_NEW',
         color: DEFAULT_SUBSECTION_COLOR,
-        isNew: true,
-        startRow: null,
-        endRow: null,
-      });
-      selectedSubIds.value = [id];
-      subAnchorId.value = id;
-      startEditSubsection(sec, sec.subsections[sec.subsections.length - 1]);
-      scrollToSub(id);
+        title: 'Add sub-section',
+      };
+    }
+
+    function closeItemEditor() {
+      itemEditor.value = null;
+    }
+
+    function applyItemEditor() {
+      const ed = itemEditor.value;
+      if (!ed || !model.value) return;
+      const label = String(ed.label || '').trim();
+      if (!label) return;
+      const color = ed.color || DEFAULT_SUBSECTION_COLOR;
+
+      if (ed.kind === 'add-subsection') {
+        const sec = findSection(model.value, ed.sectionId);
+        if (!sec) return;
+        const id = `sub-${Date.now()}`;
+        sec.subsections.push({
+          id,
+          label: formatSubLabel(label) || '_NEW',
+          color,
+          isNew: true,
+          startRow: null,
+          endRow: null,
+        });
+        selectedSubIds.value = [id];
+        subAnchorId.value = id;
+        closeItemEditor();
+        scrollToSub(id);
+      }
     }
 
     function scrollToSub(subId) {
@@ -441,7 +531,7 @@ export default {
       if (!model.value) return;
       if (model.value.sections.length < 2) {
         window.alert(
-          'Enregistrement annulé : il doit rester au moins deux sections dans la structure.'
+          'Save cancelled: at least two sections must remain in the structure.'
         );
         return;
       }
@@ -456,16 +546,14 @@ export default {
       dragSubId,
       dropTarget,
       editing,
+      itemEditor,
       confirmDelete,
-      colorInputRef,
-      DEFAULT_SECTION_COLOR,
-      DEFAULT_SUBSECTION_COLOR,
+      colorPick,
+      BOOKMARK_COLOR_PALETTE,
       toggleSection,
       isEditing,
       startEditSection,
-      startEditSubsection,
       commitEdit,
-      cancelEdit,
       onEditKeydown,
       isSubSelected,
       onSubClick,
@@ -480,8 +568,11 @@ export default {
       cancelDelete,
       applyDelete,
       pickColor,
-      onColorPicked,
-      addSubsection,
+      closeColorPick,
+      applyPaletteColor,
+      openAddSubsection,
+      closeItemEditor,
+      applyItemEditor,
       sectionStyle,
       subStyle,
       close,
@@ -490,21 +581,13 @@ export default {
   },
   template: `
     <Teleport to="body">
-      <input
-        ref="colorInputRef"
-        type="color"
-        class="matrix-color-hidden"
-        tabindex="-1"
-        aria-hidden="true"
-        @input="onColorPicked"
-      />
       <Transition name="matrix-fade">
         <div v-if="open && model" class="matrix-overlay" @click.self="close">
-          <div class="matrix-panel" role="dialog" aria-modal="true" aria-label="Structure matrix editor">
+          <div class="matrix-panel" role="dialog" aria-modal="true" aria-label="Bookmark Matrix">
             <header class="matrix-header">
               <button type="button" class="matrix-close" aria-label="Close" @click="close">×</button>
               <div class="matrix-title-block">
-                <h2 class="matrix-title">Structure matrix</h2>
+                <h2 class="matrix-title">Bookmark Matrix</h2>
               </div>
               <button
                 type="button"
@@ -515,47 +598,21 @@ export default {
             </header>
             <div class="matrix-body">
               <aside class="matrix-sections">
-                <div
+                <button
                   v-for="sec in model.sections"
                   :key="sec.id"
-                  class="matrix-sec-row"
-                  :class="{ selected: selectedIds.includes(sec.id) }"
+                  type="button"
+                  class="matrix-sec-pick"
+                  :class="{ 'is-selected': selectedIds.includes(sec.id) }"
+                  @click="toggleSection(sec.id)"
                 >
-                  <div
-                    class="matrix-sec-card"
-                    :style="sectionStyle(sec)"
-                    @click="toggleSection(sec.id)"
-                  >
-                    <input
-                      v-if="isEditing('section', sec.id)"
-                      v-model="editing.value"
-                      type="text"
-                      class="matrix-inline-input"
-                      @click.stop
-                      @keydown="onEditKeydown"
-                      @blur="commitEdit"
-                    />
-                    <span
-                      v-else
-                      class="matrix-sec-label"
-                      @click.stop="startEditSection(sec)"
-                    >{{ sec.label }}</span>
-                    <button
-                      type="button"
-                      class="matrix-icon-btn"
-                      title="Couleur"
-                      aria-label="Changer la couleur"
-                      @click.stop="pickColor('section', sec.id)"
-                    >✎</button>
-                    <button
-                      type="button"
-                      class="matrix-delete-btn"
-                      title="Supprimer la section"
-                      aria-label="Supprimer la section"
-                      @click.stop="askDeleteSection(sec)"
-                    >×</button>
-                  </div>
-                </div>
+                  <span
+                    class="matrix-sec-pick-dot"
+                    :class="{ 'is-on': selectedIds.includes(sec.id) }"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="matrix-sec-pick-label">{{ sec.label }}</span>
+                </button>
               </aside>
               <div class="matrix-columns">
                 <div
@@ -576,22 +633,31 @@ export default {
                     <span
                       v-else
                       class="matrix-col-title"
-                      @click.stop="startEditSection(sec)"
+                      @click="startEditSection(sec)"
                     >{{ sec.label }}</span>
-                    <button
-                      type="button"
-                      class="matrix-icon-btn matrix-icon-btn-light"
-                      title="Couleur"
-                      aria-label="Changer la couleur"
-                      @click.stop="pickColor('section', sec.id)"
-                    >✎</button>
-                    <button
-                      type="button"
-                      class="matrix-icon-btn matrix-icon-btn-light"
-                      title="Ajouter une sous-section"
-                      aria-label="Ajouter une sous-section"
-                      @click.stop="addSubsection(sec)"
-                    >+</button>
+                    <span class="matrix-col-actions" @mousedown.stop>
+                      <button
+                        type="button"
+                        class="matrix-action"
+                        title="Color"
+                        aria-label="Change color"
+                        @click.stop="pickColor('section', sec.id, null, $event)"
+                      >✎</button>
+                      <button
+                        type="button"
+                        class="matrix-action"
+                        title="Add sub-section"
+                        aria-label="Add sub-section"
+                        @click.stop="openAddSubsection(sec)"
+                      >+</button>
+                      <button
+                        type="button"
+                        class="matrix-action matrix-action-delete"
+                        title="Delete section"
+                        aria-label="Delete section"
+                        @click.stop="askDeleteSection(sec)"
+                      >×</button>
+                    </span>
                   </div>
                   <ul
                     class="matrix-subs"
@@ -618,15 +684,11 @@ export default {
                           'is-selected': isSubSelected(sub.id)
                         }"
                         :style="subStyle(sub)"
+                        draggable="true"
                         @click="onSubClick(sec, sub, $event)"
+                        @dragstart="onDragStart(sub.id, $event)"
+                        @dragend="onDragEnd"
                       >
-                        <span
-                          class="matrix-drag-handle"
-                          title="Glisser pour réordonner"
-                          draggable="true"
-                          @dragstart="onDragStart(sub.id, $event)"
-                          @dragend="onDragEnd"
-                        >⋮⋮</span>
                         <input
                           v-if="isEditing('subsection', sec.id, sub.id)"
                           v-model="editing.value"
@@ -640,20 +702,22 @@ export default {
                           v-else
                           class="matrix-sub-label"
                         >{{ sub.label }}</span>
-                        <button
-                          type="button"
-                          class="matrix-icon-btn matrix-icon-btn-on-color"
-                          title="Couleur"
-                          aria-label="Changer la couleur"
-                          @click.stop="pickColor('subsection', sec.id, sub.id)"
-                        >✎</button>
-                        <button
-                          type="button"
-                          class="matrix-delete-btn matrix-delete-btn-on-color"
-                          title="Supprimer la sous-section"
-                          aria-label="Supprimer la sous-section"
-                          @click.stop="askDeleteSubsection(sec, sub)"
-                        >×</button>
+                        <span class="matrix-sub-actions" @mousedown.stop>
+                          <button
+                            type="button"
+                            class="matrix-action"
+                            title="Color"
+                            aria-label="Change color"
+                            @click.stop="pickColor('subsection', sec.id, sub.id, $event)"
+                          >✎</button>
+                          <button
+                            type="button"
+                            class="matrix-action matrix-action-delete"
+                            title="Delete sub-section"
+                            aria-label="Delete sub-section"
+                            @click.stop="askDeleteSubsection(sec, sub)"
+                          >×</button>
+                        </span>
                       </li>
                     </template>
                     <li
@@ -672,15 +736,75 @@ export default {
             </div>
           </div>
 
+          <div v-if="itemEditor" class="matrix-editor-backdrop" @click.self="closeItemEditor">
+            <form class="matrix-editor" @submit.prevent="applyItemEditor">
+              <h3 class="matrix-editor-title">{{ itemEditor.title }}</h3>
+              <label class="matrix-editor-label">
+                Name
+                <input
+                  v-model="itemEditor.label"
+                  type="text"
+                  class="matrix-editor-input"
+                  autocomplete="off"
+                  required
+                />
+              </label>
+              <div class="matrix-editor-label">
+                Color
+                <div class="matrix-editor-palette">
+                  <button
+                    v-for="c in BOOKMARK_COLOR_PALETTE"
+                    :key="c"
+                    type="button"
+                    class="matrix-palette-dot"
+                    :class="{ 'is-active': itemEditor.color === c }"
+                    :style="{ background: c }"
+                    :aria-label="'Color'"
+                    @click="itemEditor.color = c"
+                  ></button>
+                </div>
+              </div>
+              <div class="matrix-editor-actions">
+                <button type="button" class="matrix-editor-cancel" @click="closeItemEditor">Cancel</button>
+                <button type="submit" class="matrix-editor-apply">Add</button>
+              </div>
+            </form>
+          </div>
+
+          <div
+            v-if="colorPick"
+            class="matrix-palette-layer"
+            @click.self="closeColorPick"
+          >
+            <div
+              class="matrix-palette"
+              role="listbox"
+              :style="{ top: colorPick.top + 'px', left: colorPick.left + 'px' }"
+              @click.stop
+            >
+              <button
+                v-for="c in colorPick.colors"
+                :key="c"
+                type="button"
+                class="matrix-palette-dot"
+                :class="{ 'is-active': colorPick.current === c }"
+                :style="{ background: c }"
+                role="option"
+                :aria-selected="colorPick.current === c"
+                @click="applyPaletteColor(c)"
+              ></button>
+            </div>
+          </div>
+
           <div v-if="confirmDelete" class="matrix-confirm-backdrop" @click.self="cancelDelete">
             <div class="matrix-confirm" role="alertdialog" aria-modal="true">
               <p class="matrix-confirm-text">
-                Supprimer <strong>{{ confirmDelete.name }}</strong> ?
-                Cette action sera appliquée à l'enregistrement.
+                Delete <strong>{{ confirmDelete.name }}</strong>?
+                Applied when you save.
               </p>
               <div class="matrix-confirm-actions">
-                <button type="button" class="matrix-editor-cancel" @click="cancelDelete">Annuler</button>
-                <button type="button" class="matrix-confirm-delete" @click="applyDelete">Supprimer</button>
+                <button type="button" class="matrix-editor-cancel" @click="cancelDelete">Cancel</button>
+                <button type="button" class="matrix-confirm-delete" @click="applyDelete">Delete</button>
               </div>
             </div>
           </div>

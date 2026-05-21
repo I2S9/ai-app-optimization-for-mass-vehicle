@@ -1,13 +1,13 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=syn-scroll2';
+import BdGrid from './BdGrid.js?v=20260521-subsys';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-perf32';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MatrixModal from './MatrixModal.js?v=matrix5';
+import MatrixModal from './MatrixModal.js?v=matrix10';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-perf32';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=20260521-subsys';
 import { createWorkbookSession } from './workbookSession.js?v=syn-perf32';
-import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix5';
+import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix10';
 
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
@@ -113,9 +113,9 @@ const App = {
     }
 
     async function openMatrix() {
-      if (!bdRaw.value) return;
+      if (!bdSheet.value) return;
       await loadSynthesis();
-      matrixState.value = buildMatrixState(bdRaw.value, synRaw.value);
+      matrixState.value = buildMatrixState(bdSheet.value, synRaw.value);
       matrixOpen.value = true;
     }
 
@@ -202,8 +202,8 @@ const App = {
             <button
               type="button"
               class="icon-btn icon-btn-sm"
-              title="Structure matrix — reorder sections and sub-sections"
-              aria-label="Open structure matrix"
+              title="Bookmark Matrix — reorder sections and sub-sections"
+              aria-label="Open Bookmark Matrix"
               @click="openMatrix"
             >
               <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">

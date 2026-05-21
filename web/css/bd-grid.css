@@ -272,18 +272,59 @@
   color: #000;
   font-weight: 600;
 }
+.bd-table tbody td.cell-proj-night,
+.bd-table tbody td.cell-proj-night.readonly {
+  background: #5b7db8 !important;
+  color: #fff;
+  font-weight: 600;
+}
+/* Alternating data bands from Silhouette (Excel s79 / s209) */
+.bd-table tbody tr.row-data-stripe-green td.col-data-stripe,
+.bd-table tbody tr.row-data-stripe-green td.col-data-stripe.readonly {
+  background: #e2efda !important;
+  color: #000;
+}
+.bd-table tbody tr.row-data-stripe-blue td.col-data-stripe,
+.bd-table tbody tr.row-data-stripe-blue td.col-data-stripe.readonly {
+  background: #ddebf7 !important;
+  color: #000;
+}
+/* Codification & Title — always grey (Excel s34 / s35) */
+.bd-table tbody td.cell-col-gray,
+.bd-table tbody td.cell-col-gray.readonly {
+  background: #d9d9d9 !important;
+  color: #333;
+}
+.bd-table tbody tr.row-section td.cell-col-gray,
+.bd-table tbody tr.row-section td.cell-col-gray.readonly,
+.bd-table tbody tr.row-subsection td.cell-col-gray,
+.bd-table tbody tr.row-subsection td.cell-col-gray.readonly,
+.bd-table tbody tr.row-date-blue td.cell-col-gray,
+.bd-table tbody tr.row-date-blue td.cell-col-gray.readonly {
+  background: #d9d9d9 !important;
+  color: #333;
+}
+.bd-table tbody td.cell-proj-info,
+.bd-table tbody td.cell-proj-info.readonly {
+  background: #b4a7d6 !important;
+  color: #000;
+  font-weight: 600;
+}
 .bd-table tbody td.cell-proj-value,
 .bd-table tbody td.cell-proj-value.readonly {
-  background: #f2f2f2 !important;
-  color: #000;
+  background: #5b7db8 !important;
+  color: #fff;
+  font-weight: 600;
 }
 .bd-table tbody tr.row-section td.cell-proj-tt,
 .bd-table tbody tr.row-section td.cell-proj-energy,
 .bd-table tbody tr.row-section td.cell-proj-spc,
 .bd-table tbody tr.row-section td.cell-proj-target,
 .bd-table tbody tr.row-section td.cell-proj-status,
-.bd-table tbody tr.row-section td.cell-proj-value {
+.bd-table tbody tr.row-section td.cell-proj-night,
+.bd-table tbody tr.row-section td.cell-proj-info {
   background-color: #ffff00 !important;
+  color: #000 !important;
 }
 .bd-spacer-top {
   height: 0;

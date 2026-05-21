@@ -92,28 +92,51 @@
   background: #fafafa;
 }
 
-.matrix-sec-row {
-  margin-bottom: 6px;
-  padding: 2px;
-  border-radius: 4px;
-  border: 2px solid transparent;
-}
-.matrix-sec-row.selected {
-  border-color: #1e3a5f;
-  background: rgba(30, 58, 95, 0.06);
-}
-
-.matrix-sec-card {
+.matrix-sec-pick {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 6px 6px 10px;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 4px;
+  padding: 7px 10px 7px 8px;
+  border: none;
   border-radius: 4px;
+  background: #fff;
+  text-align: left;
   cursor: pointer;
-  color: #000;
+  color: #222;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.matrix-sec-pick:hover {
+  background: #f5f5f5;
+}
+.matrix-sec-pick.is-selected {
+  background: #eef3f9;
+  box-shadow: inset 0 0 0 2px #1e3a5f;
+}
+.matrix-sec-pick-dot {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: transparent;
+  border: 2px solid rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+.matrix-sec-pick-dot.is-on {
+  border-color: #1e3a5f;
+  box-shadow: inset 0 0 0 2px #1e3a5f;
+}
+.matrix-sec-pick-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.matrix-sec-label,
 .matrix-col-title,
 .matrix-sub-label {
   flex: 1;
@@ -122,11 +145,6 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: text;
-}
-
-.matrix-sec-label {
-  font-size: 11px;
-  font-weight: 600;
 }
 
 .matrix-inline-input {
@@ -145,57 +163,73 @@
   font-size: 12px;
 }
 
-.matrix-delete-btn {
+.matrix-col-actions,
+.matrix-sub-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border: 1px solid #c44;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.9);
-  font-size: 16px;
+}
+
+.matrix-action {
+  border: none;
+  background: none;
+  padding: 0 4px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
+  color: rgba(0, 0, 0, 0.65);
+}
+.matrix-action:hover {
+  color: #1e3a5f;
+}
+.matrix-action-delete:hover {
   color: #a22;
-  padding: 0;
-}
-.matrix-delete-btn:hover {
-  background: #fee;
-  border-color: #a22;
-}
-.matrix-delete-btn-on-color {
-  background: rgba(255, 255, 255, 0.85);
 }
 
-.matrix-color-hidden {
+.matrix-palette-layer {
   position: fixed;
-  left: -9999px;
-  width: 0;
-  height: 0;
-  opacity: 0;
-  pointer-events: none;
+  inset: 0;
+  z-index: 10003;
+  pointer-events: auto;
 }
 
-.matrix-icon-btn {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border: 1px solid #bbb;
-  border-radius: 4px;
+.matrix-palette {
+  position: fixed;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 320px;
+  padding: 10px 12px;
   background: #fff;
-  font-size: 12px;
-  line-height: 1;
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  border: 1px solid #ccc;
+}
+
+.matrix-palette-dot {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid rgba(0, 0, 0, 0.18);
+  border-radius: 50%;
   cursor: pointer;
-  color: #333;
+  flex-shrink: 0;
 }
-.matrix-icon-btn:hover {
-  background: #eef3f9;
+.matrix-palette-dot:hover {
+  transform: scale(1.08);
+}
+.matrix-palette-dot.is-active {
   border-color: #1e3a5f;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1e3a5f;
 }
-.matrix-icon-btn-light {
-  background: rgba(255, 255, 255, 0.75);
-}
-.matrix-icon-btn-on-color {
-  background: rgba(255, 255, 255, 0.85);
+
+.matrix-editor-palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+  max-width: 320px;
 }
 
 .matrix-columns {
@@ -313,6 +347,8 @@
   font-size: 11px;
   border: 2px solid transparent;
   color: #000;
+  cursor: grab;
+  user-select: none;
   transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 }
 .matrix-sub.is-selected {
@@ -335,17 +371,27 @@
   border-color: rgba(30, 58, 95, 0.45);
 }
 
-.matrix-drag-handle {
-  flex-shrink: 0;
-  color: rgba(0, 0, 0, 0.45);
-  font-size: 14px;
-  letter-spacing: -2px;
-  user-select: none;
-  cursor: grab;
-  padding: 2px 4px;
+.matrix-editor-color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
-.matrix-drag-handle:active {
-  cursor: grabbing;
+
+.matrix-editor-color {
+  width: 40px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.matrix-editor-swatch {
+  width: 48px;
+  height: 28px;
+  border-radius: 4px;
+  border: 1px solid #999;
 }
 
 .matrix-confirm-backdrop {

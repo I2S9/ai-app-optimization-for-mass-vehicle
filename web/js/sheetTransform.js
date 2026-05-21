@@ -5,7 +5,13 @@ import {
   translateValue,
 } from './bdTranslate.js';
 import { colToIndex, indexToCol } from './formulaUtil.js';
-import { BD_MASS_AV_AR_COLS, BD_POSITION_COLS } from './bdColumnConfig.js';
+import {
+  BD_DESIGN_DEPT_COL_RAW,
+  BD_MASS_AV_AR_COLS,
+  BD_POSITION_COLS,
+  BD_SUBSYSTEM_L1_COL_RAW,
+  BD_SUBSYSTEM_L2_COL_RAW,
+} from './bdColumnConfig.js';
 
 const POSITION_INSERT_AFTER = 'AD';
 const POSITION_INSERT_COUNT = 2;
@@ -20,22 +26,48 @@ const HIDDEN_COLUMNS = new Set([
   'AL',
   'AM',
   'AN',
-  'AT',
+  'AQ', // L1 lookup (header "AP" in Excel — not shown in UI)
+  'AR', // Row index for INDIRECT → "Line #"
+  'AT', // L2 lookup (header "AS" in Excel — not shown in UI)
   'AV',
   'Z', // Source
   'AA', // Pack
   'AB', // Reference
 ]);
-const HEADER_EN = {
+/** Visible subsystem columns after Y/Z insert at AD. */
+const SUBSYSTEM_HEADERS_RAW = {
   AP: 'Sub-system L1',
-  AQ: 'Sub-system L1 ref',
   AS: 'Sub-system L2',
-  AT: 'Sub-system L2 ref',
   AU: 'Sub-System Design Dpt',
 };
-function translateCellValue(v) {
+function remapColAfterYZ(col) {
+  const afterIdx = colToIndex(POSITION_INSERT_AFTER);
+  return remapSheetCol(col, afterIdx, POSITION_INSERT_COUNT);
+}
+const SUBSYSTEM_RAW_COLS = new Set([
+  BD_SUBSYSTEM_L1_COL_RAW,
+  BD_SUBSYSTEM_L2_COL_RAW,
+  BD_DESIGN_DEPT_COL_RAW,
+]);
+
+function isSubsystemDataCol(col) {
+  for (const raw of SUBSYSTEM_RAW_COLS) {
+    if (col === remapColAfterYZ(raw)) return true;
+  }
+  return SUBSYSTEM_RAW_COLS.has(col);
+}
+
+function translateCellValue(v, col) {
   if (v == null || v === '') return v;
+  if (isSubsystemDataCol(col)) return String(v).trim();
   return translateValue(String(v));
+}
+
+function stripExcelErrors(v) {
+  if (v == null || v === '') return v;
+  const t = String(v).trim();
+  if (t.startsWith('#') && t.endsWith('!')) return '';
+  return v;
 }
 /** First row where column A is FIN (end of usable data). */
 export function findFinRow(sheet) {
@@ -182,6 +214,61 @@ function clearColumnCells(sheet, cols) {
   return { ...sheet, cells, headerRows };
 }
 
+/** Resolve Design Dpt inherited values (IF(ISTEXT(AU26),AU26,"") + block fill). */
+function fillDesignDeptInherited(sheet, col) {
+  const byRow = new Map();
+  for (const cell of sheet.cells || []) {
+    if (cell.c !== col) continue;
+    byRow.set(cell.r, cell);
+  }
+  const anchors = [];
+  for (const [row, cell] of byRow) {
+    const literal = cell.v;
+    if (
+      literal != null &&
+      literal !== '' &&
+      !String(literal).startsWith('#')
+    ) {
+      anchors.push({ row, v: String(literal).trim() });
+    }
+  }
+  anchors.sort((a, b) => a.row - b.row);
+
+  const resolveRow = (row, visiting = new Set()) => {
+    if (visiting.has(row)) return '';
+    visiting.add(row);
+    const cell = byRow.get(row);
+    if (!cell) return '';
+    const literal = cell.v;
+    if (
+      literal != null &&
+      literal !== '' &&
+      !String(literal).startsWith('#')
+    ) {
+      return String(literal).trim();
+    }
+    const f = String(cell.f || '');
+    if (!f.includes('#REF!')) {
+      const ref = f.match(/(?:AU|AW)(\d+)/i);
+      if (ref) return resolveRow(parseInt(ref[1], 10), visiting);
+    }
+    return '';
+  };
+
+  const start = sheet.dataStartRow || 6;
+  for (let r = start; r <= sheet.lastRow; r++) {
+    const v = resolveRow(r);
+    if (!v) continue;
+    let cell = byRow.get(r);
+    if (!cell) {
+      cell = { r, c: col };
+      sheet.cells.push(cell);
+      byRow.set(r, cell);
+    }
+    cell.v = v;
+  }
+}
+
 export function transformBdSheet(sheet) {
   sheet = trimSheetAfterFin(sheet);
   sheet = insertPositionColumns(sheet);
@@ -195,19 +282,28 @@ export function transformBdSheet(sheet) {
   for (const col of hiddenCols) {
     delete headers[col];
   }
-  headers.AU = 'Sub-System Design Dpt';
+  for (const [rawCol, label] of Object.entries(SUBSYSTEM_HEADERS_RAW)) {
+    const col = remapColAfterYZ(rawCol);
+    if (columns.includes(col)) headers[col] = label;
+  }
   for (const col of columns) {
+    if (Object.values(SUBSYSTEM_HEADERS_RAW).includes(headers[col])) continue;
     const raw = headers[col];
-    if (HEADER_EN[col]) headers[col] = HEADER_EN[col];
-    else if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
+    if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
     else if (raw) headers[col] = translateValue(raw);
   }
   const cells = sheet.cells
     .filter((c) => !hiddenCols.has(c.c))
     .map((c) => {
-      if (c.v == null || c.v === '') return c;
-      const v = translateCellValue(String(c.v));
-      return v === c.v ? c : { ...c, v };
+      let entry = { ...c };
+      if (isSubsystemDataCol(c.c) && entry.v != null) {
+        entry.v = stripExcelErrors(String(entry.v));
+        if (entry.v === '') delete entry.v;
+      } else if (entry.v != null && entry.v !== '') {
+        const v = translateCellValue(String(entry.v), c.c);
+        if (v !== entry.v) entry = { ...entry, v };
+      }
+      return entry;
     });
   const headerRows = {};
   for (const [row, cols] of Object.entries(sheet.headerRows || {})) {
@@ -215,11 +311,17 @@ export function transformBdSheet(sheet) {
     for (const [col, cell] of Object.entries(cols)) {
       if (hiddenCols.has(col)) continue;
       let v = cell.v;
-      if (v != null && v !== '') v = translateCellValue(String(v));
+      if (v != null && v !== '') {
+        v = isSubsystemDataCol(col)
+          ? stripExcelErrors(String(v))
+          : translateCellValue(String(v), col);
+      }
       headerRows[row][col] = { ...cell, v };
     }
   }
   const colWidths = (sheet.colWidths || []).filter((w) => !hiddenCols.has(w.col));
+  const designCol = remapColAfterYZ(BD_DESIGN_DEPT_COL_RAW);
+  fillDesignDeptInherited(sheet, designCol);
   const prepared = {
     ...sheet,
     columns,
