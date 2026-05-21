@@ -6,6 +6,7 @@ import {
   bdSubsystemL2Col,
   bdDesignDeptCol,
   computeBodyDisplayRows,
+  BD_BODY_DISPLAY_ROW_START,
   getCell,
   displayValue,
   displayCellValue,
@@ -20,7 +21,7 @@ import {
   bdMassCol,
   bdTitleCol,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=20260521-mass4';
+} from './bdStore.js?v=20260521-row-num-blue';
 import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
 import {
   BD_FREE_FIELD_COL,
@@ -71,7 +72,7 @@ export default {
     const bodyRows = computed(() => {
       if (props.outlineOnly) {
         const map = cellMap.value;
-        let displayRow = 1;
+        let displayRow = BD_BODY_DISPLAY_ROW_START;
         return (props.sheet.outlineRows || [])
           .filter((r) => shouldDisplayBodyRow(map, r, props.sheet))
           .map((excelRow) => ({ excelRow, displayRow: displayRow++ }));

@@ -275,8 +275,11 @@ export function isSectionLabel(v) {
 export function isSubsystemL1Label(v) {
   return isSectionLabel(v);
 }
-/** Rows hidden from the grid (Excel meta + duplicate pre-band filler). */
-const HIDDEN_META_ROWS = new Set([2, 3, 138]);
+/** Rows hidden from the grid (Excel duplicate tail meta only). */
+const HIDDEN_META_ROWS = new Set([138]);
+/** Column-header row in thead; first body row is 2. */
+export const BD_HEADER_DISPLAY_ROW = 1;
+export const BD_BODY_DISPLAY_ROW_START = 2;
 /** Yellow CA chapter bands: -ADAPTATION (row 5) and -ADTH (row 139). */
 export function isCaBandRow(map, row) {
   return row === 5 || row === 139;
@@ -412,7 +415,13 @@ export function shouldDisplayBodyRow(map, row, sheet) {
   if (HIDDEN_META_ROWS.has(row)) return false;
   const dataStart = sheet.dataStartRow || 6;
   const sh = sheet.sectionHeaderRows;
-  if (row < dataStart && !isStructureRow(map, row, sh)) return false;
+  if (
+    row < dataStart &&
+    !isStructureRow(map, row, sh) &&
+    !isPreBandMarkerRow(map, row, sh)
+  ) {
+    return false;
+  }
   if (isStructureRow(map, row, sh)) return true;
   if (colATitle(map, row)) return true;
   if (isSignificantDataRow(map, row, sh)) return true;
@@ -425,7 +434,7 @@ export function computeBodyDisplayRows(sheet) {
       ? sheet.cellMap
       : buildCellMap(sheet.cells, sheet.headerRows);
   const rows = [];
-  let displayRow = 1;
+  let displayRow = BD_BODY_DISPLAY_ROW_START;
   for (let r = 2; r <= sheet.lastRow; r++) {
     if (!shouldDisplayBodyRow(map, r, sheet)) continue;
     rows.push({ excelRow: r, displayRow: displayRow++ });
@@ -479,9 +488,31 @@ export function isFinDeLotRow(map, row) {
   const t = colATitle(map, row);
   return /^Fin de Lot\b/i.test(t) || /^End of lot\b/i.test(t);
 }
+export function isFormulesRow(map, row, sectionHeaderRows) {
+  const t = colATitle(map, row);
+  return t === 'Ligne avec formules' || t === 'Row with formulas';
+}
 export function isRecopierRow(map, row, sectionHeaderRows) {
   const t = colATitle(map, row);
   return t === 'A recopier' || t === 'To copy';
+}
+/** White band before ADAPTATION (rows 2–3). */
+export function isWhiteMarkerRow(map, row, sectionHeaderRows) {
+  return (
+    isFormulesRow(map, row, sectionHeaderRows) ||
+    isRecopierRow(map, row, sectionHeaderRows)
+  );
+}
+/** Blue spacer before ADAPTATION (Excel row 4). */
+export function isPreAdaptBlueRow(row) {
+  return isSeparatorRow(row);
+}
+/** Pre-ADAPTATION marker rows (white or blue band). */
+export function isPreBandMarkerRow(map, row, sectionHeaderRows) {
+  return (
+    isWhiteMarkerRow(map, row, sectionHeaderRows) ||
+    isPreAdaptBlueRow(row)
+  );
 }
 /** STLA/S rows: green frozen Date column (Excel). */
 export function isDataGreenColA(map, row, sectionHeaderRows) {
@@ -493,18 +524,17 @@ export function isDataGreenColA(map, row, sectionHeaderRows) {
 export function shouldDateColBlue(map, row, sectionHeaderRows) {
   if (HIDDEN_META_ROWS.has(row)) return false;
   if (isStructureRow(map, row, sectionHeaderRows)) return false;
-  if (isFinDeLotRow(map, row)) return false;
-  if (isRecopierRow(map, row, sectionHeaderRows)) return false;
+  if (isPreBandMarkerRow(map, row, sectionHeaderRows)) return false;
   if (isDataGreenColA(map, row, sectionHeaderRows)) return false;
   return Boolean(colATitle(map, row));
 }
 export function rowStyleClass(map, row, sectionHeaderRows) {
-  if (isSeparatorRow(row)) return 'row-separator';
+  if (isPreAdaptBlueRow(row)) return 'row-pre-adapt-blue';
+  if (isWhiteMarkerRow(map, row, sectionHeaderRows)) return 'row-recopier';
   if (isCaBandRow(map, row)) return 'row-section';
   if (isSectionRow(map, row, sectionHeaderRows)) return 'row-section';
   if (isSubSectionRow(map, row, sectionHeaderRows)) return 'row-subsection';
   if (isFinDeLotRow(map, row)) return 'row-fin-lot';
-  if (isRecopierRow(map, row, sectionHeaderRows)) return 'row-recopier';
   if (isDataGreenColA(map, row, sectionHeaderRows)) return 'row-date-green';
   if (isProjectConfigRow(map, row, sectionHeaderRows)) return 'row-project-config';
   if (shouldDateColBlue(map, row, sectionHeaderRows)) return 'row-date-blue';
@@ -519,6 +549,7 @@ export function rowDataStripeClass(
 ) {
   if (isStructureRow(map, row, sectionHeaderRows)) return '';
   if (shouldDateColBlue(map, row, sectionHeaderRows)) return '';
+  if (isPreBandMarkerRow(map, row, sectionHeaderRows)) return '';
   const anchor = dataStartRow || 6;
   if (row < anchor) return '';
   return (row - anchor) % 2 === 0
@@ -545,7 +576,7 @@ export function isTitleMarkerRow(map, row, sectionHeaderRows) {
   return (
     shouldDateColBlue(map, row, sectionHeaderRows) ||
     isFinDeLotRow(map, row) ||
-    isRecopierRow(map, row, sectionHeaderRows)
+    isPreBandMarkerRow(map, row, sectionHeaderRows)
   );
 }
 /** Outline view (eye): CA bands (5/139) + yellow/blue structure rows. */
@@ -604,6 +635,14 @@ export function cellInlineStyle(
     style.fontSize = '11px';
     style.fontWeight = '700';
   }
+  if (cls === 'row-recopier') {
+    style.backgroundColor = '#fff';
+    style.color = '#000';
+  }
+  if (cls === 'row-pre-adapt-blue') {
+    style.backgroundColor = '#0070c0';
+    style.color = '#fff';
+  }
   return style;
 }
 /**
@@ -626,10 +665,6 @@ function structureBookmarkDisplay(
   if (!isStructureRow(map, row, sectionHeaderRows)) return null;
   if (isDesignDeptCol(col)) return null;
   if (isSeparatorRow(row)) {
-    if (col === 'A') {
-      const v = displayValue(getCell(map, row, 'A'));
-      return v || '4';
-    }
     return '';
   }
   if (isSectionRow(map, row, sectionHeaderRows)) {
@@ -794,6 +829,16 @@ export function displayCellValue(
     canonicalSectionByLabel instanceof Map
       ? canonicalSectionByLabel
       : canonicalByLabelMap(canonicalSectionByLabel);
+
+  if (isPreAdaptBlueRow(row)) return '';
+
+  if (isWhiteMarkerRow(map, row, sectionHeaderRows)) {
+    if (col === 'A') {
+      const t = colATitle(map, row);
+      return t ? translateValue(t) : '';
+    }
+    return '';
+  }
 
   if (isStructureRow(map, row, sectionHeaderRows)) {
     if (isMassCol(col)) {

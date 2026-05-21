@@ -86,8 +86,7 @@
 .synthesis-grid .bd-table tbody td.syn-label-col.col-sticky-date {
   z-index: 5;
 }
-.bd-table tbody tr.row-fin-lot td.col-sticky-date,
-.bd-table tbody tr.row-recopier td.col-sticky-date {
+.bd-table tbody tr.row-fin-lot td.col-sticky-date {
   background: #fff;
 }
 /* STLA/S — green on Date (A) only; Silhouette+ uses row-data-stripe-* */
@@ -155,8 +154,35 @@
   background: #1f3864;
   color: #fff;
 }
-.bd-table tbody tr.row-recopier td.data-cell {
-  background: #fff;
+/* White pre-ADAPTATION band (formulas / to copy) */
+.bd-table tbody tr.row-recopier td.data-cell,
+.bd-table tbody tr.row-recopier td.data-cell.readonly,
+.bd-table tbody tr.row-recopier td.col-sticky-date,
+.bd-table tbody tr.row-recopier td.col-sticky-date.readonly,
+.bd-table tbody tr.row-recopier td.cell-col-gray,
+.bd-table tbody tr.row-recopier td.cell-col-gray.readonly,
+.bd-table tbody tr.row-recopier td.col-data-stripe,
+.bd-table tbody tr.row-recopier td.col-data-stripe.readonly,
+.bd-table tbody tr.row-recopier td[class*='cell-proj-'] {
+  background: #fff !important;
+  color: #000 !important;
+}
+/* Blue spacer before ADAPTATION (Excel row 4, display row 3) */
+.bd-table tbody tr.row-pre-adapt-blue td.data-cell,
+.bd-table tbody tr.row-pre-adapt-blue td.data-cell.readonly,
+.bd-table tbody tr.row-pre-adapt-blue td.col-sticky-date,
+.bd-table tbody tr.row-pre-adapt-blue td.col-sticky-date.readonly,
+.bd-table tbody tr.row-pre-adapt-blue td.cell-col-gray,
+.bd-table tbody tr.row-pre-adapt-blue td.cell-col-gray.readonly,
+.bd-table tbody tr.row-pre-adapt-blue td.col-data-stripe,
+.bd-table tbody tr.row-pre-adapt-blue td.col-data-stripe.readonly,
+.bd-table tbody tr.row-pre-adapt-blue td[class*='cell-proj-'] {
+  background: #0070c0 !important;
+  color: #fff !important;
+}
+.bd-table tbody tr.row-pre-adapt-blue td.row-num {
+  background: #fff !important;
+  color: #000 !important;
 }
 /* Title-only rows (blue band, full width) */
 .bd-table tbody tr.row-date-blue td.data-cell,
