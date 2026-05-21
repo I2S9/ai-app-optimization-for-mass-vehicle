@@ -322,7 +322,7 @@
 .bd-table tbody tr.row-date-green.row-data-stripe-green td.col-data-stripe.readonly,
 .bd-table tbody tr.row-project-config.row-data-stripe-green td.col-data-stripe,
 .bd-table tbody tr.row-project-config.row-data-stripe-green td.col-data-stripe.readonly {
-  background: #dce8d4 !important;
+  background: #ebf1de !important;
   color: #000;
 }
 .bd-table tbody tr.row-data-stripe-blue td.col-data-stripe,
@@ -331,7 +331,7 @@
 .bd-table tbody tr.row-date-green.row-data-stripe-blue td.col-data-stripe.readonly,
 .bd-table tbody tr.row-project-config.row-data-stripe-blue td.col-data-stripe,
 .bd-table tbody tr.row-project-config.row-data-stripe-blue td.col-data-stripe.readonly {
-  background: #d4e3f0 !important;
+  background: #dce6f1 !important;
   color: #000;
 }
 /* Codification & Title — always grey (Excel s34 / s35) */
