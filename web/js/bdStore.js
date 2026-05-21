@@ -17,6 +17,9 @@ import {
   BD_DESIGN_DEPT_COL,
   BD_DESIGN_DEPT_COL_RAW,
   BD_TITLE_COL,
+  BD_MASS_COL,
+  BD_CODIFICATION_WIDTH,
+  BD_MODULAR_TYPE_COL,
   BD_TRADE_COL,
 } from './bdColumnConfig.js';
 import { colToIndex } from './formulaUtil.js';
@@ -56,6 +59,12 @@ export function bdCodificationCol(sheet) {
 export function bdTitleCol(sheet) {
   return bdHeaderCol(sheet, 'Title', BD_TITLE_COL);
 }
+export function bdMassCol(sheet) {
+  return bdHeaderCol(sheet, 'Mass', BD_MASS_COL);
+}
+export function bdModularTypeCol(sheet) {
+  return bdHeaderCol(sheet, 'Modular type', BD_MODULAR_TYPE_COL);
+}
 export function bdSilhouetteCol(sheet) {
   return bdHeaderCol(sheet, 'Silhouette', BD_SILHOUETTE_COL);
 }
@@ -87,7 +96,11 @@ export function isBdDataStripeCol(col, sheet) {
   return colToIndex(col) >= start;
 }
 export function bdColMetaClass(col, sheet) {
-  if (col === bdCodificationCol(sheet) || col === bdTitleCol(sheet)) {
+  if (
+    col === bdCodificationCol(sheet) ||
+    col === bdTitleCol(sheet) ||
+    col === bdModularTypeCol(sheet)
+  ) {
     return 'cell-col-gray';
   }
   if (isBdDataStripeCol(col, sheet)) return 'col-data-stripe';
@@ -127,9 +140,16 @@ export function measureFreeFieldWidth(cells = []) {
   return Math.min(720, Math.max(420, Math.ceil(maxLen * 6.5 + 32)));
 }
 
-export function buildWidthMap(colWidths, columns, headers = {}, cells = []) {
+export function buildWidthMap(
+  colWidths,
+  columns,
+  headers = {},
+  cells = [],
+  freeFieldWidthCached
+) {
   const map = new Map();
-  const freeFieldWidth = measureFreeFieldWidth(cells);
+  const freeFieldWidth =
+    freeFieldWidthCached ?? measureFreeFieldWidth(cells);
   for (const w of colWidths || []) {
     map.set(w.col, w.width);
   }
@@ -140,6 +160,14 @@ export function buildWidthMap(colWidths, columns, headers = {}, cells = []) {
     let wide = Math.max(fromExcel, fromHeader, 56);
     if (col === BD_FREE_FIELD_COL) {
       map.set(col, Math.max(wide, freeFieldWidth));
+      continue;
+    }
+    if (col === BD_CODIFICATION_COL) {
+      map.set(col, BD_CODIFICATION_WIDTH);
+      continue;
+    }
+    if (col === BD_TITLE_COL) {
+      map.set(col, Math.min(wide, 56));
       continue;
     }
     map.set(col, Math.min(wide, 280));
@@ -391,7 +419,10 @@ export function shouldDisplayBodyRow(map, row, sheet) {
 }
 /** Body rows for the grid — skips untitled white lines; consecutive display numbers. */
 export function computeBodyDisplayRows(sheet) {
-  const map = buildCellMap(sheet.cells, sheet.headerRows);
+  const map =
+    sheet.cellMap instanceof Map
+      ? sheet.cellMap
+      : buildCellMap(sheet.cells, sheet.headerRows);
   const rows = [];
   let displayRow = 1;
   for (let r = 2; r <= sheet.lastRow; r++) {
@@ -731,9 +762,18 @@ export function displayCellValue(
   l1Col = BD_SUBSYSTEM_L1_COL_RAW,
   l2Col = BD_SUBSYSTEM_L2_COL
 ) {
-  const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
+  const canonicalByLabel =
+    canonicalSectionByLabel instanceof Map
+      ? canonicalSectionByLabel
+      : canonicalByLabelMap(canonicalSectionByLabel);
 
   if (isStructureRow(map, row, sectionHeaderRows)) {
+    if (col === l1Col) {
+      const cell = getCell(map, row, col);
+      let v = stripExcelErrorValue(displayValue(cell));
+      v = maskStructureValue(map, row, col, v, sectionHeaderRows);
+      return v ? translateValue(v) : '';
+    }
     const bookmark = structureBookmarkDisplay(
       map,
       row,
@@ -752,18 +792,32 @@ export function displayCellValue(
       const title = colATitle(map, row);
       return title ? formatBlueBandLabel(title) : '';
     }
+    if (
+      col === l1Col ||
+      col === l2Col ||
+      col === BD_DESIGN_DEPT_COL ||
+      col === BD_DESIGN_DEPT_COL_RAW
+    ) {
+      const cell = getCell(map, row, col);
+      let v = stripExcelErrorValue(displayValue(cell));
+      if (col === l2Col && cell && (cell.v == null || cell.v === '') && cell.f) {
+        v = '';
+      }
+      return v || '';
+    }
     return '';
   }
 
   if (BD_MASS_AV_AR_COLS.has(col)) return '';
   if (BD_POSITION_COLS.has(col)) return '';
+  if (col === BD_TITLE_COL) return '';
   const cell = getCell(map, row, col);
   let v = displayValue(cell);
   v = stripExcelErrorValue(v);
   if (col === l2Col && cell && (cell.v == null || cell.v === '') && cell.f) v = '';
   if (col === l1Col) {
-    v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel, l1Col);
-    return v;
+    v = maskStructureValue(map, row, col, v, sectionHeaderRows);
+    return v || '';
   }
   if (col === l2Col) {
     v = maskStructureValue(map, row, col, v, sectionHeaderRows);
@@ -783,7 +837,7 @@ export function displayCellValue(
     ) {
       return '';
     }
-    return v;
+    return v || '';
   }
   if (col === BD_DESIGN_DEPT_COL || col === BD_DESIGN_DEPT_COL_RAW) {
     if (
@@ -816,6 +870,6 @@ export function displayCellValue(
   ) {
     return '';
   }
-  if (col !== 'A' || v) return v;
+  if (col !== 'A' || v) return v || '';
   return '';
 }

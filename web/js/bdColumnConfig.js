@@ -20,5 +20,11 @@ export const BD_PROJECT_COL = 'B';
 export const BD_SILHOUETTE_COL = 'C';
 export const BD_CODIFICATION_COL = 'R';
 export const BD_TITLE_COL = 'T';
+/** Mass (Masse) — must match Excel cached values in export. */
+export const BD_MASS_COL = 'V';
+/** Default grid width for Codification (narrower than Excel, not minimal). */
+export const BD_CODIFICATION_WIDTH = 36;
+/** Modular type (Type modulaire) — grey like Codification / Title. */
+export const BD_MODULAR_TYPE_COL = 'AJ';
 /** Front (AV) and Rear (AR) mass columns — always empty in the grid. */
 export const BD_MASS_AV_AR_COLS = new Set(['W', 'X']);

@@ -17,8 +17,10 @@ import {
   cellInlineStyle,
   projectCellClass,
   bdColMetaClass,
+  bdMassCol,
+  bdTitleCol,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=syn-scroll1';
+} from './bdStore.js?v=20260521-perf';
 import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
 import {
   BD_FREE_FIELD_COL,
@@ -59,7 +61,8 @@ export default {
         props.sheet.colWidths,
         props.sheet.columns,
         props.sheet.headers,
-        props.sheet.cells
+        props.sheet.cells,
+        props.sheet.freeFieldWidth
       )
     );
 
@@ -73,7 +76,7 @@ export default {
           .filter((r) => shouldDisplayBodyRow(map, r, props.sheet))
           .map((excelRow) => ({ excelRow, displayRow: displayRow++ }));
       }
-      return computeBodyDisplayRows(props.sheet);
+      return props.sheet.bodyDisplayRows ?? computeBodyDisplayRows(props.sheet);
     });
 
     const rowCount = computed(() => bodyRows.value.length);
@@ -101,7 +104,17 @@ export default {
     const subsystemL1Col = computed(() => bdSubsystemL1Col(props.sheet));
     const subsystemL2Col = computed(() => bdSubsystemL2Col(props.sheet));
     const designDeptCol = computed(() => bdDesignDeptCol(props.sheet));
+    const titleCol = computed(() => bdTitleCol(props.sheet));
+    const massCol = computed(() => bdMassCol(props.sheet));
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
+    const engineReady = computed(() => props.session?.ready?.value ?? false);
+    const displayCache = new Map();
+    let displayCacheKey = '';
+
+    function invalidateDisplayCache() {
+      displayCache.clear();
+      displayCacheKey = '';
+    }
 
     function colStyle(col) {
       const w = widthMap.value.get(col) || 72;
@@ -147,10 +160,19 @@ export default {
     }
 
     function cellDisplay(row, col) {
-      void calcRevision.value;
+      const cacheKey = `${calcRevision.value}:${engineReady.value}:${props.outlineOnly}:${props.sheet === null ? 0 : 1}`;
+      if (cacheKey !== displayCacheKey) {
+        invalidateDisplayCache();
+        displayCacheKey = cacheKey;
+      }
+      const hitKey = `${row}:${col}`;
+      if (displayCache.has(hitKey)) return displayCache.get(hitKey);
+
       const map = cellMap.value;
       const sh = sectionHeaderRows.value;
-      const canon = props.sheet.canonicalSectionByLabel;
+      const canon =
+        props.sheet.canonicalSectionMap ??
+        props.sheet.canonicalSectionByLabel;
       const cell = getCell(map, row, col);
 
       if (props.sheetName === 'BD') {
@@ -169,7 +191,10 @@ export default {
           col === subsystemL1Col.value ||
           col === subsystemL2Col.value ||
           col === designDeptCol.value;
+        const excelSnapshotCol =
+          col === titleCol.value || col === massCol.value;
         const useFormula =
+          !excelSnapshotCol &&
           !isSubsystemCol &&
           !BD_POSITION_COLS.has(col) &&
           !BD_MASS_AV_AR_COLS.has(col) &&
@@ -183,12 +208,18 @@ export default {
             col,
             cell
           );
-          if (computed !== '' && computed !== '#REF!') return computed;
+          if (computed !== '' && computed !== '#REF!') {
+            displayCache.set(hitKey, computed);
+            return computed;
+          }
         }
+        displayCache.set(hitKey, masked);
         return masked;
       }
 
-      return displayValue(cell);
+      const plain = displayValue(cell);
+      displayCache.set(hitKey, plain);
+      return plain;
     }
 
     function updateViewport() {
@@ -196,10 +227,15 @@ export default {
     }
 
     watch(
+      () => props.sheet,
+      () => invalidateDisplayCache()
+    );
+    watch(
       () => props.outlineOnly,
       () => {
         scrollTop.value = 0;
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
+        invalidateDisplayCache();
       }
     );
 

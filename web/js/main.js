@@ -1,11 +1,11 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=20260521-stripe2';
+import BdGrid from './BdGrid.js?v=20260521-perf';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-perf32';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix10';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=20260521-structure';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=20260521-perf';
 import { createWorkbookSession } from './workbookSession.js?v=syn-perf32';
 import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix10';
 
@@ -43,12 +43,22 @@ const App = {
     function scheduleEngine() {
       if (engineStarted || !bdSheet.value || !isGridPage.value) return;
       engineStarted = true;
-      const run = () => session.loadSheets([{ name: 'BD', data: bdSheet.value }]);
+      let engineLoaded = false;
+      const run = () => {
+        if (engineLoaded) return;
+        engineLoaded = true;
+        window.removeEventListener('pointerdown', onInteract, true);
+        window.removeEventListener('keydown', onInteract, true);
+        session.loadSheets([{ name: 'BD', data: bdSheet.value }]);
+      };
+      const onInteract = () => run();
       if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(run, { timeout: 3000 });
+        requestIdleCallback(run, { timeout: 12000 });
       } else {
-        setTimeout(run, 100);
+        setTimeout(run, 2000);
       }
+      window.addEventListener('pointerdown', onInteract, true);
+      window.addEventListener('keydown', onInteract, true);
     }
 
     function loadSynthesis() {

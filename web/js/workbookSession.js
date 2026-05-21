@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { WorkbookEngine } from './workbookEngine.js';
-import { displayValue } from './bdStore.js';
+import { displayValue, stripExcelErrorValue } from './bdStore.js';
+import { BD_MASS_COL } from './bdColumnConfig.js';
 import {
   buildBdColumnIndex,
   computeSumproduct,
@@ -18,6 +19,11 @@ export function createWorkbookSession() {
   let synGridGetter = null;
   let synFiltersDirty = false;
   const sumproductCache = new Map();
+  const hfDisplayCache = new Map();
+
+  function clearHfDisplayCache() {
+    hfDisplayCache.clear();
+  }
 
   async function loadSheets(sheets) {
     loading.value = true;
@@ -31,7 +37,6 @@ export function createWorkbookSession() {
         bdCols = buildBdColumnIndex(bdEntry.data);
       }
       ready.value = Boolean(bdEntry);
-      revision.value += 1;
     } catch (e) {
       error.value = e?.message || String(e);
       console.error('Workbook engine load failed:', e);
@@ -63,6 +68,7 @@ export function createWorkbookSession() {
       }
       synFiltersDirty = true;
       clearSumproductCache();
+      clearHfDisplayCache();
     } else if (sheetName === 'SYNTHESIS' && synGridGetter) {
       const cell = synGridGetter(row, col);
       if (cell) {
@@ -105,9 +111,20 @@ export function createWorkbookSession() {
       sumproductCache.set(cacheKey, out);
       return out;
     }
+    if (sheetName === 'BD' && col === BD_MASS_COL && cell) {
+      const cached = stripExcelErrorValue(
+        cell.v != null && cell.v !== '' ? String(cell.v) : ''
+      );
+      if (cached !== '') return cached;
+    }
     if (sheetName === 'BD' && ready.value && engine.hasFormula(sheetName, row, col)) {
+      const hfKey = `${row}:${col}`;
+      if (hfDisplayCache.has(hfKey)) return hfDisplayCache.get(hfKey);
       const computed = engine.getCellValue(sheetName, row, col);
-      if (computed !== '' && computed !== '#REF!') return computed;
+      if (computed !== '' && computed !== '#REF!') {
+        hfDisplayCache.set(hfKey, computed);
+        return computed;
+      }
     }
     return displayValue(cell);
   }
@@ -125,6 +142,7 @@ export function createWorkbookSession() {
     synGridGetter = null;
     synFiltersDirty = false;
     clearSumproductCache();
+    clearHfDisplayCache();
     ready.value = false;
   }
 

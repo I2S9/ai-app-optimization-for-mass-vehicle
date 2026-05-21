@@ -1,5 +1,11 @@
 /** Prepare BD sheet JSON for the web grid (columns, English labels & values). */
-import { computeOutlineRows, computeSectionHeaderRows } from './bdStore.js';
+import {
+  buildCellMap,
+  computeBodyDisplayRows,
+  computeOutlineRows,
+  computeSectionHeaderRows,
+  measureFreeFieldWidth,
+} from './bdStore.js';
 import {
   HEADER_FR_EN,
   translateValue,
@@ -8,6 +14,7 @@ import { colToIndex, indexToCol } from './formulaUtil.js';
 import {
   BD_DESIGN_DEPT_COL_RAW,
   BD_MASS_AV_AR_COLS,
+  BD_TITLE_COL,
   BD_POSITION_COLS,
   BD_SUBSYSTEM_L1_COL_RAW,
   BD_SUBSYSTEM_L2_COL_RAW,
@@ -214,7 +221,7 @@ function clearColumnCells(sheet, cols) {
   return { ...sheet, cells, headerRows };
 }
 
-/** Resolve Design Dpt inherited values (IF(ISTEXT(AU26),AU26,"") + block fill). */
+/** Resolve Design Dpt inherited values (anchor rows + formula pointer to parent). */
 function fillDesignDeptInherited(sheet, col) {
   const byRow = new Map();
   for (const cell of sheet.cells || []) {
@@ -232,9 +239,10 @@ function fillDesignDeptInherited(sheet, col) {
       anchors.push({ row, v: String(literal).trim() });
     }
   }
+  if (!anchors.length) return;
   anchors.sort((a, b) => a.row - b.row);
 
-  const resolveRow = (row, visiting = new Set()) => {
+  const resolveFormulaParent = (row, visiting = new Set()) => {
     if (visiting.has(row)) return '';
     visiting.add(row);
     const cell = byRow.get(row);
@@ -250,22 +258,35 @@ function fillDesignDeptInherited(sheet, col) {
     const f = String(cell.f || '');
     if (!f.includes('#REF!')) {
       const ref = f.match(/(?:AU|AW)(\d+)/i);
-      if (ref) return resolveRow(parseInt(ref[1], 10), visiting);
+      if (ref) return resolveFormulaParent(parseInt(ref[1], 10), visiting);
     }
     return '';
   };
 
   const start = sheet.dataStartRow || 6;
+  let anchorIdx = 0;
+  let inherited = '';
   for (let r = start; r <= sheet.lastRow; r++) {
-    const v = resolveRow(r);
-    if (!v) continue;
-    let cell = byRow.get(r);
-    if (!cell) {
-      cell = { r, c: col };
-      sheet.cells.push(cell);
-      byRow.set(r, cell);
+    while (
+      anchorIdx + 1 < anchors.length &&
+      anchors[anchorIdx + 1].row <= r
+    ) {
+      anchorIdx += 1;
     }
-    cell.v = v;
+    if (anchors[anchorIdx].row <= r) inherited = anchors[anchorIdx].v;
+    let v = inherited;
+    const cell = byRow.get(r);
+    if (cell?.f && !cell.v) v = resolveFormulaParent(r) || inherited;
+    else if (cell?.v == null || cell.v === '') v = inherited;
+    else continue;
+    if (!v) continue;
+    let target = cell;
+    if (!target) {
+      target = { r, c: col };
+      sheet.cells.push(target);
+      byRow.set(r, target);
+    }
+    target.v = v;
   }
 }
 
@@ -273,6 +294,7 @@ export function transformBdSheet(sheet) {
   sheet = trimSheetAfterFin(sheet);
   sheet = insertPositionColumns(sheet);
   sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS);
+  sheet = clearColumnCells(sheet, new Set([BD_TITLE_COL]));
   const afterIdx = colToIndex(POSITION_INSERT_AFTER);
   const hiddenCols = new Set(
     [...HIDDEN_COLUMNS].map((c) => remapSheetCol(c, afterIdx, POSITION_INSERT_COUNT))
@@ -333,13 +355,15 @@ export function transformBdSheet(sheet) {
   const { rows, canonicalByLabel } = computeSectionHeaderRows(prepared);
   prepared.sectionHeaderRows = rows;
   prepared.canonicalSectionByLabel = Object.fromEntries(canonicalByLabel);
+  prepared.canonicalSectionMap = canonicalByLabel;
   prepared.outlineRows = computeOutlineRows(prepared).filter(
     (r) => r <= prepared.lastRow
   );
+  prepared.cellMap = buildCellMap(prepared.cells, prepared.headerRows);
+  prepared.bodyDisplayRows = computeBodyDisplayRows(prepared);
+  prepared.freeFieldWidth = measureFreeFieldWidth(prepared.cells);
   return prepared;
 }
-
-import { buildCellMap } from './bdStore.js';
 import { buildSynPillarColumns, computeSynEffectiveLastRow } from './synStore.js';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 
