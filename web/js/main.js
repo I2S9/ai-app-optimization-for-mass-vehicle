@@ -3,11 +3,11 @@ import BdGrid from './BdGrid.js?v=syn-scroll2';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-perf32';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MatrixModal from './MatrixModal.js?v=matrix2';
+import MatrixModal from './MatrixModal.js?v=matrix5';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-perf32';
 import { createWorkbookSession } from './workbookSession.js?v=syn-perf32';
-import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix2';
+import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix5';
 
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
@@ -41,9 +41,9 @@ const App = {
     );
 
     function scheduleEngine() {
-      if (engineStarted || !bdRaw.value || !isGridPage.value) return;
+      if (engineStarted || !bdSheet.value || !isGridPage.value) return;
       engineStarted = true;
-      const run = () => session.loadSheets([{ name: 'BD', data: bdRaw.value }]);
+      const run = () => session.loadSheets([{ name: 'BD', data: bdSheet.value }]);
       if (typeof requestIdleCallback === 'function') {
         requestIdleCallback(run, { timeout: 3000 });
       } else {
@@ -140,7 +140,7 @@ const App = {
           synthesisSheet.value = transformSynthesisSheet(result.synRaw);
         }
         if (engineStarted) {
-          await session.loadSheets([{ name: 'BD', data: bdRaw.value }]);
+          await session.loadSheets([{ name: 'BD', data: bdSheet.value }]);
         }
         matrixOpen.value = false;
         dirty.value += 1;

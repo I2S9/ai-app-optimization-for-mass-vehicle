@@ -527,16 +527,31 @@
   background: #e2efda !important;
   font-weight: 600;
 }
+.synthesis-grid .bd-table tbody td.cell-proj-night,
+.synthesis-grid .bd-table tbody td.cell-proj-night.readonly {
+  background: #1e3a5f !important;
+  color: #fff;
+  font-weight: 600;
+}
+.synthesis-grid .bd-table tbody td.cell-proj-info,
+.synthesis-grid .bd-table tbody td.cell-proj-info.readonly {
+  background: #b4a7d6 !important;
+  color: #000;
+  font-weight: 600;
+}
 .synthesis-grid .bd-table tbody td.cell-proj-value,
 .synthesis-grid .bd-table tbody td.cell-proj-value.readonly {
-  background: #f2f2f2 !important;
-  color: #000;
+  background: #1e3a5f !important;
+  color: #fff;
+  font-weight: 600;
 }
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-tt:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-spc:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-energy:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-target:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-status:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-night:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-info:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-value:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-range:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-drivetrain:not(.syn-pillar-col),

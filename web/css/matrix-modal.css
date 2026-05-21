@@ -58,12 +58,6 @@
   font-weight: 600;
 }
 
-.matrix-subtitle {
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: #555;
-}
-
 .matrix-save {
   justify-self: end;
   padding: 8px 20px;
@@ -98,18 +92,7 @@
   background: #fafafa;
 }
 
-.matrix-hint {
-  margin: 0 0 10px;
-  font-size: 10px;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
 .matrix-sec-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
   margin-bottom: 6px;
   padding: 2px;
   border-radius: 4px;
@@ -120,33 +103,76 @@
   background: rgba(30, 58, 95, 0.06);
 }
 
-.matrix-sec-btn {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 10px;
-  border: none;
+.matrix-sec-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 6px 6px 10px;
   border-radius: 4px;
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
   cursor: pointer;
   color: #000;
 }
-.matrix-sec-label {
-  display: block;
+
+.matrix-sec-label,
+.matrix-col-title,
+.matrix-sub-label {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: text;
 }
 
-.matrix-color-input {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: 1px solid #999;
+.matrix-sec-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.matrix-inline-input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid #1e3a5f;
   border-radius: 3px;
-  cursor: pointer;
+  box-sizing: border-box;
+  color: #000;
+  background: #fff;
+}
+.matrix-inline-input-head {
+  font-size: 12px;
+}
+
+.matrix-delete-btn {
   flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1px solid #c44;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  color: #a22;
+  padding: 0;
+}
+.matrix-delete-btn:hover {
+  background: #fee;
+  border-color: #a22;
+}
+.matrix-delete-btn-on-color {
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.matrix-color-hidden {
+  position: fixed;
+  left: -9999px;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .matrix-icon-btn {
@@ -170,7 +196,6 @@
 }
 .matrix-icon-btn-on-color {
   background: rgba(255, 255, 255, 0.85);
-  margin-left: auto;
 }
 
 .matrix-columns {
@@ -194,36 +219,18 @@
 }
 
 .matrix-col-head {
-  padding: 8px 10px;
+  padding: 6px 8px;
   font-weight: 700;
   font-size: 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+  color: #000;
 }
 
 .matrix-col-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.matrix-mini-btn {
-  padding: 4px 10px;
-  font-size: 10px;
-  font-weight: 600;
-  border: 1px solid #1e3a5f;
-  background: #fff;
-  color: #1e3a5f;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.matrix-mini-btn:hover {
-  background: #1e3a5f;
-  color: #fff;
+  font-weight: 700;
 }
 
 .matrix-subs {
@@ -299,14 +306,18 @@
 .matrix-sub {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 4px;
+  padding: 8px 8px 8px 10px;
   border-radius: 4px;
   font-weight: 600;
   font-size: 11px;
-  cursor: grab;
   border: 2px solid transparent;
+  color: #000;
   transition: opacity 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+.matrix-sub.is-selected {
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 1px rgba(30, 58, 95, 0.35);
 }
 .matrix-sub:active {
   cursor: grabbing;
@@ -325,47 +336,62 @@
 }
 
 .matrix-drag-handle {
+  flex-shrink: 0;
   color: rgba(0, 0, 0, 0.45);
   font-size: 14px;
   letter-spacing: -2px;
   user-select: none;
+  cursor: grab;
+  padding: 2px 4px;
+}
+.matrix-drag-handle:active {
+  cursor: grabbing;
 }
 
-.matrix-sub-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.matrix-empty,
-.matrix-placeholder {
-  margin: 0;
-  padding: 16px;
-  color: #666;
-  font-size: 12px;
-  text-align: center;
-  line-height: 1.45;
-}
-
-.matrix-placeholder-col {
-  flex: 1;
+.matrix-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10002;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 2px dashed #c8c8c8;
-  border-radius: 6px;
-  background: #fafafa;
-  padding: 24px;
+  padding: 16px;
 }
 
-.matrix-placeholder-title {
-  margin: 0 0 8px;
+.matrix-confirm {
+  width: min(400px, 92vw);
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 22px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+
+.matrix-confirm-text {
+  margin: 0 0 18px;
   font-size: 14px;
-  font-weight: 700;
+  line-height: 1.45;
   color: #333;
+}
+
+.matrix-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.matrix-confirm-delete {
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  background: #b32;
+  color: #fff;
+  cursor: pointer;
+}
+.matrix-confirm-delete:hover {
+  background: #c44;
 }
 
 .matrix-editor-backdrop {
@@ -393,13 +419,6 @@
   font-weight: 700;
 }
 
-.matrix-editor-hint {
-  margin: 0 0 16px;
-  font-size: 12px;
-  color: #555;
-  line-height: 1.4;
-}
-
 .matrix-editor-label {
   display: block;
   margin-bottom: 12px;
@@ -422,29 +441,6 @@
   outline: none;
   border-color: #1e3a5f;
   box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.15);
-}
-
-.matrix-editor-color-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
-.matrix-editor-color {
-  width: 40px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid #bbb;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.matrix-editor-swatch {
-  width: 48px;
-  height: 28px;
-  border-radius: 4px;
-  border: 1px solid #999;
 }
 
 .matrix-editor-actions {

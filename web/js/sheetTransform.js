@@ -4,6 +4,15 @@ import {
   HEADER_FR_EN,
   translateValue,
 } from './bdTranslate.js';
+import { colToIndex, indexToCol } from './formulaUtil.js';
+import { BD_MASS_AV_AR_COLS, BD_POSITION_COLS } from './bdColumnConfig.js';
+
+const POSITION_INSERT_AFTER = 'AD';
+const POSITION_INSERT_COUNT = 2;
+const POSITION_HEADER_FR = [
+  'Positionnement en Y',
+  'Positionnement en Z',
+];
 const HIDDEN_COLUMNS = new Set([
   'AI',
   'AJ',
@@ -55,11 +64,135 @@ export function trimSheetAfterFin(sheet) {
   }
   return { ...sheet, lastRow: finRow, finRow, cells, headerRows };
 }
+
+function shiftFormulaColumns(formula, firstShiftIdx, delta) {
+  if (!formula || delta === 0) return formula;
+  return String(formula).replace(
+    /(\$?)([A-Z]{1,3})(\$?)(\d+)/gi,
+    (m, d1, col, d2, row) => {
+      const idx = colToIndex(col.toUpperCase());
+      if (idx < firstShiftIdx) return m;
+      return `${d1}${indexToCol(idx + delta)}${d2}${row}`;
+    }
+  );
+}
+
+function remapSheetCol(col, afterIdx, delta) {
+  const idx = colToIndex(col);
+  if (idx <= afterIdx) return col;
+  return indexToCol(idx + delta);
+}
+
+/** Insert Y/Z columns after AD; shift following columns; clear X/Y/Z cells. */
+function insertPositionColumns(sheet) {
+  const afterIdx = colToIndex(POSITION_INSERT_AFTER);
+  const delta = POSITION_INSERT_COUNT;
+  const firstShiftIdx = afterIdx + 1;
+  const newCols = POSITION_HEADER_FR.map((_, i) => indexToCol(afterIdx + 1 + i));
+
+  const columns = [];
+  for (const col of sheet.columns || []) {
+    if (colToIndex(col) <= afterIdx) {
+      columns.push(col);
+      if (col === POSITION_INSERT_AFTER) columns.push(...newCols);
+    } else {
+      columns.push(remapSheetCol(col, afterIdx, delta));
+    }
+  }
+
+  const remapKey = (obj) => {
+    const out = {};
+    for (const [col, val] of Object.entries(obj || {})) {
+      const nc = remapSheetCol(col, afterIdx, delta);
+      out[nc] = val;
+    }
+    for (let i = 0; i < newCols.length; i++) {
+      out[newCols[i]] = POSITION_HEADER_FR[i];
+    }
+    return out;
+  };
+
+  const headers = remapKey(sheet.headers);
+  const headersRaw = remapKey(sheet.headersRaw || sheet.headers);
+  for (let i = 0; i < newCols.length; i++) {
+    headers[newCols[i]] = HEADER_FR_EN[POSITION_HEADER_FR[i]];
+  }
+
+  const colWidths = (sheet.colWidths || []).map((w) => ({
+    ...w,
+    col: remapSheetCol(w.col, afterIdx, delta),
+  }));
+
+  const headerRows = {};
+  for (const [rowStr, cols] of Object.entries(sheet.headerRows || {})) {
+    const row = {};
+    for (const [col, cell] of Object.entries(cols)) {
+      const nc = remapSheetCol(col, afterIdx, delta);
+      const entry = { ...cell };
+      if (entry.f) entry.f = shiftFormulaColumns(entry.f, firstShiftIdx, delta);
+      row[nc] = entry;
+    }
+    headerRows[rowStr] = row;
+  }
+
+  const cells = (sheet.cells || []).map((cell) => {
+    const nc = remapSheetCol(cell.c, afterIdx, delta);
+    const entry = { ...cell, c: nc };
+    if (entry.f) entry.f = shiftFormulaColumns(entry.f, firstShiftIdx, delta);
+    if (BD_POSITION_COLS.has(nc)) {
+      delete entry.f;
+      delete entry.v;
+    } else if (entry.v === '#REF!') {
+      delete entry.v;
+    }
+    return entry;
+  });
+
+  return {
+    ...sheet,
+    columns,
+    headers,
+    headersRaw,
+    colWidths,
+    headerRows,
+    cells,
+  };
+}
+
+function clearColumnCells(sheet, cols) {
+  const colSet = cols instanceof Set ? cols : new Set(cols);
+  const cells = (sheet.cells || []).map((cell) => {
+    if (!colSet.has(cell.c)) return cell;
+    const entry = { ...cell };
+    delete entry.f;
+    delete entry.v;
+    return entry;
+  });
+  const headerRows = {};
+  for (const [rowStr, colsByRow] of Object.entries(sheet.headerRows || {})) {
+    headerRows[rowStr] = { ...colsByRow };
+    for (const col of colSet) {
+      if (!headerRows[rowStr][col]) continue;
+      const entry = { ...headerRows[rowStr][col] };
+      delete entry.f;
+      delete entry.v;
+      headerRows[rowStr][col] = entry;
+    }
+  }
+  return { ...sheet, cells, headerRows };
+}
+
 export function transformBdSheet(sheet) {
   sheet = trimSheetAfterFin(sheet);
-  const columns = sheet.columns.filter((c) => !HIDDEN_COLUMNS.has(c));
+  sheet = insertPositionColumns(sheet);
+  sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS);
+  const afterIdx = colToIndex(POSITION_INSERT_AFTER);
+  const hiddenCols = new Set(
+    [...HIDDEN_COLUMNS].map((c) => remapSheetCol(c, afterIdx, POSITION_INSERT_COUNT))
+  );
+  const columns = sheet.columns.filter((c) => !hiddenCols.has(c));
   const headers = { ...sheet.headers };
-  for (const col of [...HIDDEN_COLUMNS]) {
+  for (const col of hiddenCols) {
     delete headers[col];
   }
   headers.AU = 'Sub-System Design Dpt';
@@ -70,7 +203,7 @@ export function transformBdSheet(sheet) {
     else if (raw) headers[col] = translateValue(raw);
   }
   const cells = sheet.cells
-    .filter((c) => !HIDDEN_COLUMNS.has(c.c))
+    .filter((c) => !hiddenCols.has(c.c))
     .map((c) => {
       if (c.v == null || c.v === '') return c;
       const v = translateCellValue(String(c.v));
@@ -80,13 +213,13 @@ export function transformBdSheet(sheet) {
   for (const [row, cols] of Object.entries(sheet.headerRows || {})) {
     headerRows[row] = {};
     for (const [col, cell] of Object.entries(cols)) {
-      if (HIDDEN_COLUMNS.has(col)) continue;
+      if (hiddenCols.has(col)) continue;
       let v = cell.v;
       if (v != null && v !== '') v = translateCellValue(String(v));
       headerRows[row][col] = { ...cell, v };
     }
   }
-  const colWidths = (sheet.colWidths || []).filter((w) => !HIDDEN_COLUMNS.has(w.col));
+  const colWidths = (sheet.colWidths || []).filter((w) => !hiddenCols.has(w.col));
   const prepared = {
     ...sheet,
     columns,
@@ -108,8 +241,43 @@ import { buildCellMap } from './bdStore.js';
 import { buildSynPillarColumns, computeSynEffectiveLastRow } from './synStore.js';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 
+/** Fix legacy exports that stored shared-string indices as plain numbers. */
+function resolveSynSheetValues(sheet) {
+  const shared = sheet.sharedStrings;
+  if (!Array.isArray(shared) || !shared.length) return sheet;
+  const resolve = (v) => {
+    if (v == null || v === '') return v;
+    const s = String(v).trim();
+    if (!/^\d+$/.test(s)) return v;
+    const hit = shared[parseInt(s, 10)];
+    if (
+      hit != null &&
+      hit !== '' &&
+      !/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(String(hit).trim())
+    ) {
+      return hit;
+    }
+    return v;
+  };
+  const cells = (sheet.cells || []).map((c) => {
+    if (c.v == null || c.v === '') return c;
+    const v = resolve(c.v);
+    return v === c.v ? c : { ...c, v: String(v) };
+  });
+  const headerRows = {};
+  for (const [row, cols] of Object.entries(sheet.headerRows || {})) {
+    headerRows[row] = {};
+    for (const [col, cell] of Object.entries(cols)) {
+      const v = cell.v != null && cell.v !== '' ? resolve(cell.v) : cell.v;
+      headerRows[row][col] = v === cell.v ? cell : { ...cell, v: String(v) };
+    }
+  }
+  return { ...sheet, cells, headerRows };
+}
+
 /** Synthesis grid: columns F… only in UI (A–E hidden), cell map keeps all cols for filters. */
 export function transformSynthesisSheet(sheet) {
+  sheet = resolveSynSheetValues(sheet);
   const columns = filterSynDisplayColumns(sheet.columns || []);
   const headers = { ...(sheet.headers || {}) };
   for (const col of columns) {

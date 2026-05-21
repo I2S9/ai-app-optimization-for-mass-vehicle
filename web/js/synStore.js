@@ -381,16 +381,17 @@ export function synProjectCellClass(displayText, col) {
   const v = String(displayText).trim().toUpperCase();
   if (!v) return '';
   if (v === 'TT') return 'cell-proj-tt';
+  if (v === 'INFO') return 'cell-proj-info';
   if (v === 'TARGET') return 'cell-proj-target';
   if (v === 'STATUS') return 'cell-proj-status';
-  if (v === 'SPC' || /^SP\d+$/.test(v)) return 'cell-proj-spc';
+  if (v === 'SPC') return 'cell-proj-spc';
   if (['BEV', 'HEV', 'MHEVP2', 'PHEV', 'ICE', 'MHEV', 'PHEV2'].includes(v)) {
     return 'cell-proj-energy';
   }
   if (v === 'FWD' || v === 'AWD' || v === 'RWD') return 'cell-proj-drivetrain';
   if (v === 'PTF') return 'cell-proj-ptf';
   if (v === 'HR' || v === 'XR' || v === 'SR') return 'cell-proj-range';
-  return 'cell-proj-value';
+  return 'cell-proj-night';
 }
 
 export function synIsReadonly(cell, row, sheet) {

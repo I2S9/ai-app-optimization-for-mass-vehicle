@@ -10,6 +10,9 @@ import {
   isSectionRow,
   isCaBandRow,
   formatBlueBandLabel,
+  computeSectionHeaderRows,
+  computeOutlineRows,
+  bdSubsystemL1Col,
 } from './bdStore.js';
 import {
   synLabel,
@@ -20,8 +23,9 @@ import {
   SYN_SKIPPED_ROWS,
 } from './synStore.js';
 
-const DEFAULT_SECTION_COLOR = '#fff2cc';
-const DEFAULT_SUBSECTION_COLOR = '#bdd7ee';
+/** Same as bd-grid.css row-section / row-subsection */
+const DEFAULT_SECTION_COLOR = '#ffff00';
+const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
 
 function uid(prefix) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
@@ -38,7 +42,8 @@ function getBdSectionLabel(map, row, sheet) {
     if (row === 5) return '-ADAPTATION';
     if (row === 139) return '-ADTH';
   }
-  const ap = displayValue(getCell(map, row, 'AP'));
+  const l1Col = bdSubsystemL1Col(sheet);
+  const ap = displayValue(getCell(map, row, l1Col));
   if (ap) return String(ap).trim();
   const a = displayValue(getCell(map, row, 'A'));
   if (a && String(a).trim().startsWith('-')) return String(a).trim();
@@ -46,24 +51,18 @@ function getBdSectionLabel(map, row, sheet) {
 }
 
 /** Ordered L1 section header rows in the BD sheet. */
-function bdSectionHeaderRows(sheet, map) {
+function bdSectionHeaderRows(sheet) {
   const fromSheet = sheet.sectionHeaderRows;
   const set = fromSheet instanceof Set ? fromSheet : new Set(fromSheet || []);
-  const rows = [...set].sort((a, b) => a - b);
-  if (!rows.length) {
-    for (let r = sheet.dataStartRow || 6; r <= sheet.lastRow; r++) {
-      const ap = displayValue(getCell(map, r, 'AP'));
-      if (ap && ap.trim()) rows.push(r);
-    }
-    rows.sort((a, b) => a - b);
-  }
-  return [...new Set(rows)];
+  if (set.size > 2) return [...set].sort((a, b) => a - b);
+  const { rows } = computeSectionHeaderRows(sheet);
+  return [...rows].sort((a, b) => a - b);
 }
 
 export function extractBdStructure(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
   const sh = sheet.sectionHeaderRows;
-  const headers = bdSectionHeaderRows(sheet, map);
+  const headers = bdSectionHeaderRows(sheet);
   const colors = sheet.matrixColors || {};
   const sections = [];
 
@@ -432,9 +431,9 @@ function applySynLabels(sheet, model) {
 function collectMatrixColors(model) {
   const colors = {};
   for (const sec of model.sections) {
-    colors[sec.headerRow] = sec.color;
+    colors[sec.headerRow] = sec.color || DEFAULT_SECTION_COLOR;
     for (const sub of sec.subsections) {
-      colors[sub.startRow] = sub.color;
+      colors[sub.startRow] = sub.color || DEFAULT_SUBSECTION_COLOR;
     }
     for (const line of sec.customLines || []) {
       if (!line.isNew) colors[line.startRow] = line.color;
@@ -517,6 +516,16 @@ export function alignSynModelToBd(synModel, bdModel) {
   return { ...synModel, sections };
 }
 
+function attachBdStructureMeta(sheet) {
+  const { rows, canonicalByLabel } = computeSectionHeaderRows(sheet);
+  sheet.sectionHeaderRows = rows;
+  sheet.canonicalSectionByLabel = Object.fromEntries(canonicalByLabel);
+  sheet.outlineRows = computeOutlineRows(sheet).filter(
+    (r) => r <= sheet.lastRow
+  );
+  return sheet;
+}
+
 export function applyStructureToBdRaw(bdRaw, model) {
   const m = cloneStructure(model);
   const { oldToNew, newLastRow } = buildBdRowMap(bdRaw, m);
@@ -524,6 +533,7 @@ export function applyStructureToBdRaw(bdRaw, model) {
   insertNewBdRows(sheet, m);
   sheet.matrixColors = collectMatrixColors(m);
   sheet = applyBdLabels(sheet, m);
+  sheet = attachBdStructureMeta(sheet);
   return { sheet, model: m };
 }
 

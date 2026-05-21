@@ -165,6 +165,27 @@ function decodeXml(s) {
     .replace(/&quot;/g, '"');
 }
 
+/** Resolve shared-string index even when OOXML omits t="s". */
+function resolveCellValue(raw, t, shared) {
+  if (raw == null || raw === '') return raw;
+  if (t === 's') {
+    const idx = parseInt(String(raw), 10);
+    return shared[idx] ?? String(raw);
+  }
+  const s = String(raw).trim();
+  if (/^\d+$/.test(s)) {
+    const hit = shared[parseInt(s, 10)];
+    if (
+      hit != null &&
+      hit !== '' &&
+      !/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(String(hit).trim())
+    ) {
+      return hit;
+    }
+  }
+  return s;
+}
+
 function parseMergeRef(ref) {
   const [a, b] = ref.split(':');
   const parse = (addr) => {
@@ -244,12 +265,12 @@ async function main() {
   const cells = [];
   const labelMeta = new Map();
 
-  const cellRe = /<c r="([A-Z]+\d+)"([^>]*)>([\s\S]*?)<\/c>/g;
+  const cellRe = /<c r="([A-Z]+\d+)"([^/]*?)(\/>|>([\s\S]*?)<\/c>)/g;
   let m;
   while ((m = cellRe.exec(sheetXml)) !== null) {
     const ref = m[1];
     const attrs = m[2];
-    const inner = m[3];
+    const inner = m[3] === '/>' ? '' : (m[4] || '');
     const col = ref.replace(/\d+$/, '');
     const row = parseInt(ref.replace(/^[A-Z]+/, ''), 10);
     if (row > MAX_ROW || colToNum(col) > colToNum(MAX_COL)) continue;
@@ -261,7 +282,7 @@ async function main() {
     const fM = inner.match(/<f[^>]*>([\s\S]*?)<\/f>/);
     if (fM) formula = decodeXml(fM[1]);
     const vM = inner.match(/<v>([^<]*)<\/v>/);
-    if (vM) value = t === 's' ? shared[parseInt(vM[1], 10)] ?? vM[1] : vM[1];
+    if (vM) value = resolveCellValue(vM[1], t, shared);
     const is = inner.match(/<is>[\s\S]*?<t[^>]*>([^<]*)<\/t>/);
     if (is) value = is[1];
 
@@ -292,7 +313,7 @@ async function main() {
       if (style?.backgroundColor) entry.bg = style.backgroundColor;
       if (style?.color) entry.fc = style.color;
       if (style?.fontWeight === 'bold') entry.b = 1;
-      cells.push(entry);
+      if (entry.v || entry.f || entry.bg || entry.fc || entry.b) cells.push(entry);
       if (col === LABEL_COL) {
         const meta = labelMeta.get(row) || {};
         if (display != null && display !== '') meta.label = String(display).trim();

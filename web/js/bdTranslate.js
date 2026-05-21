@@ -30,6 +30,8 @@ export const HEADER_FR_EN = {
   Reference: 'Reference',
   Metier: 'Trade',
   'Positionnement en X': 'X position',
+  'Positionnement en Y': 'Y position',
+  'Positionnement en Z': 'Z position',
   'Champ libre': 'Free field',
   'CODE MODULE ': 'Module code',
   'LOT DECPSA': 'Lot DECPSA',

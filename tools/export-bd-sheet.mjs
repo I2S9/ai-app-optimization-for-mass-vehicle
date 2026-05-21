@@ -161,13 +161,14 @@ async function main() {
   for (let i = 1; i <= maxCol; i++) columns.push(numToCol(i));
   const headers = {};
   const headerRows = {};
-  const cells = [];
-  const cellRe = /<c r="([A-Z]+\d+)"([^>]*)>([\s\S]*?)<\/c>/g;
+  let cells = [];
+  /** [^/]*? attrs so self-closing <c r="AC7" s="63"/> is not merged with the next cell. */
+  const cellRe = /<c r="([A-Z]+\d+)"([^/]*?)(\/>|>([\s\S]*?)<\/c>)/g;
   let m;
   while ((m = cellRe.exec(sheetXml)) !== null) {
     const ref = m[1];
     const attrs = m[2];
-    const inner = m[3];
+    const inner = m[3] === '/>' ? '' : (m[4] || '');
     const col = ref.replace(/\d+$/, '');
     const row = parseInt(ref.replace(/^[A-Z]+/, ''), 10);
     const t = attrs.match(/\bt="([^"]+)"/)?.[1];
@@ -195,7 +196,7 @@ async function main() {
       if (style?.backgroundColor) entry.bg = style.backgroundColor;
       if (style?.color) entry.fc = style.color;
       if (style?.fontWeight === 'bold') entry.b = 1;
-      cells.push(entry);
+      if (entry.v || entry.f || entry.bg || entry.fc || entry.b) cells.push(entry);
     }
   }
   const EN_HEADERS = {
@@ -229,6 +230,8 @@ async function main() {
     Reference: 'Reference',
     Metier: 'Trade',
     'Positionnement en X': 'X position',
+    'Positionnement en Y': 'Y position',
+    'Positionnement en Z': 'Z position',
     'Champ libre': 'Free field',
     'CODE MODULE ': 'Module code',
     'LOT DECPSA': 'Lot DECPSA',
@@ -247,9 +250,7 @@ async function main() {
   const finCell = cells.find((c) => c.c === 'A' && String(c.v || '').trim().toUpperCase() === 'FIN');
   if (finCell) {
     lastRow = finCell.r;
-    const trimmed = cells.filter((c) => c.r <= lastRow);
-    cells.length = 0;
-    cells.push(...trimmed);
+    cells = cells.filter((c) => c.r <= lastRow);
   }
   const payload = {
     version: 1,

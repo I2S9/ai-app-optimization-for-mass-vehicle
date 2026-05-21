@@ -2,6 +2,7 @@ import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from 'vue';
 import {
   buildCellMap,
   buildWidthMap,
+  bdSubsystemL1Col,
   computeBodyDisplayRows,
   getCell,
   displayValue,
@@ -15,6 +16,11 @@ import {
   shouldDisplayBodyRow,
 } from './bdStore.js?v=syn-scroll1';
 import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
+import {
+  BD_FREE_FIELD_COL,
+  BD_MASS_AV_AR_COLS,
+  BD_POSITION_COLS,
+} from './bdColumnConfig.js';
 
 const ROW_OVERSCAN = 8;
 
@@ -88,6 +94,7 @@ export default {
     });
 
     const sectionHeaderRows = computed(() => props.sheet.sectionHeaderRows);
+    const subsystemL1Col = computed(() => bdSubsystemL1Col(props.sheet));
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
 
     function colStyle(col) {
@@ -141,10 +148,19 @@ export default {
       const cell = getCell(map, row, col);
 
       if (props.sheetName === 'BD') {
-        const masked = displayCellValue(map, row, col, sh, canon);
+        const masked = displayCellValue(
+          map,
+          row,
+          col,
+          sh,
+          canon,
+          subsystemL1Col.value
+        );
         const bookmark =
           isStructureRow(map, row, sh) || isTitleMarkerRow(map, row, sh);
         const useFormula =
+          !BD_POSITION_COLS.has(col) &&
+          !BD_MASS_AV_AR_COLS.has(col) &&
           !bookmark &&
           props.session?.ready?.value &&
           props.session.isFormulaCell(props.sheetName, row, col, cell);
@@ -256,7 +272,7 @@ export default {
                   {
                     readonly: cellReadonly(entry.excelRow, col),
                     'col-sticky-date': isStickyDateCol(col),
-                    'col-free-field': col === 'AE',
+                    'col-free-field': col === BD_FREE_FIELD_COL,
                   },
                   projectCellClass(cellDisplay(entry.excelRow, col), col),
                 ]"

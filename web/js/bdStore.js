@@ -3,6 +3,26 @@ import {
   translateValue,
   SECTION_ALLOWLIST,
 } from './bdTranslate.js';
+import {
+  BD_FREE_FIELD_COL,
+  BD_MASS_AV_AR_COLS,
+  BD_POSITION_COLS,
+  BD_SUBSYSTEM_L1_COL,
+  BD_SUBSYSTEM_L1_COL_RAW,
+  BD_TRADE_COL,
+} from './bdColumnConfig.js';
+
+/** Column letter for yellow L1 section titles (AP in JSON, AR after transform). */
+export function bdSubsystemL1Col(sheet) {
+  const headers = sheet?.headers || {};
+  for (const col of sheet?.columns || Object.keys(headers)) {
+    if (headers[col] === 'Sub-system L1') return col;
+  }
+  if (sheet?.columns?.includes(BD_SUBSYSTEM_L1_COL_RAW)) {
+    return BD_SUBSYSTEM_L1_COL_RAW;
+  }
+  return BD_SUBSYSTEM_L1_COL;
+}
 export function buildCellMap(cells, headerRows = {}) {
   const map = new Map();
   for (const cell of cells) {
@@ -27,11 +47,11 @@ export function buildCellMap(cells, headerRows = {}) {
   }
   return map;
 }
-/** Column AE ("Free field") — long text; width from longest cell value. */
+/** Free-field column — long text; width from longest cell value. */
 export function measureFreeFieldWidth(cells = []) {
   let maxLen = String('Free field').length;
   for (const cell of cells) {
-    if (cell.c !== 'AE' || cell.v == null || cell.v === '') continue;
+    if (cell.c !== BD_FREE_FIELD_COL || cell.v == null || cell.v === '') continue;
     maxLen = Math.max(maxLen, String(cell.v).length);
   }
   return Math.min(720, Math.max(420, Math.ceil(maxLen * 6.5 + 32)));
@@ -48,7 +68,7 @@ export function buildWidthMap(colWidths, columns, headers = {}, cells = []) {
     const fromHeader = Math.ceil(label.length * 7.5 + 24);
     const fromExcel = map.get(col) ?? 72;
     let wide = Math.max(fromExcel, fromHeader, 56);
-    if (col === 'AE') {
+    if (col === BD_FREE_FIELD_COL) {
       map.set(col, Math.max(wide, freeFieldWidth));
       continue;
     }
@@ -177,6 +197,7 @@ function asSectionRowSet(sectionHeaderRows) {
  */
 export function computeSectionHeaderRows(sheet) {
   const map = buildCellMap(sheet.cells, sheet.headerRows);
+  const l1Col = bdSubsystemL1Col(sheet);
   const rows = new Set();
   const canonicalByLabel = new Map();
   rows.add(5);
@@ -185,7 +206,7 @@ export function computeSectionHeaderRows(sheet) {
   canonicalByLabel.set('-ADTH', 139);
   let lastAp = '';
   for (let r = sheet.dataStartRow || 6; r <= sheet.lastRow; r++) {
-    const ap = displayValue(getCell(map, r, 'AP'));
+    const ap = displayValue(getCell(map, r, l1Col));
     if (!ap) continue;
     const label = String(ap).trim();
     if (isSectionLabel(label) && label !== lastAp) {
@@ -250,8 +271,8 @@ function isSignificantDataRow(map, row, sectionHeaderRows) {
   if (v && v !== '0' && !String(v).startsWith('#')) return true;
   const s = displayValue(getCell(map, row, 'S'));
   if (s && s !== '0' && !String(s).startsWith('#')) return true;
-  const ae = displayValue(getCell(map, row, 'AE'));
-  if (ae && ae !== '0') return true;
+  const freeField = displayValue(getCell(map, row, BD_FREE_FIELD_COL));
+  if (freeField && freeField !== '0') return true;
   return isProjectConfigRow(map, row, sectionHeaderRows);
 }
 export function shouldDisplayBodyRow(map, row, sheet) {
@@ -275,7 +296,13 @@ export function computeBodyDisplayRows(sheet) {
   }
   return rows;
 }
-export function getRowLabel(map, row, sectionHeaderRows, canonicalSectionByLabel) {
+export function getRowLabel(
+  map,
+  row,
+  sectionHeaderRows,
+  canonicalSectionByLabel,
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW
+) {
   if (!isSectionRow(map, row, sectionHeaderRows)) {
     const sub = getSubSectionLabel(map, row);
     if (sub) return sub;
@@ -285,7 +312,7 @@ export function getRowLabel(map, row, sectionHeaderRows, canonicalSectionByLabel
   }
   if (row === 5) return '-ADAPTATION';
   if (row === 139) return '-ADTH';
-  const ap = displayValue(getCell(map, row, 'AP'));
+  const ap = displayValue(getCell(map, row, l1Col));
   if (ap && isSectionLabel(ap)) return ap;
   const as = getAsLabel(map, row);
   if (isUnassignedSectionLabel(as)) return as;
@@ -436,7 +463,8 @@ function structureBookmarkDisplay(
   row,
   col,
   sectionHeaderRows,
-  canonicalByLabel
+  canonicalByLabel,
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW
 ) {
   if (!isStructureRow(map, row, sectionHeaderRows)) return null;
   if (isSeparatorRow(row)) {
@@ -447,7 +475,13 @@ function structureBookmarkDisplay(
     return '';
   }
   if (isSectionRow(map, row, sectionHeaderRows)) {
-    const title = getRowLabel(map, row, sectionHeaderRows, canonicalByLabel);
+    const title = getRowLabel(
+      map,
+      row,
+      sectionHeaderRows,
+      canonicalByLabel,
+      l1Col
+    );
     if (!title) return '';
     /* CA bands 5 / 139: Date (A) + W; row 5 sans contenu projet (TT…) */
     if (isCaBandRow(map, row)) {
@@ -456,7 +490,7 @@ function structureBookmarkDisplay(
       return '';
     }
     if (col === 'A') return title;
-    if (col === 'AP' && canonicalByLabel.get(title) === row) return title;
+    if (col === l1Col && canonicalByLabel.get(title) === row) return title;
     if (col === 'AS' && isUnassignedSectionLabel(title)) return title;
     return '';
   }
@@ -486,8 +520,15 @@ function canonicalByLabelMap(canonicalSectionByLabel) {
   if (canonicalSectionByLabel instanceof Map) return canonicalSectionByLabel;
   return new Map(Object.entries(canonicalSectionByLabel));
 }
-/** Section title visible on exactly one cell: W@5/139 or AP@canonical row. */
-function isCanonicalSectionDisplay(map, row, col, v, canonicalByLabel) {
+/** Section title visible on exactly one cell: W@5/139 or L1@canonical row. */
+function isCanonicalSectionDisplay(
+  map,
+  row,
+  col,
+  v,
+  canonicalByLabel,
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW
+) {
   if (!v || !isInheritedBandOrSection(v)) return false;
   const label = String(v).trim();
   if (isCaBandRow(map, row) && col === 'W') {
@@ -496,12 +537,21 @@ function isCanonicalSectionDisplay(map, row, col, v, canonicalByLabel) {
       (row === 139 && label === '-ADTH')
     );
   }
-  return canonicalByLabel.get(label) === row && col === 'AP';
+  return canonicalByLabel.get(label) === row && col === l1Col;
 }
 /** Hide L1 / CA titles everywhere except their single canonical cell. */
-function maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel) {
+function maskDuplicateSectionLabel(
+  map,
+  row,
+  col,
+  v,
+  canonicalByLabel,
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW
+) {
   if (!v || !isInheritedBandOrSection(v)) return v;
-  if (isCanonicalSectionDisplay(map, row, col, v, canonicalByLabel)) return v;
+  if (isCanonicalSectionDisplay(map, row, col, v, canonicalByLabel, l1Col)) {
+    return v;
+  }
   return '';
 }
 /** _Unassigned only on the first row of the block (column AS). */
@@ -538,27 +588,36 @@ export function displayCellValue(
   row,
   col,
   sectionHeaderRows,
-  canonicalSectionByLabel
+  canonicalSectionByLabel,
+  l1Col = BD_SUBSYSTEM_L1_COL_RAW
 ) {
+  if (BD_MASS_AV_AR_COLS.has(col)) return '';
   const canonicalByLabel = canonicalByLabelMap(canonicalSectionByLabel);
   const bookmark = structureBookmarkDisplay(
     map,
     row,
     col,
     sectionHeaderRows,
-    canonicalByLabel
+    canonicalByLabel,
+    l1Col
   );
   if (bookmark !== null) return bookmark;
   const blueTitle = blueTitleDisplay(map, row, col, sectionHeaderRows);
   if (blueTitle !== null) return blueTitle;
+  if (BD_POSITION_COLS.has(col)) return '';
   const cell = getCell(map, row, col);
   let v = displayValue(cell);
+  if (v === '#REF!') v = '';
   if (col === 'AS' && cell && (cell.v == null || cell.v === '') && cell.f) v = '';
   v = maskStructureValue(map, row, col, v, sectionHeaderRows);
-  v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel);
+  v = maskDuplicateSectionLabel(map, row, col, v, canonicalByLabel, l1Col);
   v = maskInheritedSubSectionLabel(map, row, col, v, sectionHeaderRows);
   v = maskRepeatedUnassigned(map, row, col, v);
-  if (isTitleMarkerRow(map, row, sectionHeaderRows) && col !== 'A') {
+  if (
+    isTitleMarkerRow(map, row, sectionHeaderRows) &&
+    col !== 'A' &&
+    col !== BD_TRADE_COL
+  ) {
     return '';
   }
   if (col !== 'A' || v) return v;
