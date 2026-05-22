@@ -45,6 +45,19 @@ export function displayToExcelCol(displayCol) {
   return numToCol(colToNum(displayCol) + HIDDEN_OFFSET);
 }
 
+/** SP2 TARGET pillar — display column K (Excel P). */
+export const SYN_SP2_PILLAR_DISPLAY_COL = 'K';
+/** White gutter between SP2 and project columns — display L (Excel Q). */
+export const SYN_SPACER_DISPLAY_COL = 'L';
+/** Rows 3–4 project header band — display columns M…AA (Excel R…AF). */
+export const SYN_PROJ_HDR_GREEN_DISPLAY_START = 'M';
+export const SYN_PROJ_HDR_GREEN_DISPLAY_END = 'AA';
+/** Bold vertical frame for the project table (display M…AA), rows 3–22. */
+export const SYN_PROJ_TABLE_EDGE_DISPLAY_COLS = {
+  left: SYN_PROJ_HDR_GREEN_DISPLAY_START,
+  right: SYN_PROJ_HDR_GREEN_DISPLAY_END,
+};
+
 /** Filter band rows 3–14: fixed grey cells in display columns C and H. */
 export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
 
@@ -53,6 +66,22 @@ export function isSynFilterGreyExcelCol(excelCol) {
     if (excelCol === displayToExcelCol(d)) return true;
   }
   return false;
+}
+
+export function isSynProjHeaderGreenExcelCol(excelCol) {
+  const n = colToNum(excelCol);
+  const lo = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_START));
+  const hi = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END));
+  return n >= lo && n <= hi;
+}
+
+export function isSynSpacerDisplayExcelCol(excelCol) {
+  return excelCol === displayToExcelCol(SYN_SPACER_DISPLAY_COL);
+}
+
+/** Entire display column K (Excel P) — SP2 TARGET band colour. */
+export function isSynSp2DisplayExcelCol(excelCol) {
+  return excelCol === displayToExcelCol(SYN_SP2_PILLAR_DISPLAY_COL);
 }
 
 export function filterSynDisplayColumns(columns = []) {

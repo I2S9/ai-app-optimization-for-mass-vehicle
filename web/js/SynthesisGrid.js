@@ -22,14 +22,25 @@ import {
   isSynMetricRow,
   isSynHeaderPanelRow,
   isSynHeaderPanelBoldCol,
+  isSynSp2DisplayExcelCol,
+  isSynProjHeaderGreenCol,
+  synProjHeaderGreenStyle,
+  isSynHdrLmDividerRightCol,
+  isSynHdrLmDividerLeftCol,
+  isSynHdrAaDividerRightCol,
+  isSynHdrLmDividerRightEntry,
+  isSynHdrLmDividerLeftEntry,
+  isSynHdrAaDividerRightEntry,
+  isSynSpacerColWhiteDisplayRow,
+  isSynSpacerDisplayExcelCol,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf44';
+} from './synStore.js?v=syn-perf59';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
   synStickyColWidth,
   synPillarColWidth,
-} from './synthesisPerf.js?v=syn-perf35';
+} from './synthesisPerf.js?v=syn-perf36';
 const ROW_H = 21;
 const ROW_NUM_W = 56;
 const BUFFER_ROWS = 6;
@@ -261,7 +272,7 @@ export default {
       const row = entry.excelRow;
       const cls = synRowStyleClass(cellMap.value, row, props.sheet);
       const list = [cls];
-      if (isSynHeaderPanelRow(row)) list.push('syn-header-block');
+      if (isSynHeaderPanelRow(row)) list.push('syn-header-block', 'syn-proj-table-frame');
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
       if (row === 16 || row === 18) list.push('syn-metric-curb');
@@ -309,19 +320,34 @@ export default {
       );
     }
 
+    function scrollDataCellStyle(entry, col, width) {
+      const base = colStyle(col, width);
+      if (isGapEntry(entry)) return base;
+      const row = entry.excelRow;
+      if (isSynProjHeaderGreenCol(row, col)) {
+        return { ...base, ...synProjHeaderGreenStyle() };
+      }
+      return { ...base, ...cellInlineStyle(row, col) };
+    }
+
     function cellExtraClass(row, col, display) {
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         return display ? 'syn-pillar-has-char' : '';
       }
-      const accent = synCellAccentClass(display);
-      if (accent) return accent;
       const greyCol = synFilterGreyColClass(row, col);
       if (greyCol) return greyCol;
+      const accent = synCellAccentClass(display);
+      if (accent) return accent;
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
         const bold = isSynHeaderPanelBoldCol(row, col) ? 'syn-hdr-panel-bold' : '';
         const combined = [hdrCls, bold].filter(Boolean).join(' ');
         if (combined) return combined;
+      }
+      if (isSynProjHeaderGreenCol(row, col)) {
+        const parts = ['syn-proj-hdr-green'];
+        if (isSynHeaderPanelBoldCol(row, col)) parts.push('syn-hdr-panel-bold');
+        return parts.join(' ');
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (
@@ -383,10 +409,24 @@ export default {
       isPillarColForEntry,
       isGapGreenPillarCol,
       pillarTitle,
+      pillarColumns,
+      excelToDisplayCol,
       isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
       isSynPillarColAtRow: (col, row) =>
         isSynPillarColAtRow(col, row, pillarColumns.value),
+      isSynSp2DisplayExcelCol,
+      isSynSpacerDisplayExcelCol,
+      isSynSpacerColWhiteDisplayRow,
+      isSynHdrLmDividerRightCol,
+      isSynHdrLmDividerLeftCol,
+      isSynHdrAaDividerRightCol,
+      isSynHdrLmDividerRightEntry,
+      isSynHdrLmDividerLeftEntry,
+      isSynHdrAaDividerRightEntry,
+      isSynProjHeaderGreenCol,
+      synProjHeaderGreenStyle,
       cellInlineStyle,
+      scrollDataCellStyle,
       cellExtraClass,
       headerEdgeRight,
       headerLabelEdgeRight,
@@ -481,15 +521,31 @@ export default {
                       : isPillarColForEntry(entry, colEntry.col),
                     'syn-panel-gap-pillar':
                       isGapEntry(entry) && isGapGreenPillarCol(colEntry.col),
+                    'syn-pillar-k': isSynSp2DisplayExcelCol(colEntry.col),
+                    'syn-proj-hdr-green':
+                      !isGapEntry(entry) &&
+                      isSynProjHeaderGreenCol(entry.excelRow, colEntry.col),
                     'syn-header-edge-right':
                       !isGapEntry(entry) &&
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
+                    'syn-spacer-col-l':
+                      isSynSpacerDisplayExcelCol(colEntry.col) &&
+                      isSynSpacerColWhiteDisplayRow(entry.displayRow),
+                    'syn-hdr-edge-lm-right': isSynHdrLmDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-lm-left': isSynHdrLmDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-aa-right': isSynHdrAaDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
                   },
                 ]"
-                :style="[
-                  colStyle(colEntry.col, colEntry.width),
-                  isGapEntry(entry) ? {} : cellInlineStyle(entry.excelRow, colEntry.col),
-                ]"
+                :style="scrollDataCellStyle(entry, colEntry.col, colEntry.width)"
               >
                 <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, colEntry.col)">
                   <span>{{

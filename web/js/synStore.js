@@ -1,7 +1,20 @@
 /** SYNTHESIS sheet display helpers (filter band, labels, merges). */
 import { displayValue, getCell, isSectionLabel } from './bdStore.js';
 import { translateValue, translateSubsystemLabel } from './bdTranslate.js';
-import { isSynFilterGreyExcelCol } from './synthesisPerf.js';
+import {
+  displayToExcelCol,
+  isSynFilterGreyExcelCol,
+  isSynProjHeaderGreenExcelCol,
+  SYN_PROJ_HDR_GREEN_DISPLAY_START,
+  SYN_PROJ_HDR_GREEN_DISPLAY_END,
+  isSynSpacerDisplayExcelCol,
+  isSynSp2DisplayExcelCol,
+} from './synthesisPerf.js';
+
+export {
+  isSynSpacerDisplayExcelCol,
+  isSynSp2DisplayExcelCol,
+} from './synthesisPerf.js';
 
 export const SYN_FILTER_ROWS = new Set([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
 export const SYN_LABEL_COL = 'F';
@@ -69,14 +82,20 @@ export function synDisplayRowNumber(excelRow) {
   return n - (SYN_GRID_FIRST_ROW - 1);
 }
 
-/** Pale green band for SP1 / SP2 TARGET columns (Excel merge pillars). */
+/** Pale green band for SP1 TARGET pillar (Excel merge). */
 export const SYN_PILLAR_BG = '#c6efce';
+/** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
+export const SYN_SP2_TARGET_BG = '#92d050';
+export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
+export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4]);
 /** First Synthesis body row shown in the grid (Excel row 3 = Date). */
 export const SYN_GRID_FIRST_ROW = 3;
 /** Pale-green pillar from Date (row 3) through last Synthesis row. */
 export const SYN_PILLAR_FIRST_ROW = 3;
 /** Vertical SP1/SP2 label: one letter every N Excel rows (2 = blank row between letters). */
 export const SYN_PILLAR_LETTER_ROW_STEP = 2;
+/** From this row, display columns C+ show 0,00 through last column (ADAPTATION band and below). */
+export const SYN_ZERO_FILL_FIRST_ROW = 25;
 
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
@@ -341,6 +360,71 @@ export function isSynPillarAnchor(row, col, pillarColumns) {
   return Boolean(p && row === p.startRow);
 }
 
+export function isSynSp2PillarCol(col, pillarColumns) {
+  if (!isSynPillarCol(col, pillarColumns)) return false;
+  const title = pillarColumns.get(col)?.title ?? '';
+  return /^SP2\b/i.test(title);
+}
+
+/** Rows 3–4, display columns M through AA (Excel R…AF). */
+export function isSynProjHeaderGreenCol(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || !SYN_PROJ_HDR_GREEN_ROWS.has(r)) return false;
+  return isSynProjHeaderGreenExcelCol(col);
+}
+
+export function synProjHeaderGreenStyle() {
+  return {
+    background: SYN_SP2_TARGET_BG,
+    backgroundColor: SYN_SP2_TARGET_BG,
+    color: '#000',
+  };
+}
+
+/** Bold vertical divider — right edge of display L (header panel rows 3–22). */
+export function isSynHdrLmDividerRightCol(row, col) {
+  if (!isSynHeaderPanelRow(row)) return false;
+  return isSynSpacerDisplayExcelCol(col);
+}
+
+/** Bold vertical divider — left edge of display M (header panel rows 3–22). */
+export function isSynHdrLmDividerLeftCol(row, col) {
+  if (!isSynHeaderPanelRow(row)) return false;
+  return col === displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_START);
+}
+
+/** Bold vertical divider — right edge of display AA (header panel rows 3–22). */
+export function isSynHdrAaDividerRightCol(row, col) {
+  if (!isSynHeaderPanelRow(row)) return false;
+  return col === displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END);
+}
+
+/** M / AA frame — Excel rows 3–22 only (not top gap rows). */
+export function isSynHdrLmDividerLeftEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrLmDividerLeftCol(entry.excelRow, col);
+}
+
+export function isSynHdrAaDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrAaDividerRightCol(entry.excelRow, col);
+}
+
+export function isSynHdrLmDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrLmDividerRightCol(entry.excelRow, col);
+}
+
+/** @deprecated use isSynHdrLmDividerRightCol */
+export function isSynHdrLmDividerCol(row, col) {
+  return isSynHdrLmDividerRightCol(row, col);
+}
+
+/** Display column L — white gutter (display rows 1–24). */
+export function isSynSpacerColWhiteDisplayRow(displayRow) {
+  return displayRow >= 1 && displayRow <= 24;
+}
+
 export function isSynFilterRow(row, sheet) {
   const rows = sheet?.filterRows || [...SYN_FILTER_ROWS];
   return rows.includes(row);
@@ -420,11 +504,29 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.textAlign = 'left';
     style.color = '#000';
   }
+  if (isSynSpacerDisplayExcelCol(col) && isSynHeaderPanelRow(row)) {
+    style.backgroundColor = '#fff';
+    style.color = '#000';
+    return style;
+  }
   if (isSynPillarColAtRow(col, row, pillarColumns)) {
-    style.background = SYN_PILLAR_BG;
-    style.backgroundColor = SYN_PILLAR_BG;
+    const bg = isSynSp2DisplayExcelCol(col) ? SYN_SP2_TARGET_BG : SYN_PILLAR_BG;
+    style.background = bg;
+    style.backgroundColor = bg;
     style.color = '#000';
     style.border = 'none';
+    return style;
+  }
+  const greyStyle = synFilterGreyColStyle(row, col);
+  if (greyStyle) {
+    Object.assign(style, greyStyle);
+    if (isSynHeaderPanelBoldCol(row, col)) style.fontWeight = '700';
+    return style;
+  }
+  if (isSynProjHeaderGreenCol(row, col)) {
+    style.background = SYN_SP2_TARGET_BG;
+    style.backgroundColor = SYN_SP2_TARGET_BG;
+    style.color = '#000';
     return style;
   }
   const raw = cell ? displayValue(cell) : '';
@@ -433,14 +535,9 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     Object.assign(style, accentStyle);
     return style;
   }
-  const greyStyle = synFilterGreyColStyle(row, col);
-  if (greyStyle) {
-    Object.assign(style, greyStyle);
-  }
   if (isSynHeaderPanelBoldCol(row, col)) {
     style.fontWeight = '700';
   }
-  if (greyStyle) return style;
   const rowCls = synRowStyleClass(map, row, sheet);
   if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) {
     const rowColor =
@@ -550,6 +647,14 @@ export function synIsReadonly(_cell, _row, _sheet) {
   return false;
 }
 
+/** Row 25+, display column C through last data column (not label A, not pillars). */
+export function isSynZeroFillDataCol(row, col, pillarColumns) {
+  if (row < SYN_ZERO_FILL_FIRST_ROW) return false;
+  if (col === SYN_LABEL_COL) return false;
+  if (isSynPillarColAtRow(col, row, pillarColumns)) return false;
+  return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
+}
+
 export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (isSynPillarColAtRow(col, row, pillarColumns)) {
     const raw = cell ? displayValue(cell) : '';
@@ -562,6 +667,9 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       return synTranslateText(String(raw).trim(), SYN_LABEL_COL);
     }
     return synHeaderPanelLabel(map, row);
+  }
+  if (isSynZeroFillDataCol(row, col, pillarColumns)) {
+    return '0,00';
   }
   if (!cell) return '';
   if (col === SYN_LABEL_COL) {
