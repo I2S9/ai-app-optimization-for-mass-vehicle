@@ -400,7 +400,6 @@
   background: #d9d9d9 !important;
   color: #333 !important;
   font-weight: 600;
-  border-bottom: 2px solid #000 !important;
 }
 .synthesis-grid .bd-table thead tr.hdr-row-letters th.corner.syn-row-num-hdr {
   background: #d9d9d9 !important;
@@ -558,7 +557,7 @@
   color: #000 !important;
   border: none !important;
   box-shadow: none !important;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 21px;
 }
@@ -663,20 +662,34 @@
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
-  overflow: hidden;
+  overflow: visible;
   vertical-align: middle;
   text-align: center;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 21px;
 }
-.synthesis-grid .bd-table tbody td.syn-pillar-col span {
+.synthesis-grid .bd-table tbody td.syn-pillar-col span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col span {
   display: block;
   width: 100%;
   text-align: center;
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 800;
   line-height: 21px;
+}
+.synthesis-grid .bd-table tbody td.syn-pillar-col input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col input {
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  line-height: 21px !important;
+  height: 21px !important;
+  padding: 0 !important;
+  text-align: center;
+}
+.synthesis-grid .bd-table tbody td.syn-pillar-col.syn-pillar-has-char,
+.synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col.syn-pillar-has-char {
+  padding-top: 3px !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-row-data td.syn-label-col {
   font-weight: 600;

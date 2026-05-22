@@ -19,7 +19,7 @@ import {
   isSynMetricRow,
   isSynHeaderPanelRow,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf36';
+} from './synStore.js?v=syn-perf37';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,

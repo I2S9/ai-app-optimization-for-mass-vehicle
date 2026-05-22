@@ -74,6 +74,8 @@ export const SYN_PILLAR_BG = '#c6efce';
 export const SYN_GRID_FIRST_ROW = 3;
 /** Pale-green pillar from Date (row 3) through last Synthesis row. */
 export const SYN_PILLAR_FIRST_ROW = 3;
+/** Vertical SP1/SP2 label: one letter every N Excel rows (2 = blank row between letters). */
+export const SYN_PILLAR_LETTER_ROW_STEP = 2;
 
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
@@ -122,14 +124,16 @@ export function synPillarLettersFromTitle(title) {
   return [...normalizeSynPillarTitle(title)];
 }
 
-/** One letter per row from Échappement downward. */
+/** One letter every SYN_PILLAR_LETTER_ROW_STEP rows from Échappement downward. */
 export function synPillarLetterForRow(row, col, pillarColumns, map, sheet) {
   const p = pillarColumns?.get(col);
   if (!p) return '';
   const start = findSynEchappementRow(map, sheet);
   const letters = synPillarLettersFromTitle(p.title);
-  const idx = row - start;
-  if (idx < 0 || idx >= letters.length) return '';
+  const offset = row - start;
+  if (offset < 0 || offset % SYN_PILLAR_LETTER_ROW_STEP !== 0) return '';
+  const idx = offset / SYN_PILLAR_LETTER_ROW_STEP;
+  if (idx >= letters.length) return '';
   const ch = letters[idx];
   return ch === ' ' ? '\u00a0' : ch;
 }
