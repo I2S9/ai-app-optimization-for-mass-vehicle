@@ -434,7 +434,7 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell,
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.readonly,
-.synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.syn-pillar-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.syn-pillar-col:not(.syn-panel-gap-pillar),
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-header-block td:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-filter-band td:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-metric-band td:not(.syn-pillar-col) {
@@ -462,6 +462,13 @@
 .synthesis-grid .bd-table tbody tr.syn-header-edge-sep td.syn-pillar-col {
   border-bottom: 2px solid #000 !important;
 }
+/* Black line above Date row — column A through last column */
+.synthesis-grid .bd-table tbody tr.syn-header-edge-above-date td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-edge-above-date td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-edge-above-date td.data-cell:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-edge-above-date td.syn-header-edge-right:not(.syn-pillar-col) {
+  border-top: 2px solid #000 !important;
+}
 /* Section separators — column A through last column (display 7, 12, 14, 20) */
 .synthesis-grid .bd-table tbody tr.syn-header-edge-below-spec td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-header-edge-below-spec td.col-sticky-label,
@@ -486,14 +493,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-edge-above-curb td.data-cell:not(.syn-pillar-col):not(.syn-row-num),
 .synthesis-grid .bd-table tbody tr.syn-header-edge-above-curb td.syn-header-edge-right:not(.syn-pillar-col) {
   border-top: 2px solid #000 !important;
-}
-.synthesis-grid .bd-table tbody tr.syn-header-edge-sep td.syn-row-num,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-below-spec td.syn-row-num,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-above-pole td.syn-row-num,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-below-finition td.syn-row-num,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-above-curb td.syn-row-num {
-  border-top: none !important;
-  border-bottom: none !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-header-edge-right:not(.syn-pillar-col) {
   border-right: 2px solid #000 !important;
@@ -520,16 +519,13 @@
 .synthesis-grid .bd-table tbody tr.syn-header-panel-end td.syn-header-edge-right:not(.syn-pillar-col) {
   border-bottom: 2px solid #000 !important;
 }
-.synthesis-grid .bd-table tbody tr.syn-header-panel-end td.syn-row-num {
-  border-bottom: none !important;
-}
 /* Two blank white rows between row 22 and ADAPTATION (display 21–22) */
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td:not(.syn-row-num),
 .synthesis-grid .bd-table tbody tr.syn-panel-gap td:not(.syn-row-num),
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell,
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-gap-white,
-.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col {
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col:not(.syn-panel-gap-pillar) {
   background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;
@@ -550,6 +546,21 @@
   background: #fff !important;
   background-color: #fff !important;
   font-weight: 600;
+  border-top: 1px solid #b4b4b4 !important;
+  border-bottom: 1px solid #b4b4b4 !important;
+  border-left: 1px solid #b4b4b4 !important;
+}
+/* Gap rows 21–22: SP1/SP2 pillars stay green (display columns B & K) */
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col.syn-panel-gap-pillar,
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.syn-pillar-col.syn-panel-gap-pillar {
+  background: #c6efce !important;
+  background-color: #c6efce !important;
+  color: #000 !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 21px;
 }
 /* Header panel rows 3–22, columns C–J (Excel H–O) — wins over filter/metric band greys */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col),
@@ -793,6 +804,13 @@
   font-weight: 600;
   text-align: center;
 }
+/* Row index — grey line between every row (independent of bold data separators) */
+.synthesis-grid .bd-table tbody td.syn-row-num,
+.synthesis-grid .bd-table tbody td.row-num.syn-row-num {
+  border-top: 1px solid #b4b4b4 !important;
+  border-bottom: 1px solid #b4b4b4 !important;
+  border-left: 1px solid #b4b4b4 !important;
+}
 .synthesis-grid .bd-table thead tr.hdr-row-letters th.corner.syn-row-num-hdr {
   background: #d9d9d9 !important;
   color: #333 !important;
@@ -853,11 +871,14 @@
 .synthesis-grid .bd-table tbody tr.syn-header-edge-above-curb td.syn-pillar-col {
   border-top: 2px solid #000 !important;
 }
-/* Panel gap rows — break green pillars (wins over all pillar rules) */
-.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col,
+.synthesis-grid .bd-table tbody tr.syn-header-edge-above-date td.syn-pillar-col {
+  border-top: 2px solid #000 !important;
+}
+/* Panel gap rows — white except display B/K pillars (syn-panel-gap-pillar above) */
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col:not(.syn-panel-gap-pillar),
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-gap-white,
-.synthesis-grid .bd-table tbody tr.syn-panel-gap td.syn-pillar-col,
-.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.syn-pillar-col {
+.synthesis-grid .bd-table tbody tr.syn-panel-gap td.syn-pillar-col:not(.syn-panel-gap-pillar),
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.syn-pillar-col:not(.syn-panel-gap-pillar) {
   background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;

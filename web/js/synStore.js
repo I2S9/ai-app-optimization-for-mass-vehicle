@@ -9,6 +9,8 @@ export const SYN_VEHICLE_COL_START = 'G';
 export const SYN_HDR_PANEL_COL_START = 'H';
 export const SYN_HDR_PANEL_COL_END = 'O';
 export const SYN_HDR_PANEL_GAP_COUNT = 2;
+/** Blank rows before Date (display 1–2); pillars B/K stay green. */
+export const SYN_HDR_PANEL_TOP_GAP_COUNT = 2;
 
 /** Filter band labels (Excel F); export sometimes omits shared-string cells. */
 export const SYN_FILTER_ROW_LABELS = {
@@ -512,6 +514,10 @@ export function synRowHasContent(map, row, sheet) {
   return false;
 }
 
+export function isSynPanelGapEntry(entry) {
+  return Boolean(entry?.gapBeforePanel || entry?.gapAfterPanel);
+}
+
 export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
   const map = cellMap || new Map();
   const lastRow =
@@ -519,6 +525,16 @@ export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
     computeSynEffectiveLastRow(sheet, map);
   const rows = [];
   let displayRow = 1;
+  if (!outlineOnly) {
+    for (let g = 1; g <= SYN_HDR_PANEL_TOP_GAP_COUNT; g++) {
+      rows.push({
+        gapBeforePanel: true,
+        gapIndex: g,
+        excelRow: null,
+        displayRow: displayRow++,
+      });
+    }
+  }
   for (let r = SYN_GRID_FIRST_ROW; r <= lastRow; r++) {
     if (SYN_SKIPPED_ROWS.includes(r)) continue;
     if (r > SYN_HEADER_PANEL_LAST_ROW && !synRowHasContent(map, r, sheet)) continue;

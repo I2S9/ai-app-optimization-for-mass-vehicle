@@ -5,6 +5,7 @@ import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from 'vue';
 import { getCell } from './bdStore.js?v=syn-perf30';
 import {
   computeSynBodyRows,
+  isSynPanelGapEntry,
   synDisplayValue,
   buildSynPillarColumns,
   synCellInlineStyle,
@@ -17,7 +18,8 @@ import {
   synPillarLetterForRow,
   isSynMetricRow,
   isSynHeaderPanelRow,
-} from './synStore.js?v=syn-perf30';
+  SYN_GRID_FIRST_ROW,
+} from './synStore.js?v=syn-perf36';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -247,10 +249,11 @@ export default {
     }
 
     function entryRowClasses(entry) {
-      if (entry.gapAfterPanel) {
-        const gap = ['syn-panel-gap-row', 'syn-panel-gap', 'syn-header-spacer-white'];
-        if (entry.gapIndex === 1) gap.push('syn-panel-gap-first');
-        if (entry.gapIndex === 2) gap.push('syn-panel-gap-last');
+      if (isSynPanelGapEntry(entry)) {
+        const gap = ['syn-panel-gap-row', 'syn-panel-gap'];
+        if (entry.gapBeforePanel) gap.push('syn-panel-gap-top');
+        if (entry.gapAfterPanel && entry.gapIndex === 1) gap.push('syn-panel-gap-first');
+        if (entry.gapAfterPanel && entry.gapIndex === 2) gap.push('syn-panel-gap-last');
         return gap;
       }
       const row = entry.excelRow;
@@ -266,19 +269,26 @@ export default {
       if (row === 14) list.push('syn-header-edge-below-finition');
       if (row === 16) list.push('syn-header-edge-above-curb');
       if (row === 22) list.push('syn-header-panel-end');
-      const dr = entry.displayRow;
-      if (dr >= 1 && dr <= 6) list.push('syn-header-edge-sep');
-      if (dr === 9 || dr === 10 || dr === 11) list.push('syn-header-edge-sep');
+      if (row === SYN_GRID_FIRST_ROW) list.push('syn-header-edge-above-date');
+      if (row >= 3 && row <= 8) list.push('syn-header-edge-sep');
+      if (row === 11 || row === 12 || row === 13) list.push('syn-header-edge-sep');
+      if (row >= 16 && row <= 21) list.push('syn-header-edge-sep');
       return list;
     }
 
     function isGapEntry(entry) {
-      return Boolean(entry.gapAfterPanel);
+      return isSynPanelGapEntry(entry);
     }
 
     function isPillarColForEntry(entry, col) {
       if (isGapEntry(entry)) return false;
       return isSynPillarColAtRow(col, entry.excelRow, pillarColumns.value);
+    }
+
+    /** Gap rows 21–22: only display columns B & K (SP1/SP2) stay green. */
+    function isGapGreenPillarCol(col) {
+      const letter = excelToDisplayCol(col);
+      return letter === 'B' || letter === 'K';
     }
 
     function pillarTitle(col) {
@@ -363,6 +373,7 @@ export default {
       entryRowClasses,
       isGapEntry,
       isPillarColForEntry,
+      isGapGreenPillarCol,
       pillarTitle,
       isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
       isSynPillarColAtRow: (col, row) =>
@@ -408,13 +419,13 @@ export default {
             </tr>
             <tr
               v-for="entry in visibleRows"
-              :key="entry.gapAfterPanel ? 'panel-gap-' + entry.gapIndex : entry.excelRow"
+              :key="isGapEntry(entry) ? 'panel-gap-' + (entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex : entry.excelRow"
               :class="entryRowClasses(entry)"
             >
               <td class="row-num syn-row-num">{{ entry.displayRow }}</td>
               <td
                 v-for="p in pinnedCols"
-                :key="(entry.gapAfterPanel ? 'gap' : entry.excelRow) + '-p-' + p.col"
+                :key="(isGapEntry(entry) ? 'gap' : entry.excelRow) + '-p-' + p.col"
                 class="data-cell col-sticky-label syn-label-col"
                 :class="[
                   { readonly: cellReadonly(entry.excelRow, p.col) },
@@ -445,7 +456,7 @@ export default {
               <td v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></td>
               <td
                 v-for="(colEntry, colIdx) in visibleScrollCols"
-                :key="(entry.gapAfterPanel ? 'gap' : entry.excelRow) + '-' + colEntry.col"
+                :key="(isGapEntry(entry) ? 'gap' : entry.excelRow) + '-' + colEntry.col"
                 class="data-cell"
                 :class="[
                   { readonly: cellReadonly(entry.excelRow, colEntry.col) },
@@ -458,8 +469,10 @@ export default {
                       ),
                   {
                     'syn-pillar-col': isGapEntry(entry)
-                      ? isSynPillarCol(colEntry.col)
+                      ? isGapGreenPillarCol(colEntry.col)
                       : isPillarColForEntry(entry, colEntry.col),
+                    'syn-panel-gap-pillar':
+                      isGapEntry(entry) && isGapGreenPillarCol(colEntry.col),
                     'syn-header-edge-right':
                       !isGapEntry(entry) &&
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
