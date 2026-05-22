@@ -512,6 +512,19 @@
   background: #f7f7f7 !important;
   font-weight: 600;
 }
+/* Spacer rows 10 & 15 — column A (labels) white, wins over filter/metric greys */
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-filter-band td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-filter-band td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-metric-band td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white.syn-metric-band td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-row.syn-filter-band td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-row.syn-filter-band td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-row.syn-metric-band td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-row.syn-metric-band td.col-sticky-label {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #000 !important;
+}
 .synthesis-grid .bd-table tbody tr.syn-header-panel-end td:not(.syn-pillar-col):not(.syn-row-num),
 .synthesis-grid .bd-table tbody tr.syn-header-panel-end td.data-cell:not(.syn-pillar-col):not(.syn-row-num),
 .synthesis-grid .bd-table tbody tr.syn-header-panel-end td.syn-label-col,
@@ -561,6 +574,15 @@
   font-weight: 800;
   line-height: 21px;
 }
+/* Header panel rows 3–22, display column C → last column — bold text */
+.synthesis-grid .bd-table tbody td.syn-hdr-panel-bold:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-panel-bold:not(.syn-pillar-col) {
+  font-weight: 700 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-hdr-panel-bold input,
+.synthesis-grid .bd-table tbody td.syn-hdr-panel-bold span {
+  font-weight: 700 !important;
+}
 /* Header panel rows 3–22, columns C–J (Excel H–O) — wins over filter/metric band greys */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col),
@@ -588,6 +610,37 @@
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-val-mhevp2:not(.syn-pillar-col) {
   background: #ffff00 !important;
   background-color: #ffff00 !important;
+  color: #000 !important;
+}
+/* Silhouette row — Avenger like (green) & P1X (#c0504d), wins over filter grey */
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default.syn-val-avenger-like:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) {
+  background: #c6efce !important;
+  background-color: #c6efce !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-val-p1x:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default.syn-val-p1x:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-val-p1x:not(.syn-pillar-col) {
+  background: #c0504d !important;
+  background-color: #c0504d !important;
+  color: #fff !important;
+}
+.synthesis-grid .bd-table tbody td.syn-val-p1x input,
+.synthesis-grid .bd-table tbody td.syn-val-p1x span {
+  color: #fff !important;
+}
+/* Filter rows 3–14 — display columns C & H (#a6a6a6) */
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-filter-col-grey:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) {
+  background: #a6a6a6 !important;
+  background-color: #a6a6a6 !important;
   color: #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col),

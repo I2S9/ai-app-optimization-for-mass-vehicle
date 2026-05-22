@@ -40,6 +40,21 @@ export function excelToDisplayCol(excelCol) {
   return n > 0 ? numToCol(n) : excelCol;
 }
 
+/** Display column → Excel column (C → H, H → M, …). */
+export function displayToExcelCol(displayCol) {
+  return numToCol(colToNum(displayCol) + HIDDEN_OFFSET);
+}
+
+/** Filter band rows 3–14: fixed grey cells in display columns C and H. */
+export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
+
+export function isSynFilterGreyExcelCol(excelCol) {
+  for (const d of SYN_FILTER_GREY_DISPLAY_COLS) {
+    if (excelCol === displayToExcelCol(d)) return true;
+  }
+  return false;
+}
+
 export function filterSynDisplayColumns(columns = []) {
   return columns.filter((c) => !SYN_HIDDEN_COLS.has(c));
 }

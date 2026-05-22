@@ -12,14 +12,18 @@ import {
   synProjectCellClass,
   synMetricCellClass,
   synHeaderPanelVehicleClass,
+  synCellAccentClass,
+  synFilterGreyColClass,
+  formatSynNumericDisplay,
   synRowStyleClass,
   isSynPillarCol,
   isSynPillarColAtRow,
   synPillarLetterForRow,
   isSynMetricRow,
   isSynHeaderPanelRow,
+  isSynHeaderPanelBoldCol,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf37';
+} from './synStore.js?v=syn-perf44';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -196,12 +200,10 @@ export default {
     }
 
     function formatVal(v) {
-      const s = String(v);
-      if (!/^-?\d+(\.\d+)?$/.test(s.trim())) return s;
-      const n = parseFloat(s);
-      if (!Number.isFinite(n)) return s;
-      if (Number.isInteger(n)) return String(n);
-      return String(Math.round(n * 1000) / 1000);
+      const formatted = formatSynNumericDisplay(v);
+      return formatted === '' && v != null && String(v).trim() !== ''
+        ? String(v)
+        : formatted;
     }
 
     function cellDisplay(row, col) {
@@ -311,9 +313,15 @@ export default {
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         return display ? 'syn-pillar-has-char' : '';
       }
+      const accent = synCellAccentClass(display);
+      if (accent) return accent;
+      const greyCol = synFilterGreyColClass(row, col);
+      if (greyCol) return greyCol;
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
-        if (hdrCls) return hdrCls;
+        const bold = isSynHeaderPanelBoldCol(row, col) ? 'syn-hdr-panel-bold' : '';
+        const combined = [hdrCls, bold].filter(Boolean).join(' ');
+        if (combined) return combined;
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (

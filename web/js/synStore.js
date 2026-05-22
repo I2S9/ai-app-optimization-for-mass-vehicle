@@ -1,6 +1,7 @@
 /** SYNTHESIS sheet display helpers (filter band, labels, merges). */
 import { displayValue, getCell, isSectionLabel } from './bdStore.js';
 import { translateValue, translateSubsystemLabel } from './bdTranslate.js';
+import { isSynFilterGreyExcelCol } from './synthesisPerf.js';
 
 export const SYN_FILTER_ROWS = new Set([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
 export const SYN_LABEL_COL = 'F';
@@ -223,6 +224,48 @@ export function synHeaderPanelLabel(map, row) {
   return '';
 }
 
+/** True when the cell value is a plain number (not text like P1X). */
+export function isSynNumericRaw(raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return false;
+  return /^-?\d+([.,]\d+)?([eE][+-]?\d+)?$/.test(s);
+}
+
+/** Synthesis numbers — max 4 digit chars per cell, French comma (12 → 12,00 ; 1556 → 1556). */
+export function formatSynNumericDisplay(raw) {
+  if (raw == null || raw === '') return '';
+  const s = String(raw).trim();
+  if (!s || !isSynNumericRaw(s)) return s;
+  let n = parseFloat(s.replace(',', '.'));
+  if (!Number.isFinite(n)) return s;
+
+  const neg = n < 0;
+  n = Math.abs(Number(n.toPrecision(4)));
+
+  let intStr = String(Math.trunc(n));
+  if (intStr.length > 4) {
+    const div = 10 ** (intStr.length - 4);
+    intStr = String(Math.round(n / div));
+  }
+
+  const intLen = intStr.length;
+  const decPlaces = Math.max(0, 4 - intLen);
+
+  if (decPlaces === 0) {
+    return (neg ? '-' : '') + intStr;
+  }
+
+  const scaled = Math.round(n * 10 ** decPlaces) / 10 ** decPlaces;
+  const i = Math.trunc(scaled);
+  let frac = Math.round((scaled - i) * 10 ** decPlaces);
+  if (frac >= 10 ** decPlaces) {
+    return formatSynNumericDisplay(String((neg ? -1 : 1) * (i + 1)));
+  }
+  const fracStr = String(frac).padStart(decPlaces, '0');
+
+  return (neg ? '-' : '') + String(i) + ',' + fracStr;
+}
+
 /** Excel serial date → display (PM pre-target row). */
 export function formatSynMetricValue(row, col, raw) {
   const s = String(raw ?? '').trim();
@@ -236,12 +279,12 @@ export function formatSynMetricValue(row, col, raw) {
       }
     }
   }
-  if (/^-?\d+(\.\d+)?$/.test(s)) {
-    const n = parseFloat(s);
+  if (isSynNumericRaw(s)) {
+    const n = parseFloat(s.replace(',', '.'));
     if (Number.isFinite(n) && Math.abs(n) >= 100) {
-      return `${Math.round(n * 1000) / 1000} kg`;
+      return `${formatSynNumericDisplay(n)} kg`;
     }
-    if (Number.isFinite(n)) return String(Math.round(n * 1000) / 1000);
+    if (Number.isFinite(n)) return formatSynNumericDisplay(n);
   }
   return s;
 }
@@ -384,6 +427,20 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.border = 'none';
     return style;
   }
+  const raw = cell ? displayValue(cell) : '';
+  const accentStyle = synCellAccentStyle(raw);
+  if (accentStyle) {
+    Object.assign(style, accentStyle);
+    return style;
+  }
+  const greyStyle = synFilterGreyColStyle(row, col);
+  if (greyStyle) {
+    Object.assign(style, greyStyle);
+  }
+  if (isSynHeaderPanelBoldCol(row, col)) {
+    style.fontWeight = '700';
+  }
+  if (greyStyle) return style;
   const rowCls = synRowStyleClass(map, row, sheet);
   if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) {
     const rowColor =
@@ -407,10 +464,56 @@ function isSynHeaderPanelVehicleCol(col) {
   );
 }
 
+/** Rows 3–22, display column C through last data column (Excel H+). */
+export function isSynHeaderPanelBoldCol(row, col) {
+  if (!isSynHeaderPanelRow(row)) return false;
+  if (col === SYN_LABEL_COL) return false;
+  return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
+}
+
+/** Avenger like (light green) / P1X (#c0504d) — exact cell value. */
+export function synCellAccentClass(displayText) {
+  const u = String(displayText ?? '')
+    .trim()
+    .toUpperCase();
+  if (!u) return '';
+  if (u === 'P1X') return 'syn-val-p1x';
+  if (u === 'AVENGER LIKE') return 'syn-val-avenger-like';
+  return '';
+}
+
+export function synCellAccentStyle(displayText) {
+  const cls = synCellAccentClass(displayText);
+  if (cls === 'syn-val-p1x') {
+    return { backgroundColor: '#c0504d', color: '#fff' };
+  }
+  if (cls === 'syn-val-avenger-like') {
+    return { backgroundColor: '#c6efce', color: '#000' };
+  }
+  return null;
+}
+
+/** Rows 3–14, display columns C & H (Excel H & M) — #a6a6a6. */
+export function synFilterGreyColClass(row, col) {
+  if (row >= 3 && row <= 14 && isSynFilterGreyExcelCol(col)) {
+    return 'syn-filter-col-grey';
+  }
+  return '';
+}
+
+export function synFilterGreyColStyle(row, col) {
+  if (synFilterGreyColClass(row, col)) {
+    return { backgroundColor: '#a6a6a6', color: '#000' };
+  }
+  return null;
+}
+
 /** Rows 3–22, columns C–J: P1H / HEV / MHEVP2 / metric rows / default grey. */
 export function synHeaderPanelVehicleClass(row, col, displayText) {
   if (SYN_HEADER_SPACER_ROWS.has(row)) return '';
   if (!isSynHeaderPanelRow(row) || !isSynHeaderPanelVehicleCol(col)) return '';
+  const accent = synCellAccentClass(displayText);
+  if (accent) return accent;
   const v = String(displayText ?? '')
     .trim()
     .toUpperCase();
@@ -424,6 +527,8 @@ export function synHeaderPanelVehicleClass(row, col, displayText) {
 /** Vehicle columns (G+): same legend colours as Database B–P. */
 export function synProjectCellClass(displayText, col) {
   if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START) || !displayText) return '';
+  const accent = synCellAccentClass(displayText);
+  if (accent) return accent;
   const v = String(displayText).trim().toUpperCase();
   if (!v) return '';
   if (v === 'TT') return 'cell-proj-tt';
@@ -469,6 +574,9 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (isSynMetricRow(row)) {
     const formatted = formatSynMetricValue(row, col, raw);
     return synTranslateText(formatted, col);
+  }
+  if (isSynNumericRaw(raw)) {
+    return synTranslateText(formatSynNumericDisplay(raw), col);
   }
   return synTranslateText(raw, col);
 }
