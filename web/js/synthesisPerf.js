@@ -3,8 +3,14 @@ export const SYN_HIDDEN_COLS = new Set(['A', 'B', 'C', 'D', 'E']);
 export const SYN_STICKY_COL = 'F';
 /** Display column A (Excel F) — sub-system labels. */
 export const SYN_LABEL_COL_MIN_W = 240;
-/** SP1 / SP2 TARGET pillar — wide column for large vertical label. */
+/** SP1 / SP2 TARGET pillar — minimum width; Excel width wins when wider. */
 export const SYN_PILLAR_COL_WIDTH = 72;
+
+export function synPillarColWidth(col, sheet, pillarColumns) {
+  if (!pillarColumns?.has(col)) return null;
+  const fromSheet = sheet?.colWidths?.find((w) => w.col === col)?.width;
+  return Math.max(fromSheet || 0, SYN_PILLAR_COL_WIDTH);
+}
 
 export function synStickyColWidth(sheet) {
   const fromSheet = sheet?.colWidths?.find((w) => w.col === SYN_STICKY_COL)?.width;
@@ -40,4 +46,15 @@ export function filterSynDisplayColumns(columns = []) {
 
 export function isSynFilterEdit(row, col) {
   return row >= 3 && row <= 14;
+}
+
+/** Header panel vehicle band — display columns C…J (Excel H…O). */
+export const SYN_HDR_PANEL_COL_START = 'H';
+export const SYN_HDR_PANEL_COL_END = 'O';
+
+export function isSynHeaderPanelVehicleCol(col) {
+  const n = colToNum(col);
+  return (
+    n >= colToNum(SYN_HDR_PANEL_COL_START) && n <= colToNum(SYN_HDR_PANEL_COL_END)
+  );
 }

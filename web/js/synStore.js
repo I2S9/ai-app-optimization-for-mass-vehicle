@@ -1,38 +1,52 @@
 /** SYNTHESIS sheet display helpers (filter band, labels, merges). */
 import { displayValue, getCell, isSectionLabel } from './bdStore.js';
+import { translateValue, translateSubsystemLabel } from './bdTranslate.js';
 
 export const SYN_FILTER_ROWS = new Set([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
 export const SYN_LABEL_COL = 'F';
 export const SYN_VEHICLE_COL_START = 'G';
+/** Header panel colour band — display C…J (Excel H…O), rows 3–22. */
+export const SYN_HDR_PANEL_COL_START = 'H';
+export const SYN_HDR_PANEL_COL_END = 'O';
+export const SYN_HDR_PANEL_GAP_COUNT = 2;
 
 /** Filter band labels (Excel F); export sometimes omits shared-string cells. */
 export const SYN_FILTER_ROW_LABELS = {
   3: 'Date',
-  4: 'Projet',
+  4: 'Project',
   5: 'Silhouette',
-  6: 'Hybridation',
-  7: 'Plaque de conception',
-  8: 'Sièges',
-  9: 'Spécificité technique',
+  6: 'Hybridization',
+  7: 'Design plate',
+  8: 'Seats',
+  9: 'Technical spec',
   10: '',
-  11: 'Pôle',
-  12: 'Energie',
-  13: 'Pack technique',
-  14: 'Finition',
+  11: 'Pole',
+  12: 'Energy',
+  13: 'Technical pack',
+  14: 'Trim',
 };
 
 /** Mass / portfolio summary rows between filter band and ADAPTATION (Excel F16–F22). */
 export const SYN_METRIC_ROWS = new Set([15, 16, 17, 18, 19, 20, 21, 22]);
 export const SYN_METRIC_ROW_LABELS = {
   15: '',
-  16: 'Curb mass :',
+  16: 'Curb mass:',
   17: 'PM pre-target',
-  18: 'Curb mass : last update',
+  18: 'Curb mass: last update',
   19: 'Control',
   20: 'Portfolio',
   21: 'Forecast',
   22: '% Forecast/target',
 };
+
+/** English labels for Synthesis grid (values unchanged in sheet JSON). */
+function synTranslateText(raw, col) {
+  if (raw == null || raw === '') return '';
+  const s = String(raw).trim();
+  if (!s) return '';
+  if (col === SYN_LABEL_COL) return translateSubsystemLabel(s);
+  return translateValue(s);
+}
 
 export const SYN_HEADER_PANEL_LAST_ROW = 22;
 /** Excel rows hidden in the web grid (continuous line numbers in the row column). */
@@ -40,13 +54,16 @@ export const SYN_SKIPPED_ROWS = [23, 24];
 /** Reserved — no spacer rows between header panel (row 22) and ADAPTATION (row 25). */
 export const SYN_PANEL_GAP_ROWS = new Set();
 
-/** Row number shown in the grid (Excel row minus hidden rows 23–24). */
+/** Empty spacer rows inside the header panel (between filter/metric blocks). */
+export const SYN_HEADER_SPACER_ROWS = new Set([10, 15]);
+
+/** @deprecated Use sequential displayRow from computeSynBodyRows. */
 export function synDisplayRowNumber(excelRow) {
   let n = excelRow;
   for (const skip of SYN_SKIPPED_ROWS) {
     if (excelRow > skip) n--;
   }
-  return n;
+  return n - (SYN_GRID_FIRST_ROW - 1);
 }
 
 /** Pale green band for SP1 / SP2 TARGET columns (Excel merge pillars). */
@@ -167,7 +184,7 @@ export function synFilterRowLabel(map, row) {
     const t = fromCell.trim();
     if (fallback && /^\d{3,5}$/.test(t)) return fallback;
     if (!fallback && /^\d{3,5}$/.test(t)) return '';
-    return fromCell;
+    return synTranslateText(fromCell, SYN_LABEL_COL);
   }
   return fallback;
 }
@@ -177,6 +194,7 @@ export function isSynMetricRow(row) {
 }
 
 export function isSynHeaderPanelRow(row) {
+  if (row == null) return false;
   return row >= 3 && row <= SYN_HEADER_PANEL_LAST_ROW;
 }
 
@@ -186,7 +204,7 @@ export function isSynPanelGapRow(row) {
 
 export function synMetricRowLabel(map, row) {
   const fromCell = synLabel(map, row);
-  if (fromCell) return fromCell;
+  if (fromCell) return synTranslateText(fromCell, SYN_LABEL_COL);
   if (Object.prototype.hasOwnProperty.call(SYN_METRIC_ROW_LABELS, row)) {
     return SYN_METRIC_ROW_LABELS[row];
   }
@@ -263,8 +281,9 @@ export function isSynPillarCol(col, pillarColumns) {
   return pillarColumns?.has(col) ?? false;
 }
 
-/** Pillar column with pale green from Date (row 3) through last Synthesis row. */
+/** Pillar column — not on virtual panel gap rows (display 21–22). */
 export function isSynPillarColAtRow(col, row, pillarColumns) {
+  if (row == null) return false;
   return isSynPillarCol(col, pillarColumns) && row >= SYN_PILLAR_FIRST_ROW;
 }
 
@@ -375,6 +394,27 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   return style;
 }
 
+function isSynHeaderPanelVehicleCol(col) {
+  const n = colToNum(col);
+  return (
+    n >= colToNum(SYN_HDR_PANEL_COL_START) && n <= colToNum(SYN_HDR_PANEL_COL_END)
+  );
+}
+
+/** Rows 3–22, columns C–J: P1H / HEV / MHEVP2 / metric rows / default grey. */
+export function synHeaderPanelVehicleClass(row, col, displayText) {
+  if (SYN_HEADER_SPACER_ROWS.has(row)) return '';
+  if (!isSynHeaderPanelRow(row) || !isSynHeaderPanelVehicleCol(col)) return '';
+  const v = String(displayText ?? '')
+    .trim()
+    .toUpperCase();
+  if (v.includes('MHEVP2')) return 'syn-hdr-val-mhevp2';
+  if (v.includes('P1H')) return 'syn-hdr-val-p1h';
+  if (v.includes('HEV')) return 'syn-hdr-val-hev';
+  if (row === 18 || row === 19) return 'syn-hdr-row-metric-bg';
+  return 'syn-hdr-val-default';
+}
+
 /** Vehicle columns (G+): same legend colours as Database B–P. */
 export function synProjectCellClass(displayText, col) {
   if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START) || !displayText) return '';
@@ -394,29 +434,37 @@ export function synProjectCellClass(displayText, col) {
   return 'cell-proj-night';
 }
 
-export function synIsReadonly(cell, row, sheet) {
-  if (row < 2) return true;
-  if (isSynMetricRow(row)) return true;
-  if (!cell) return false;
-  if (cell.f) return true;
+/** Synthesis grid: all body cells are editable in the UI (see SynthesisGrid cellReadonly). */
+export function synIsReadonly(_cell, _row, _sheet) {
   return false;
 }
 
 export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (isSynPillarColAtRow(col, row, pillarColumns)) {
+    const raw = cell ? displayValue(cell) : '';
+    if (raw && String(raw).trim()) return String(raw).trim();
     return synPillarLetterForRow(row, col, pillarColumns, map, sheet);
   }
   if (col === SYN_LABEL_COL && isSynHeaderPanelRow(row)) {
+    const raw = cell ? displayValue(cell) : '';
+    if (raw && String(raw).trim()) {
+      return synTranslateText(String(raw).trim(), SYN_LABEL_COL);
+    }
     return synHeaderPanelLabel(map, row);
   }
   if (!cell) return '';
   if (col === SYN_LABEL_COL) {
     const label = synLabel(map, row);
-    if (isSynSectionLabelRow(map, row, sheet) && label) return label;
+    if (isSynSectionLabelRow(map, row, sheet) && label) {
+      return synTranslateText(label, SYN_LABEL_COL);
+    }
   }
   const raw = displayValue(cell);
-  if (isSynMetricRow(row)) return formatSynMetricValue(row, col, raw);
-  return raw;
+  if (isSynMetricRow(row)) {
+    const formatted = formatSynMetricValue(row, col, raw);
+    return synTranslateText(formatted, col);
+  }
+  return synTranslateText(raw, col);
 }
 
 /** Yellow section / blue subsection / separator rows (outline / eye view). */
@@ -470,11 +518,22 @@ export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
     sheet?.effectiveLastRow ??
     computeSynEffectiveLastRow(sheet, map);
   const rows = [];
+  let displayRow = 1;
   for (let r = SYN_GRID_FIRST_ROW; r <= lastRow; r++) {
     if (SYN_SKIPPED_ROWS.includes(r)) continue;
     if (r > SYN_HEADER_PANEL_LAST_ROW && !synRowHasContent(map, r, sheet)) continue;
     if (outlineOnly && !isSynOutlineRow(map, r, sheet)) continue;
-    rows.push({ excelRow: r, displayRow: synDisplayRowNumber(r) });
+    rows.push({ excelRow: r, displayRow: displayRow++ });
+    if (!outlineOnly && r === SYN_HEADER_PANEL_LAST_ROW) {
+      for (let g = 1; g <= SYN_HDR_PANEL_GAP_COUNT; g++) {
+        rows.push({
+          gapAfterPanel: true,
+          gapIndex: g,
+          excelRow: null,
+          displayRow: displayRow++,
+        });
+      }
+    }
   }
   return rows;
 }

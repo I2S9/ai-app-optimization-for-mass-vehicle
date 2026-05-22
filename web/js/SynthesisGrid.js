@@ -6,11 +6,11 @@ import { getCell } from './bdStore.js?v=syn-perf30';
 import {
   computeSynBodyRows,
   synDisplayValue,
-  synIsReadonly,
   buildSynPillarColumns,
   synCellInlineStyle,
   synProjectCellClass,
   synMetricCellClass,
+  synHeaderPanelVehicleClass,
   synRowStyleClass,
   isSynPillarCol,
   isSynPillarColAtRow,
@@ -22,10 +22,8 @@ import {
   SYN_STICKY_COL,
   excelToDisplayCol,
   synStickyColWidth,
-  SYN_PILLAR_COL_WIDTH,
-} from './synthesisPerf.js?v=syn-perf30';
-import { isSumproductCell } from './synthesisCalc.js?v=syn-perf30';
-
+  synPillarColWidth,
+} from './synthesisPerf.js?v=syn-perf35';
 const ROW_H = 21;
 const ROW_NUM_W = 56;
 const BUFFER_ROWS = 6;
@@ -62,16 +60,16 @@ export default {
       const labelW = synStickyColWidth(props.sheet);
       for (const w of props.sheet.colWidths || []) {
         if (w.col === SYN_STICKY_COL) continue;
-        const wPx = pillarColumns.value.has(w.col)
-          ? SYN_PILLAR_COL_WIDTH
-          : Math.min(w.width || 64, 100);
+        const pillarW = synPillarColWidth(w.col, props.sheet, pillarColumns.value);
+        const wPx =
+          pillarW != null ? pillarW : Math.min(w.width || 64, 100);
         m.set(w.col, wPx);
       }
       for (const col of displayColumns.value) {
         if (!m.has(col) && col !== SYN_STICKY_COL) {
           m.set(
             col,
-            pillarColumns.value.has(col) ? SYN_PILLAR_COL_WIDTH : 54
+            synPillarColWidth(col, props.sheet, pillarColumns.value) ?? 54
           );
         }
       }
@@ -190,11 +188,9 @@ export default {
       emit('cell-change', { row, col, value });
     }
 
+    /** Only virtual gap rows (no Excel row) stay display-only. */
     function cellReadonly(row, col) {
-      if (row == null) return true;
-      if (isSynPillarColAtRow(col, row, pillarColumns.value)) return true;
-      const cell = getCell(cellMap.value, row, col);
-      return Boolean(cell?.f) || synIsReadonly(cell, row, props.sheet);
+      return row == null;
     }
 
     function formatVal(v) {
@@ -218,6 +214,7 @@ export default {
         );
       }
       const cell = getCell(cellMap.value, row, col);
+      let displayCell = cell;
       if (props.session?.getDisplayValue) {
         const fromSession = props.session.getDisplayValue(
           'SYNTHESIS',
@@ -226,29 +223,11 @@ export default {
           cell
         );
         if (fromSession != null && fromSession !== '') {
-          if (isSynMetricRow(row)) {
-            return synDisplayValue(
-              { ...cell, v: fromSession },
-              cellMap.value,
-              row,
-              col,
-              props.sheet,
-              pillarColumns.value
-            );
-          }
-          return formatVal(fromSession);
+          displayCell = { ...(cell || {}), v: fromSession };
         }
       }
-      if (!cell) {
-        return formatVal(
-          synDisplayValue(cell, cellMap.value, row, col, props.sheet, pillarColumns.value)
-        );
-      }
-      if (cell.v != null && cell.v !== '' && !isSynMetricRow(row) && !isSumproductCell(cell)) {
-        return formatVal(cell.v);
-      }
       const shown = synDisplayValue(
-        cell,
+        displayCell,
         cellMap.value,
         row,
         col,
@@ -268,7 +247,12 @@ export default {
     }
 
     function entryRowClasses(entry) {
-      if (entry.gapAfterPanel) return ['syn-panel-gap-row', 'syn-panel-gap'];
+      if (entry.gapAfterPanel) {
+        const gap = ['syn-panel-gap-row', 'syn-panel-gap', 'syn-header-spacer-white'];
+        if (entry.gapIndex === 1) gap.push('syn-panel-gap-first');
+        if (entry.gapIndex === 2) gap.push('syn-panel-gap-last');
+        return gap;
+      }
       const row = entry.excelRow;
       const cls = synRowStyleClass(cellMap.value, row, props.sheet);
       const list = [cls];
@@ -276,17 +260,25 @@ export default {
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
       if (row === 16 || row === 18) list.push('syn-metric-curb');
-      if (row === 10 || row === 15) list.push('syn-header-spacer-row');
+      if (row === 10 || row === 15) list.push('syn-header-spacer-row', 'syn-header-spacer-white');
       if (row === 9) list.push('syn-header-edge-below-spec');
       if (row === 11) list.push('syn-header-edge-above-pole');
       if (row === 14) list.push('syn-header-edge-below-finition');
       if (row === 16) list.push('syn-header-edge-above-curb');
       if (row === 22) list.push('syn-header-panel-end');
+      const dr = entry.displayRow;
+      if (dr >= 1 && dr <= 6) list.push('syn-header-edge-sep');
+      if (dr === 9 || dr === 10 || dr === 11) list.push('syn-header-edge-sep');
       return list;
     }
 
     function isGapEntry(entry) {
       return Boolean(entry.gapAfterPanel);
+    }
+
+    function isPillarColForEntry(entry, col) {
+      if (isGapEntry(entry)) return false;
+      return isSynPillarColAtRow(col, entry.excelRow, pillarColumns.value);
     }
 
     function pillarTitle(col) {
@@ -308,6 +300,10 @@ export default {
     function cellExtraClass(row, col, display) {
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         return display ? 'syn-pillar-has-char' : '';
+      }
+      if (isSynHeaderPanelRow(row)) {
+        const hdrCls = synHeaderPanelVehicleClass(row, col, display);
+        if (hdrCls) return hdrCls;
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (
@@ -366,6 +362,7 @@ export default {
       cellReadonly,
       entryRowClasses,
       isGapEntry,
+      isPillarColForEntry,
       pillarTitle,
       isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
       isSynPillarColAtRow: (col, row) =>
@@ -411,7 +408,7 @@ export default {
             </tr>
             <tr
               v-for="entry in visibleRows"
-              :key="entry.gapAfterPanel ? 'panel-gap-after-22' : entry.excelRow"
+              :key="entry.gapAfterPanel ? 'panel-gap-' + entry.gapIndex : entry.excelRow"
               :class="entryRowClasses(entry)"
             >
               <td class="row-num syn-row-num">{{ entry.displayRow }}</td>
@@ -460,9 +457,9 @@ export default {
                         cellDisplay(entry.excelRow, colEntry.col)
                       ),
                   {
-                    'syn-pillar-col':
-                      !isGapEntry(entry) &&
-                      isSynPillarColAtRow(colEntry.col, entry.excelRow),
+                    'syn-pillar-col': isGapEntry(entry)
+                      ? isSynPillarCol(colEntry.col)
+                      : isPillarColForEntry(entry, colEntry.col),
                     'syn-header-edge-right':
                       !isGapEntry(entry) &&
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
