@@ -64,8 +64,11 @@
 .bd-table td.col-sticky-date {
   position: sticky;
   left: 42px;
-  z-index: 8;
+  z-index: 12;
   isolation: isolate;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
 }
 .bd-table thead th.corner {
@@ -91,7 +94,7 @@
 }
 .bd-table tbody td.col-sticky-date input,
 .bd-table tbody td.col-sticky-date.readonly span {
-  background-color: inherit;
+  background-color: transparent !important;
 }
 .synthesis-grid .bd-table thead th.col-sticky-date,
 .synthesis-grid .bd-table tbody td.syn-label-col.col-sticky-date {
@@ -423,7 +426,7 @@
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label,
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-proj-hdr-green) {
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-spacer-col-l) {
   border: 1px solid #b4b4b4 !important;
   background: #f7f7f7 !important;
   color: #000;
@@ -507,47 +510,33 @@
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l) {
   border-right: 2px solid #000 !important;
 }
-/* Display column L (Excel Q) — white gutter, all rows */
+/* Display column L (Excel Q) — full white column incl. cell borders */
 .synthesis-grid .bd-table thead tr.hdr-row-letters th.syn-spacer-col-l-hdr {
   background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;
+  border: 1px solid #fff !important;
 }
 .synthesis-grid .bd-table tbody td.syn-spacer-col-l,
 .synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.readonly,
-.synthesis-grid .bd-table tbody tr td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-row-data td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-row-section td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-row-subsection td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-row-separator td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody td.syn-spacer-col-l.syn-adapt-col-grey,
-.synthesis-grid .bd-table tbody td.syn-spacer-col-l.syn-adapt-col-fluo,
-.synthesis-grid .bd-table tbody td.syn-spacer-col-l[class*='cell-proj-'],
-.synthesis-grid .bd-table tbody td.syn-spacer-col-l.syn-proj-hdr-green {
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.readonly {
   background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;
+  border: 1px solid #fff !important;
+  border-top: 1px solid #fff !important;
+  border-bottom: 1px solid #fff !important;
+  border-left: 1px solid #fff !important;
+  border-right: 1px solid #fff !important;
+  box-shadow: none !important;
 }
 .synthesis-grid .bd-table tbody td.syn-spacer-col-l input,
 .synthesis-grid .bd-table tbody td.syn-spacer-col-l span {
   background-color: #fff !important;
   color: #000 !important;
 }
-.synthesis-grid .bd-table tbody tr.syn-header-edge-sep td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-above-date td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-below-spec td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-above-pole td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-below-finition td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-edge-above-curb td.syn-spacer-col-l,
-.synthesis-grid .bd-table tbody tr.syn-header-panel-end td.syn-spacer-col-l {
-  border-top: 1px solid #b4b4b4 !important;
-  border-bottom: 1px solid #b4b4b4 !important;
+.synthesis-grid .bd-table tbody td.syn-spacer-col-l.syn-hdr-edge-lm-right {
+  border-right: 2px solid #000 !important;
 }
 /* Bold vertical divider between display L and M (rows 3–22) — see end of file */
 /* Filter band (rows 3–14) — same panel, slightly deeper grey */
@@ -627,14 +616,16 @@
   background: #92d050 !important;
   background-color: #92d050 !important;
 }
-/* Header panel rows 3–22, display column C → last column — bold text */
+/* Header panel rows 3–22, display columns C–J — bold + slightly larger */
 .synthesis-grid .bd-table tbody td.syn-hdr-panel-bold:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-panel-bold:not(.syn-pillar-col) {
   font-weight: 700 !important;
+  font-size: 12px !important;
 }
 .synthesis-grid .bd-table tbody td.syn-hdr-panel-bold input,
 .synthesis-grid .bd-table tbody td.syn-hdr-panel-bold span {
   font-weight: 700 !important;
+  font-size: 12px !important;
 }
 /* Header panel rows 3–22, columns C–J (Excel H–O) — wins over filter/metric band greys */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col):not(.syn-proj-hdr-green),
@@ -923,7 +914,7 @@
 .synthesis-grid .bd-table tbody td.syn-label-col.col-sticky-label.readonly span {
   text-align: left;
   color: #000 !important;
-  background-color: inherit;
+  background-color: transparent !important;
 }
 .synthesis-grid .bd-table tbody td.data-cell:not(.syn-label-col) input,
 .synthesis-grid .bd-table tbody td.data-cell:not(.syn-label-col).readonly span {
@@ -935,16 +926,56 @@
 .synthesis-grid .bd-table th.col-sticky-label,
 .synthesis-grid .bd-table td.col-sticky-label {
   position: sticky;
-  z-index: 8;
+  z-index: 12;
   isolation: isolate;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.12);
 }
 .synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col,
 .synthesis-grid .bd-table tbody td.data-cell.col-sticky-label.syn-label-col {
-  background-color: #fff;
+  background: #fff !important;
+  background-color: #fff !important;
 }
 .synthesis-grid .bd-table tbody td.data-cell.col-sticky-label.syn-label-col.readonly {
-  background-color: #f2f2f2;
+  background: #f2f2f2 !important;
+  background-color: #f2f2f2 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.col-sticky-label.syn-label-col {
+  background: #f2f2f2 !important;
+  background-color: #f2f2f2 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.col-sticky-label.syn-label-col {
+  background: #f7f7f7 !important;
+  background-color: #f7f7f7 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.col-sticky-label.syn-label-col {
+  background: #f7f7f7 !important;
+  background-color: #f7f7f7 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-spacer-row td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.col-sticky-label.syn-label-col {
+  background: #fff !important;
+  background-color: #fff !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-row-section td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.col-sticky-label.syn-label-col {
+  background: #ffff00 !important;
+  background-color: #ffff00 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.col-sticky-label.syn-label-col {
+  background: #fff !important;
+  background-color: #fff !important;
 }
 .synthesis-grid .bd-table thead th.col-sticky-label {
   z-index: 25;
@@ -986,10 +1017,6 @@
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
-}
-.synthesis-grid .syn-scroll {
-  /* contain: layout caused repaint glitches during virtual scroll */
-  contain: paint;
 }
 .synthesis-grid .syn-table-wrap {
   position: relative;
@@ -1250,7 +1277,7 @@
   background-color: #bfbfbf !important;
   color: #000 !important;
 }
-/* ADAPTATION band row 25+ — display D–G & I–J (fluorescent yellow) */
+/* ADAPTATION band rows 25–41 — display D–G & I–J (fluorescent yellow) */
 .synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-label-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo.readonly:not(.syn-pillar-col):not(.syn-label-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col),

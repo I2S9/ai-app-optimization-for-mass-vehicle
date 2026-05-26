@@ -28,7 +28,7 @@ import {
   rowOverscan,
   shouldVirtualizeRows,
   createScrollRafSync,
-} from './gridScroll.js?v=syn-scroll3';
+} from './gridScroll.js?v=syn-scroll4';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,

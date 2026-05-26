@@ -95,8 +95,10 @@ export function synDisplayRowNumber(excelRow) {
 
 /** Grey band for SP1 TARGET pillar (display column B). */
 export const SYN_PILLAR_BG = '#bfbfbf';
-/** ADAPTATION band row 25+ — fluorescent yellow (display D–G, I–J). */
+/** ADAPTATION band rows 25–41 — fluorescent yellow (display D–G, I–J). */
 export const SYN_ADAPT_FLUO_BG = '#ffff00';
+/** Last Excel row with fluo yellow in display D–G & I–J (row 42+ = grey like C & H). */
+export const SYN_ADAPT_FLUO_LAST_ROW = 41;
 /** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
 export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
@@ -452,9 +454,20 @@ export function synSpacerColClass(col) {
   return isSynSpacerDisplayExcelCol(col) ? 'syn-spacer-col-l' : '';
 }
 
+const SYN_SPACER_COL_BORDER = '1px solid #fff';
+
 export function synSpacerColStyle(col) {
   if (synSpacerColClass(col)) {
-    return { backgroundColor: '#fff', color: '#000' };
+    return {
+      background: '#fff',
+      backgroundColor: '#fff',
+      color: '#000',
+      border: SYN_SPACER_COL_BORDER,
+      borderTop: SYN_SPACER_COL_BORDER,
+      borderBottom: SYN_SPACER_COL_BORDER,
+      borderLeft: SYN_SPACER_COL_BORDER,
+      borderRight: SYN_SPACER_COL_BORDER,
+    };
   }
   return null;
 }
@@ -592,6 +605,7 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   }
   if (isSynHeaderPanelBoldCol(row, col)) {
     style.fontWeight = '700';
+    style.fontSize = '12px';
   }
   const rowCls = synRowStyleClass(map, row, sheet);
   if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) {
@@ -609,18 +623,19 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   return style;
 }
 
-function isSynHeaderPanelVehicleCol(col) {
+/** Display columns C–J (Excel H–O). */
+export function isSynHeaderPanelVehicleCol(col) {
   const n = colToNum(col);
   return (
     n >= colToNum(SYN_HDR_PANEL_COL_START) && n <= colToNum(SYN_HDR_PANEL_COL_END)
   );
 }
 
-/** Rows 3–22, display column C through last data column (Excel H+). */
+/** Rows 3–22, display columns C–J only (not L / project columns). */
 export function isSynHeaderPanelBoldCol(row, col) {
   if (!isSynHeaderPanelRow(row)) return false;
   if (col === SYN_LABEL_COL) return false;
-  return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
+  return isSynHeaderPanelVehicleCol(col);
 }
 
 /** Avenger like (light green) / P1X (#c0504d) — exact cell value. */
@@ -674,13 +689,15 @@ export function synMetricCjWhiteColStyle(row, col) {
   return null;
 }
 
-/** Row 25+ — display C/H grey (SP1 grey), D–G & I–J fluo yellow; not label A or pillars. */
+/** Row 25+ — display C/H grey; rows 25–41 D–G & I–J fluo; row 42+ D–G & I–J grey. */
 export function synAdaptBandColClass(row, col, pillarColumns) {
   if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
   if (col === SYN_LABEL_COL) return '';
   if (isSynPillarColAtRow(col, row, pillarColumns)) return '';
   if (isSynAdaptGreyExcelCol(col)) return 'syn-adapt-col-grey';
-  if (isSynAdaptFluoExcelCol(col)) return 'syn-adapt-col-fluo';
+  if (isSynAdaptFluoExcelCol(col)) {
+    return row <= SYN_ADAPT_FLUO_LAST_ROW ? 'syn-adapt-col-fluo' : 'syn-adapt-col-grey';
+  }
   return '';
 }
 
