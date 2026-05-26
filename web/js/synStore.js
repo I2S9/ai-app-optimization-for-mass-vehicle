@@ -157,6 +157,132 @@ export function applySynRow25PresetCells(cells = []) {
   return cells;
 }
 
+export const SYN_ROW_26_ZERO_ROW = 26;
+const SYN_ROW_26_ZERO_DISPLAY_COLS = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+/** Row 26 — display C…J always 0 (overrides legacy header copies like « Projet »). */
+export function applySynRow26ZeroCells(cells = []) {
+  const row = SYN_ROW_26_ZERO_ROW;
+  for (const display of SYN_ROW_26_ZERO_DISPLAY_COLS) {
+    const col = displayToExcelCol(display);
+    let cell = cells.find((c) => c.r === row && c.c === col);
+    if (!cell) {
+      cells.push({ r: row, c: col, v: '0' });
+    } else {
+      cell.v = '0';
+      delete cell.f;
+    }
+  }
+  return cells;
+}
+
+export function isSynRow26ZeroCol(row, col) {
+  if (Number(row) !== SYN_ROW_26_ZERO_ROW) return false;
+  return isSynHeaderPanelVehicleCol(col);
+}
+
+/** Rows 27–75 — display C…J preset tables (null = empty cell). */
+export const SYN_ADAPT_CJ_PRESET_FIRST_ROW = 27;
+export const SYN_ADAPT_CJ_PRESET_LAST_ROW = 75;
+const SYN_CJ_PRESET_DISPLAY_COLS = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+function synCjPresetRowMap(values) {
+  const m = new Map();
+  SYN_CJ_PRESET_DISPLAY_COLS.forEach((d, i) => m.set(d, values[i]));
+  return m;
+}
+
+const SYN_ROWS_CJ_PRESETS = new Map([
+  [27, synCjPresetRowMap([0, 30, 27.1, 30, 27.1, 0, 33.8, 33.8])],
+  [28, synCjPresetRowMap([0, 6.8, 6.8, 6.8, 6.8, 0, 6.8, 6.8])],
+  [29, synCjPresetRowMap([22.2, 20.1, 21.1, 20.1, 21.1, 21.6, 20.0, 21.0])],
+  [30, synCjPresetRowMap([0, 0.9, 0.9, 0.9, 0.9, 0, 1.3, 1.3])],
+  [31, synCjPresetRowMap([0, 21.1, 20.6, 21.1, 20.6, 0, 21.1, 20.6])],
+  [32, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [33, synCjPresetRowMap([4.6, 4.2, 4.2, 4.2, 4.2, 4.6, 5.0, 5.0])],
+  [34, synCjPresetRowMap([0, 0, 0, 0, 0, 0, null, null])],
+  [35, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [36, synCjPresetRowMap([2, 2, 2, 2, 2, 2, 1.8, 1.8])],
+  [37, synCjPresetRowMap([0, 0, 0, 0, 0, 0, null, null])],
+  [38, synCjPresetRowMap([0, 9, 15, 9, 15, 0, 9, 15])],
+  [39, synCjPresetRowMap([7.1, 9.9, 9.9, 9.9, 9.9, 8.5, 9.9, 9.9])],
+  [40, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, null])],
+  [41, synCjPresetRowMap([19.0, 15.6, 17.1, 15.6, 17.1, 18.6, 17.1, 17.1])],
+  [42, synCjPresetRowMap([1.5, 3.0, 3.0, 3.0, 3.0, 0.7, 0.7, 0.7])],
+  [43, synCjPresetRowMap([9.7, 7.0, 7.0, 7.0, 7.0, 10.0, 10.0, 10.0])],
+  [44, synCjPresetRowMap([7.9, 5.6, 7.1, 5.6, 7.1, 7.9, 6.4, 6.4])],
+  [45, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [46, synCjPresetRowMap([4.0, 4.0, 4.0, 4.0, 4.0, 4.8, 4.8, 4.8])],
+  [47, synCjPresetRowMap([4.0, 4.0, 4.0, 4.0, 4.0, 4.8, 4.8, 4.8])],
+  [48, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [49, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [50, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [51, synCjPresetRowMap([0, 8.6, 0, 8.6, 0, 0, 8.6, 0])],
+  [52, synCjPresetRowMap([0, 8.6, 0, 8.6, 0, 0, 8.6, 0])],
+  [53, synCjPresetRowMap([59.1, 59.1, 59.1, 53.6, 53.6, 58.9, 58.9, 58.9])],
+  [54, synCjPresetRowMap([25.8, 25.8, 25.8, 22.6, 22.6, 25.2, 25.2, 25.2])],
+  [55, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [56, synCjPresetRowMap([33.3, 33.3, 33.3, 31.0, 31.0, 33.7, 33.7, 33.7])],
+  [57, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [58, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [59, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [60, synCjPresetRowMap([18.0, 12.0, 12.0, 12.0, 12.0, 17.6, 12.0, 12.0])],
+  [61, synCjPresetRowMap([18.0, 12.0, 12.0, 12.0, 12.0, 17.6, 12.0, 12.0])],
+  [62, synCjPresetRowMap([355.6, 14.4, 43.6, 14.4, 43.6, 456.9, 14.4, 43.6])],
+  [63, synCjPresetRowMap([355.6, 12.0, 40.1, 12.0, 40.1, 409.0, 14.4, 40.1])],
+  [64, synCjPresetRowMap([0, 2.4, 3.5, 2.4, 3.5, 47.9, 12.0, 3.5])],
+  [65, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 2.4, 0])],
+  [66, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [67, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [68, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [69, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [70, synCjPresetRowMap([9.8, 9.8, 9.8, 9.8, 9.8, 11.8, 11.8, 11.8])],
+  [71, synCjPresetRowMap([9.8, 9.8, 9.8, 7.0, 7.0, 15.9, 15.9, 15.9])],
+  [72, synCjPresetRowMap([15.3, 15.3, 15.3, 10.8, 10.8, 17.5, 17.5, 17.5])],
+  [73, synCjPresetRowMap([15.3, 15.3, 15.3, 10.8, 10.8, 14.3, 14.3, 14.3])],
+  [74, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [75, synCjPresetRowMap([0, 106.0, 117.0, 106.0, 117.0, 0, 106.0, 117.0])],
+]);
+
+export function synRowCjPresetRaw(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return undefined;
+  const rowMap = SYN_ROWS_CJ_PRESETS.get(r);
+  if (!rowMap || !isSynHeaderPanelVehicleCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!rowMap.has(d)) return undefined;
+  return rowMap.get(d);
+}
+
+/** Rows 27–75 — force display C…J presets (overrides legacy export). */
+export function applySynRowsCjPresetCells(cells = []) {
+  for (const [row, rowMap] of SYN_ROWS_CJ_PRESETS) {
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const cell = cells.find((c) => c.r === row && c.c === col);
+      if (value == null) {
+        if (cell) {
+          cell.v = '';
+          delete cell.f;
+        }
+        continue;
+      }
+      if (!cell) {
+        cells.push({ r: row, c: col, v: String(value) });
+      } else {
+        cell.v = String(value);
+        delete cell.f;
+      }
+    }
+  }
+  return cells;
+}
+
+/** @deprecated Use applySynRowsCjPresetCells */
+export function applySynRows27To41PresetCells(cells = []) {
+  return applySynRowsCjPresetCells(cells);
+}
+
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
   const last = sheet?.lastRow || SYN_MAX_EXCEL_ROW;
@@ -317,6 +443,7 @@ export function formatSynNumericDisplay(raw) {
   if (!s || !isSynNumericRaw(s)) return s;
   let n = parseFloat(s.replace(',', '.'));
   if (!Number.isFinite(n)) return s;
+  if (n === 0) return '0,00';
 
   const neg = n < 0;
   n = Math.abs(Number(n.toPrecision(4)));
@@ -880,12 +1007,8 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     return synHeaderPanelLabel(map, row);
   }
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {
-    const raw = cell ? displayValue(cell) : '';
-    if (raw && String(raw).trim() !== '') {
-      if (isSynNumericRaw(raw)) {
-        return synTranslateText(formatSynNumericDisplay(raw), col);
-      }
-      return synTranslateText(raw, col);
+    if (isSynRow26ZeroCol(row, col)) {
+      return '0,00';
     }
     if (row === SYN_ZERO_FILL_FIRST_ROW) {
       const preset = synRow25PresetRaw(col);
@@ -893,6 +1016,18 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
         if (preset == null || preset === '') return '';
         return synTranslateText(formatSynNumericDisplay(String(preset)), col);
       }
+    }
+    const cjPreset = synRowCjPresetRaw(row, col);
+    if (cjPreset !== undefined) {
+      if (cjPreset == null || cjPreset === '') return '';
+      return synTranslateText(formatSynNumericDisplay(String(cjPreset)), col);
+    }
+    const raw = cell ? displayValue(cell) : '';
+    if (raw && String(raw).trim() !== '') {
+      if (isSynNumericRaw(raw)) {
+        return synTranslateText(formatSynNumericDisplay(raw), col);
+      }
+      return synTranslateText(raw, col);
     }
     return '0,00';
   }

@@ -43,7 +43,7 @@ import {
   isSynSpacerDisplayExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf67';
+} from './synStore.js?v=syn-perf73';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,

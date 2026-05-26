@@ -372,7 +372,11 @@ import {
   SYN_MAX_EXCEL_ROW,
 } from './synStore.js';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
-import { applySynRow25PresetCells } from './synStore.js';
+import {
+  applySynRow25PresetCells,
+  applySynRow26ZeroCells,
+  applySynRowsCjPresetCells,
+} from './synStore.js';
 
 /** Fix legacy exports that stored shared-string indices as plain numbers. */
 function resolveSynSheetValues(sheet) {
@@ -418,8 +422,12 @@ export function transformSynthesisSheet(sheet) {
     if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
     else if (raw) headers[col] = translateValue(String(raw));
   }
-  const cells = applySynRow25PresetCells(
-    (sheet.cells || []).filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
+  const cells = applySynRowsCjPresetCells(
+    applySynRow26ZeroCells(
+      applySynRow25PresetCells(
+        (sheet.cells || []).filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
+      )
+    )
   );
   const headerRows = sheet.headerRows || {};
   const cellMap = buildCellMap(cells, headerRows);
