@@ -256,7 +256,8 @@
   font-size: 11px;
 }
 .bd-table tbody td.data-cell input,
-.bd-table tbody td.data-cell .grid-cell-input {
+.bd-table tbody td.data-cell .grid-cell-input,
+.bd-table tbody td.data-cell .grid-cell-display {
   width: 100%;
   height: 19px;
   border: none;
@@ -268,6 +269,15 @@
   margin: 0;
   outline: none;
   color: #000;
+}
+.bd-table tbody td.data-cell .grid-cell-display {
+  display: block;
+  line-height: 19px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: cell;
+  box-sizing: border-box;
 }
 .synthesis-grid .bd-table tbody td.data-cell:not(.syn-label-col) input,
 .synthesis-grid .bd-table tbody td.data-cell:not(.syn-label-col) .grid-cell-input {

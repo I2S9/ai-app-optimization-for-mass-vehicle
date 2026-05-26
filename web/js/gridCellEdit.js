@@ -1,5 +1,5 @@
 /**
- * In-cell edit: display value on focus, caret at end, commit only when changed.
+ * In-cell edit: one active input; inactive cells are display spans (no :value overwrite).
  */
 
 import { ref } from 'vue';
@@ -41,7 +41,7 @@ function placeCaretAtEnd(el) {
  * @param {{
  *   isNumericAt: (row: number, col: string) => boolean,
  *   displayAt: (row: number, col: string) => string,
- *   commitAt: (row: number, col: string, value: string) => void,
+ *   commitAt: (row: number, col: string, value: string, previousValue: string) => void,
  * }} opts
  */
 export function createGridCellEditor(opts) {
@@ -50,14 +50,26 @@ export function createGridCellEditor(opts) {
   const lastGoodByEl = new WeakMap();
   const dirtyByEl = new WeakMap();
   const startSeedByEl = new WeakMap();
+  const idleDisplayByKey = new Map();
+
+  let navigationLock = false;
+  let suppressInputDirty = 0;
 
   function isCellActive(row, col) {
     return activeKey.value === cellKey(row, col);
   }
 
-  /** Uncontrolled while editing so typing stays fast. */
-  function boundValue(row, col, displayed) {
-    if (isCellActive(row, col)) return undefined;
+  function rememberIdleDisplay(row, col, value) {
+    idleDisplayByKey.set(cellKey(row, col), value);
+  }
+
+  function forgetIdleDisplay(row, col) {
+    idleDisplayByKey.delete(cellKey(row, col));
+  }
+
+  function cellShowValue(row, col, displayed) {
+    const k = cellKey(row, col);
+    if (idleDisplayByKey.has(k)) return idleDisplayByKey.get(k);
     return displayed;
   }
 
@@ -68,32 +80,56 @@ export function createGridCellEditor(opts) {
   }
 
   function applyEditSeed(el, row, col) {
-    const seed = displayAt(row, col);
-    el.value = seed;
-    lastGoodByEl.set(el, seed);
-    startSeedByEl.set(el, seed);
-    placeCaretAtEnd(el);
-    return seed;
+    suppressInputDirty += 1;
+    try {
+      forgetIdleDisplay(row, col);
+      const seed = displayAt(row, col);
+      el.value = seed;
+      lastGoodByEl.set(el, seed);
+      startSeedByEl.set(el, seed);
+      dirtyByEl.set(el, false);
+      placeCaretAtEnd(el);
+      return seed;
+    } finally {
+      suppressInputDirty -= 1;
+    }
   }
 
-  /** Before focus — keeps visible text in the input when Vue drops :value. */
   function onCellMouseDown(row, col, event) {
     if (event.button !== 0) return;
     applyEditSeed(event.target, row, col);
+  }
+
+  function onCellSpanMouseDown(row, col, event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const td = event.currentTarget.closest('td');
+    if (!td) return;
+    activeKey.value = cellKey(row, col);
+    queueMicrotask(() => {
+      const input = td.querySelector('input.grid-cell-input');
+      if (input instanceof HTMLInputElement) {
+        applyEditSeed(input, row, col);
+        input.focus({ preventScroll: true });
+      }
+    });
   }
 
   function onCellFocus(row, col, event) {
     const el = event.target;
     activeKey.value = cellKey(row, col);
     dirtyByEl.set(el, false);
+    if (navigationLock) return;
     applyEditSeed(el, row, col);
     queueMicrotask(() => {
+      if (navigationLock) return;
       if (activeKey.value !== cellKey(row, col)) return;
       applyEditSeed(el, row, col);
     });
   }
 
   function onCellInput(row, col, event) {
+    if (suppressInputDirty > 0 || navigationLock) return;
     const el = event.target;
     dirtyByEl.set(el, true);
     const next = el.value;
@@ -121,39 +157,73 @@ export function createGridCellEditor(opts) {
     return { ok: true, value: v };
   }
 
-  function finishEdit(row, col, event) {
+  function finishEdit(row, col, event, options = {}) {
+    const { deferDeactivate = false } = options;
     const el = event.target;
     const parsed = normalizeCommit(row, col, el.value);
-    activeKey.value = null;
     const wasDirty = dirtyByEl.get(el) === true;
 
+    const deactivate = () => {
+      if (!deferDeactivate) activeKey.value = null;
+    };
+
     if (!wasDirty) {
-      el.value = displayAt(row, col);
+      rememberIdleDisplay(row, col, el.value);
       clearEditState(el);
+      deactivate();
       return true;
     }
 
     if (!parsed.ok) {
       window.alert(NUMERIC_VALUE_ALERT_MSG);
-      el.value = displayAt(row, col);
+      const fallback = displayAt(row, col);
+      el.value = fallback;
+      rememberIdleDisplay(row, col, fallback);
       clearEditState(el);
+      deactivate();
       return false;
     }
 
     const startSeed = startSeedByEl.get(el) ?? '';
     if (String(parsed.value).trim() === String(startSeed).trim()) {
-      el.value = displayAt(row, col);
+      rememberIdleDisplay(row, col, el.value);
       clearEditState(el);
+      deactivate();
       return true;
     }
 
-    commitAt(row, col, parsed.value);
+    commitAt(row, col, parsed.value, startSeed);
+    const shown = String(parsed.value);
+    rememberIdleDisplay(row, col, shown);
     clearEditState(el);
-    el.value = displayAt(row, col);
+    deactivate();
     return true;
   }
 
+  function prepareNavigate(row, col, event) {
+    const el = event.target;
+    if (dirtyByEl.get(el) === true) {
+      return finishEdit(row, col, event, { deferDeactivate: true });
+    }
+    const preserved = startSeedByEl.get(el) ?? el.value;
+    rememberIdleDisplay(row, col, preserved);
+    clearEditState(el);
+    return true;
+  }
+
+  function beginNavigationTo(row, col) {
+    activeKey.value = cellKey(row, col);
+  }
+
+  function activateCell(row, col, el) {
+    if (!(el instanceof HTMLInputElement)) return;
+    activeKey.value = cellKey(row, col);
+    applyEditSeed(el, row, col);
+    el.focus({ preventScroll: true });
+  }
+
   function onCellBlur(row, col, event) {
+    if (navigationLock) return;
     if (activeKey.value !== cellKey(row, col)) return;
     finishEdit(row, col, event);
   }
@@ -169,11 +239,19 @@ export function createGridCellEditor(opts) {
   return {
     activeKey,
     isCellActive,
-    boundValue,
+    cellShowValue,
     onCellMouseDown,
+    onCellSpanMouseDown,
     onCellFocus,
     onCellInput,
     onCellBlur,
     onCellKeydown,
+    finishEdit,
+    prepareNavigate,
+    beginNavigationTo,
+    activateCell,
+    setNavigationLock: (v) => {
+      navigationLock = v;
+    },
   };
 }

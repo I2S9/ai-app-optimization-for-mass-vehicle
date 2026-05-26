@@ -6,7 +6,8 @@ import { getCell, buildCellMap } from './bdStore.js?v=input-fix3';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import { isSynAdaptationSumCell } from './synthesisCalc.js?v=adapt-sum1';
 import { isSynNumericEntryCell } from './synStore.js?v=input-fix1';
-import { createGridCellEditor } from './gridCellEdit.js?v=edit-caret1';
+import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
+import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
   computeSynBodyRows,
   isSynPanelGapEntry,
@@ -75,6 +76,7 @@ export default {
     rawSyn: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
     paneVisible: { type: Boolean, default: true },
+    externalEditTick: { type: Number, default: 0 },
   },
   emits: ['cell-change'],
   setup(props, { emit }) {
@@ -290,7 +292,14 @@ export default {
     const editEpoch = ref(0);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
 
-    function commitCellInput(row, col, value) {
+    watch(
+      () => props.externalEditTick,
+      () => {
+        editEpoch.value += 1;
+      }
+    );
+
+    function commitCellInput(row, col, value, previousValue) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
       if (!cell) {
@@ -304,7 +313,13 @@ export default {
       }
       if (props.rawSyn) upsertRawCell(props.rawSyn, row, col, value);
       editEpoch.value += 1;
-      emit('cell-change', { row, col, value, sheet: 'SYNTHESIS' });
+      emit('cell-change', {
+        row,
+        col,
+        value,
+        sheet: 'SYNTHESIS',
+        previousValue: previousValue ?? '',
+      });
       void props.session
         ?.setCellValue?.('SYNTHESIS', row, col, value)
         ?.catch((e) => console.warn('Synthesis setCellValue:', e));
@@ -317,12 +332,18 @@ export default {
       commitAt: commitCellInput,
     });
     const {
-      boundValue,
+      isCellActive,
+      cellShowValue,
       onCellMouseDown,
+      onCellSpanMouseDown,
       onCellFocus,
       onCellInput,
       onCellBlur,
-      onCellKeydown,
+      onCellKeydown: onCellKeydownBase,
+      prepareNavigate,
+      beginNavigationTo,
+      activateCell,
+      setNavigationLock,
     } = cellEditor;
 
     /** Only virtual gap rows (no Excel row) stay display-only. */
@@ -330,6 +351,32 @@ export default {
       if (row == null) return true;
       return isSynAdaptationSumCell(row, col);
     }
+
+    const cellNavigation = createGridCellNavigation({
+      getColumns: () => displayColumns.value,
+      getRows: () =>
+        bodyRows.value
+          .filter((e) => !isSynPanelGapEntry(e))
+          .map((e) => e.excelRow)
+          .filter((r) => r != null),
+      isNavigable: (row, col) => !cellReadonly(row, col),
+      getScrollEl: () => scrollEl.value,
+      flushScroll: () => scrollSync.flush(),
+      getRowTop: (_rowIndex, excelRow) => bodyTopForExcelRow(excelRow),
+      getColLeft: (col) => {
+        const entry = columnLayout.value.find((c) => c.col === col);
+        return entry?.left ?? null;
+      },
+      getColWidth: (col) => widthByCol.value.get(col) || 54,
+      rowHeight: ROW_H,
+    });
+    const onCellKeydown = cellNavigation.wrapKeydown(
+      onCellKeydownBase,
+      prepareNavigate,
+      beginNavigationTo,
+      activateCell,
+      setNavigationLock
+    );
 
     function formatVal(v) {
       const formatted = formatSynNumericDisplay(v);
@@ -592,8 +639,10 @@ export default {
       pillarLetterOverlays,
       usesPillarLetterOverlay,
       onScroll: scrollSync.onScroll,
-      boundValue,
+      isCellActive,
+      cellShowValue,
       onCellMouseDown,
+      onCellSpanMouseDown,
       onCellFocus,
       onCellInput,
       onCellBlur,
@@ -689,18 +738,24 @@ export default {
                   <span>{{ isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, p.col) }}</span>
                 </template>
                 <input
-                  v-else
+                  v-else-if="isCellActive(entry.excelRow, p.col)"
                   type="text"
                   class="grid-cell-input"
                   autocomplete="off"
                   spellcheck="false"
-                  :value="boundValue(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col))"
+                  :data-grid-row="entry.excelRow"
+                  :data-grid-col="p.col"
                   @mousedown="onCellMouseDown(entry.excelRow, p.col, $event)"
                   @focus="onCellFocus(entry.excelRow, p.col, $event)"
                   @input="onCellInput(entry.excelRow, p.col, $event)"
                   @blur="onCellBlur(entry.excelRow, p.col, $event)"
                   @keydown="onCellKeydown(entry.excelRow, p.col, $event)"
                 />
+                <span
+                  v-else
+                  class="grid-cell-display"
+                  @mousedown="onCellSpanMouseDown(entry.excelRow, p.col, $event)"
+                >{{ cellShowValue(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col)) }}</span>
               </td>
               <td v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></td>
               <td
@@ -763,18 +818,24 @@ export default {
                   }}</span>
                 </template>
                 <input
-                  v-else
+                  v-else-if="isCellActive(entry.excelRow, colEntry.col)"
                   type="text"
                   class="grid-cell-input"
                   autocomplete="off"
                   spellcheck="false"
-                  :value="boundValue(entry.excelRow, colEntry.col, cellDisplay(entry.excelRow, colEntry.col))"
+                  :data-grid-row="entry.excelRow"
+                  :data-grid-col="colEntry.col"
                   @mousedown="onCellMouseDown(entry.excelRow, colEntry.col, $event)"
                   @focus="onCellFocus(entry.excelRow, colEntry.col, $event)"
                   @input="onCellInput(entry.excelRow, colEntry.col, $event)"
                   @blur="onCellBlur(entry.excelRow, colEntry.col, $event)"
                   @keydown="onCellKeydown(entry.excelRow, colEntry.col, $event)"
                 />
+                <span
+                  v-else
+                  class="grid-cell-display"
+                  @mousedown="onCellSpanMouseDown(entry.excelRow, colEntry.col, $event)"
+                >{{ cellShowValue(entry.excelRow, colEntry.col, cellDisplay(entry.excelRow, colEntry.col)) }}</span>
               </td>
               <td v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></td>
             </tr>

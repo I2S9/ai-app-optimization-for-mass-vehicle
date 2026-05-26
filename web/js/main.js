@@ -1,6 +1,7 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=edit-caret1';
-import SynthesisGrid from './SynthesisGrid.js?v=edit-caret1';
+import BdGrid from './BdGrid.js?v=grid-nav4';
+import SynthesisGrid from './SynthesisGrid.js?v=grid-nav4';
+import { createEditHistory } from './editHistory.js?v=undo1';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix11';
@@ -37,6 +38,10 @@ const App = {
     const menuOpen = ref(false);
     const outlineOnly = ref(false);
     const session = createWorkbookSession();
+    const editHistory = createEditHistory();
+    const historyTick = ref(0);
+    const externalEditTick = ref(0);
+    let applyingHistory = false;
     let engineStarted = false;
     let synthesisLoadPromise = null;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
@@ -72,6 +77,15 @@ const App = {
     const isGridPage = computed(
       () => route.value === 'database' || route.value === 'synthesis'
     );
+
+    const canUndo = computed(() => {
+      void historyTick.value;
+      return editHistory.canUndo;
+    });
+    const canRedo = computed(() => {
+      void historyTick.value;
+      return editHistory.canRedo;
+    });
 
     const overlayMessage = computed(() => {
       if (isSynthesis.value && synthesisLoading.value) return 'Loading synthesis…';
@@ -250,6 +264,7 @@ const App = {
 
       window.addEventListener('beforeunload', onBeforeUnload);
       window.addEventListener('pagehide', onBeforeUnload);
+      window.addEventListener('keydown', onGlobalKeydown, true);
     });
 
     function onBeforeUnload() {
@@ -259,11 +274,108 @@ const App = {
     onUnmounted(() => {
       window.removeEventListener('beforeunload', onBeforeUnload);
       window.removeEventListener('pagehide', onBeforeUnload);
+      window.removeEventListener('keydown', onGlobalKeydown, true);
       autoSave.destroy();
       session.destroy();
     });
 
-    function onCellChange({ row, col, value, sheet }) {
+    function syncSheetCell(gridSheet, row, col, value) {
+      if (!gridSheet) return;
+      const key = `${row}:${col}`;
+      const map = gridSheet.cellMap instanceof Map ? gridSheet.cellMap : null;
+      if (!map) return;
+      let cell = map.get(key);
+      if (!cell) {
+        cell = { r: row, c: col, v: value, userEdited: true };
+        gridSheet.cells.push(cell);
+        map.set(key, cell);
+      } else {
+        cell.v = value;
+        cell.userEdited = true;
+        delete cell.f;
+      }
+    }
+
+    function applyHistoryCell({ sheet, row, col, value }) {
+      const raw =
+        sheet === 'SYNTHESIS'
+          ? synRaw.value
+          : sheet === 'BD'
+            ? bdRaw.value
+            : null;
+      const gridSheet =
+        sheet === 'SYNTHESIS' ? synthesisSheet.value : bdSheet.value;
+      if (!raw || !gridSheet) return;
+
+      upsertRawCell(raw, row, col, value);
+      syncSheetCell(gridSheet, row, col, value);
+      externalEditTick.value += 1;
+
+      const engineSheet = sheet === 'SYNTHESIS' ? 'SYNTHESIS' : 'BD';
+      void session
+        .setCellValue(engineSheet, row, col, value)
+        .catch((e) => console.warn('History setCellValue:', e));
+
+      dirty.value += 1;
+      autoSave.schedule();
+      void autoSave.saveNow();
+    }
+
+    function performUndo() {
+      const entry = editHistory.undo();
+      if (!entry) return;
+      applyingHistory = true;
+      try {
+        applyHistoryCell({ ...entry, value: entry.oldValue });
+      } finally {
+        applyingHistory = false;
+        historyTick.value = editHistory.revision;
+      }
+    }
+
+    function performRedo() {
+      const entry = editHistory.redo();
+      if (!entry) return;
+      applyingHistory = true;
+      try {
+        applyHistoryCell({ ...entry, value: entry.newValue });
+      } finally {
+        applyingHistory = false;
+        historyTick.value = editHistory.revision;
+      }
+    }
+
+    function isEditingGridInput() {
+      const el = document.activeElement;
+      return el?.tagName === 'INPUT' && el.classList?.contains('grid-cell-input');
+    }
+
+    function onGlobalKeydown(e) {
+      if (!isGridPage.value) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (isEditingGridInput()) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) performRedo();
+        else performUndo();
+      } else if (key === 'y') {
+        e.preventDefault();
+        performRedo();
+      }
+    }
+
+    function onCellChange({ row, col, value, sheet, previousValue }) {
+      if (!applyingHistory) {
+        editHistory.push({
+          sheet,
+          row,
+          col,
+          oldValue: previousValue ?? '',
+          newValue: value,
+        });
+        historyTick.value = editHistory.revision;
+      }
       const raw =
         sheet === 'SYNTHESIS'
           ? synRaw.value
@@ -289,6 +401,8 @@ const App = {
         return;
       }
       await clearLocalSnapshot();
+      editHistory.clear();
+      historyTick.value = editHistory.revision;
       loadedFromLocal.value = false;
       engineStarted = false;
       synthesisLoadPromise = null;
@@ -369,6 +483,8 @@ const App = {
         ]);
         }
         matrixOpen.value = false;
+        editHistory.clear();
+        historyTick.value = editHistory.revision;
         dirty.value += 1;
         await autoSave.saveNow();
       } catch (e) {
@@ -410,6 +526,11 @@ const App = {
       openMatrix,
       closeMatrix,
       onMatrixSave,
+      canUndo,
+      canRedo,
+      performUndo,
+      performRedo,
+      externalEditTick,
     };
   },
   template: `
@@ -434,6 +555,46 @@ const App = {
           <span v-else-if="isSynthesis" class="page-title">Synthesis</span>
           <span v-else class="page-title">{{ currentNav.label }}</span>
           <template v-if="isDatabase || isSynthesis">
+            <div class="topbar-history" role="group" aria-label="Historique des modifications">
+              <button
+                type="button"
+                class="icon-btn icon-btn-sm"
+                :disabled="!canUndo"
+                title="Annuler (Ctrl+Z)"
+                aria-label="Annuler"
+                @click="performUndo"
+              >
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.35"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6 4 2 8l4 4V9h3a3 3 0 1 1 0 6H6"
+                  />
+                </svg>
+              </button>
+              <button
+                type="button"
+                class="icon-btn icon-btn-sm"
+                :disabled="!canRedo"
+                title="Rétablir (Ctrl+Y)"
+                aria-label="Rétablir"
+                @click="performRedo"
+              >
+                <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                  <path
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.35"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M10 4l4 4-4 4V9H7a3 3 0 1 0 0 6h3"
+                  />
+                </svg>
+              </button>
+            </div>
             <button
               type="button"
               class="icon-btn icon-btn-sm"
@@ -498,6 +659,7 @@ const App = {
             :session="session"
             :raw-bd="bdRaw"
             :outline-only="outlineOnly"
+            :external-edit-tick="externalEditTick"
             @cell-change="onCellChange"
           />
           <SynthesisGrid
@@ -506,6 +668,7 @@ const App = {
             :session="session"
             :raw-syn="synRaw"
             :outline-only="outlineOnly"
+            :external-edit-tick="externalEditTick"
             @cell-change="onCellChange"
           />
           <div v-else-if="error" class="loading-overlay error-text">{{ error }}</div>

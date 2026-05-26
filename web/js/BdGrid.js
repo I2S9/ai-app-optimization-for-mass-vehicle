@@ -35,7 +35,8 @@ import {
   BD_POSITION_COLS,
   isBdNumericEntryCell,
 } from './bdColumnConfig.js?v=input-fix1';
-import { createGridCellEditor } from './gridCellEdit.js?v=edit-caret1';
+import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
+import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 
 export default {
   name: 'BdGrid',
@@ -46,6 +47,7 @@ export default {
     rawBd: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
     paneVisible: { type: Boolean, default: true },
+    externalEditTick: { type: Number, default: 0 },
   },
   emits: ['cell-change'],
   setup(props, { emit }) {
@@ -149,7 +151,15 @@ export default {
 
     const scrollSync = createScrollRafSync({ scrollTop });
 
-    function commitCellInput(row, col, value) {
+    watch(
+      () => props.externalEditTick,
+      () => {
+        editEpoch.value += 1;
+        invalidateDisplayCache();
+      }
+    );
+
+    function commitCellInput(row, col, value, previousValue) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
       const hadFormula = Boolean(cell?.f);
@@ -165,7 +175,13 @@ export default {
       if (props.rawBd) upsertRawCell(props.rawBd, row, col, value);
       editEpoch.value += 1;
       invalidateDisplayCache();
-      emit('cell-change', { row, col, value, sheet: props.sheetName || 'BD' });
+      emit('cell-change', {
+        row,
+        col,
+        value,
+        sheet: props.sheetName || 'BD',
+        previousValue: previousValue ?? '',
+      });
       if (props.session?.ready?.value) {
         void props.session
           .setCellValue(props.sheetName, row, col, value)
@@ -173,19 +189,54 @@ export default {
       }
     }
 
+    const BD_ROW_NUM_W = 42;
+    const BD_HEADER_H = ROW_H * 2;
+
     const cellEditor = createGridCellEditor({
       isNumericAt: (row, col) => isBdNumericEntryCell(row, col),
       displayAt: (row, col) => cellDisplay(row, col),
       commitAt: commitCellInput,
     });
     const {
-      boundValue,
+      isCellActive,
+      cellShowValue,
       onCellMouseDown,
+      onCellSpanMouseDown,
       onCellFocus,
       onCellInput,
       onCellBlur,
-      onCellKeydown,
+      onCellKeydown: onCellKeydownBase,
+      prepareNavigate,
+      beginNavigationTo,
+      activateCell,
+      setNavigationLock,
     } = cellEditor;
+
+    const cellNavigation = createGridCellNavigation({
+      getColumns: () => columns.value,
+      getRows: () => bodyRows.value.map((e) => e.excelRow),
+      isNavigable: (row, col) => !cellReadonly(row, col),
+      getScrollEl: () => scrollEl.value,
+      flushScroll: () => scrollSync.flush(),
+      getRowTop: (rowIndex) => BD_HEADER_H + rowIndex * ROW_H,
+      getColLeft: (col) => {
+        let left = BD_ROW_NUM_W;
+        for (const c of columns.value) {
+          if (c === col) return left;
+          left += widthMap.value.get(c) || 72;
+        }
+        return null;
+      },
+      getColWidth: (col) => widthMap.value.get(col) || 72,
+      rowHeight: ROW_H,
+    });
+    const onCellKeydown = cellNavigation.wrapKeydown(
+      onCellKeydownBase,
+      prepareNavigate,
+      beginNavigationTo,
+      activateCell,
+      setNavigationLock
+    );
 
     /** Row 1 = Excel headers only; all body rows editable. */
     function cellReadonly(row, col) {
@@ -330,8 +381,10 @@ export default {
           props.sheet.matrixColors
         ),
       onScroll: scrollSync.onScroll,
-      boundValue,
+      isCellActive,
+      cellShowValue,
       onCellMouseDown,
+      onCellSpanMouseDown,
       onCellFocus,
       onCellInput,
       onCellBlur,
@@ -394,18 +447,24 @@ export default {
                   <span :title="getCell(entry.excelRow, col)?.f || ''">{{ cellDisplay(entry.excelRow, col) }}</span>
                 </template>
                 <input
-                  v-else
+                  v-else-if="isCellActive(entry.excelRow, col)"
                   type="text"
                   class="grid-cell-input"
                   autocomplete="off"
                   spellcheck="false"
-                  :value="boundValue(entry.excelRow, col, cellDisplay(entry.excelRow, col))"
+                  :data-grid-row="entry.excelRow"
+                  :data-grid-col="col"
                   @mousedown="onCellMouseDown(entry.excelRow, col, $event)"
                   @focus="onCellFocus(entry.excelRow, col, $event)"
                   @input="onCellInput(entry.excelRow, col, $event)"
                   @blur="onCellBlur(entry.excelRow, col, $event)"
                   @keydown="onCellKeydown(entry.excelRow, col, $event)"
                 />
+                <span
+                  v-else
+                  class="grid-cell-display"
+                  @mousedown="onCellSpanMouseDown(entry.excelRow, col, $event)"
+                >{{ cellShowValue(entry.excelRow, col, cellDisplay(entry.excelRow, col)) }}</span>
               </td>
             </tr>
             <tr v-if="bottomSpacer > 0" class="bd-spacer-bottom">
