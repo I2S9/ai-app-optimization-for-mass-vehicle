@@ -88,11 +88,37 @@ body {
   background: rgba(255, 255, 255, 0.35);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 }
-.app-topbar .status {
+.topbar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.app-topbar .status {
   font-size: 10px;
   opacity: 0.85;
   white-space: nowrap;
+}
+.app-topbar .saved-status {
+  color: #b8f5d0;
+  opacity: 1;
+}
+.topbar-save-btn {
+  font-size: 10px;
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+}
+.topbar-save-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+.topbar-save-btn-muted {
+  opacity: 0.85;
+  border-color: rgba(255, 255, 255, 0.25);
 }
 .error-text {
   color: #b00020;

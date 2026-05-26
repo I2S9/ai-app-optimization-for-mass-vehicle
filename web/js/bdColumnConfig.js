@@ -28,3 +28,11 @@ export const BD_CODIFICATION_WIDTH = 56;
 export const BD_MODULAR_TYPE_COL = 'AJ';
 /** Front (AV) and Rear (AR) mass columns — always empty in the grid. */
 export const BD_MASS_AV_AR_COLS = new Set(['W', 'X']);
+
+/** Body cells that accept numeric input only (mass, positions). */
+export function isBdNumericEntryCell(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || r < 2) return false;
+  if (col === BD_MASS_COL) return true;
+  return BD_POSITION_COLS.has(col);
+}

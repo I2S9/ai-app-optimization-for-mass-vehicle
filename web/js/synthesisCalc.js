@@ -86,3 +86,52 @@ export function computeSumproduct(
 export function isSumproductCell(cell) {
   return Boolean(cell?.f && /SUMPRODUCT/i.test(cell.f));
 }
+
+/** ADAPTATION row — Excel SUM(H26:H40) … SUM(O26:O40) (display C–J). */
+export const SYN_ADAPTATION_SUM_ROW = 25;
+export const SYN_ADAPTATION_SUM_FROM_ROW = 26;
+export const SYN_ADAPTATION_SUM_TO_ROW = 40;
+const ADAPT_SUM_COL_START = 'H';
+const ADAPT_SUM_COL_END = 'O';
+
+function colToNum(col) {
+  let n = 0;
+  for (let i = 0; i < col.length; i++) {
+    n = n * 26 + (col.charCodeAt(i) - 64);
+  }
+  return n;
+}
+
+export function isSynAdaptationSumCol(col) {
+  const n = colToNum(String(col));
+  return (
+    n >= colToNum(ADAPT_SUM_COL_START) && n <= colToNum(ADAPT_SUM_COL_END)
+  );
+}
+
+export function isSynAdaptationSumCell(row, col) {
+  return (
+    Number(row) === SYN_ADAPTATION_SUM_ROW && isSynAdaptationSumCol(col)
+  );
+}
+
+export function affectsAdaptationSum(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || r < SYN_ADAPTATION_SUM_FROM_ROW) return false;
+  if (r > SYN_ADAPTATION_SUM_TO_ROW) return false;
+  return isSynAdaptationSumCol(col);
+}
+
+/** @param {(row: number, col: string) => number} getNumeric */
+export function computeAdaptationRowSum(
+  getNumeric,
+  col,
+  fromRow = SYN_ADAPTATION_SUM_FROM_ROW,
+  toRow = SYN_ADAPTATION_SUM_TO_ROW
+) {
+  let sum = 0;
+  for (let r = fromRow; r <= toRow; r++) {
+    sum += getNumeric(r, col);
+  }
+  return Math.round(sum * 10000) / 10000;
+}

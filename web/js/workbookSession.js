@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { WorkbookEngine } from './workbookEngine.js';
+import { WorkbookEngineClient } from './workbookEngineClient.js?v=hf-worker2';
 import {
   displayValue,
   stripExcelErrorValue,
@@ -9,8 +9,12 @@ import { BD_MASS_COL } from './bdColumnConfig.js';
 import {
   buildBdColumnIndex,
   computeSumproduct,
+  computeAdaptationRowSum,
   isSumproductCell,
-} from './synthesisCalc.js';
+  isSynAdaptationSumCell,
+  affectsAdaptationSum,
+} from './synthesisCalc.js?v=adapt-sum1';
+import { getSynAdaptBandNumeric } from './synStore.js?v=adapt-sum1';
 import { isSynFilterEdit } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
@@ -18,26 +22,22 @@ export function createWorkbookSession() {
   const ready = ref(false);
   const loading = ref(false);
   const error = ref(null);
-  const engine = new WorkbookEngine();
+  const engine = new WorkbookEngineClient();
   let bdCols = null;
   let synGridGetter = null;
   let synFiltersDirty = false;
   const sumproductCache = new Map();
-  const hfDisplayCache = new Map();
-
-  function clearHfDisplayCache() {
-    hfDisplayCache.clear();
-  }
+  const adaptationSumCache = new Map();
+  let adaptationSumDirty = true;
 
   async function loadSheets(sheets) {
     loading.value = true;
     error.value = null;
     ready.value = false;
     try {
-      await new Promise((r) => setTimeout(r, 0));
       const bdEntry = sheets.find((s) => s.name === 'BD');
       if (bdEntry) {
-        engine.loadSheetData('BD', bdEntry.data);
+        await engine.loadSheetData('BD', bdEntry.data);
         bdCols = buildBdColumnIndex(bdEntry.data);
       }
       ready.value = Boolean(bdEntry);
@@ -51,6 +51,7 @@ export function createWorkbookSession() {
 
   function bindSynthesisGrid(getCell) {
     synGridGetter = getCell;
+    clearAdaptationSumCache();
   }
 
   function getSynCell(row, col) {
@@ -63,21 +64,41 @@ export function createWorkbookSession() {
     sumproductCache.clear();
   }
 
-  function setCellValue(sheetName, row, col, value) {
+  function clearAdaptationSumCache() {
+    adaptationSumCache.clear();
+    adaptationSumDirty = true;
+  }
+
+  function getSynNumeric(row, col) {
+    if (!synGridGetter) return 0;
+    return getSynAdaptBandNumeric(synGridGetter, row, col);
+  }
+
+  async function setCellValue(sheetName, row, col, value) {
     if (sheetName === 'BD') {
-      engine.setCellValue(sheetName, row, col, value);
       if (bdCols) {
         if (!bdCols[col]) bdCols[col] = [];
         bdCols[col][row] = value;
       }
       synFiltersDirty = true;
       clearSumproductCache();
-      clearHfDisplayCache();
+      if (ready.value && engine.hasFormula(sheetName, row, col)) {
+        try {
+          await engine.setCellValue(sheetName, row, col, value);
+        } catch (e) {
+          console.warn('HyperFormula setCellValue failed:', e);
+        }
+      }
+      revision.value += 1;
+      return;
     } else if (sheetName === 'SYNTHESIS' && synGridGetter) {
       const cell = synGridGetter(row, col);
       if (cell) {
         cell.v = value;
         delete cell.f;
+      }
+      if (affectsAdaptationSum(row, col)) {
+        clearAdaptationSumCache();
       }
       if (isSynFilterEdit(row, col)) {
         synFiltersDirty = true;
@@ -88,6 +109,20 @@ export function createWorkbookSession() {
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
+    if (cell?.userEdited && !isSynAdaptationSumCell(row, col)) {
+      return displayValue(cell);
+    }
+    if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
+      const cacheKey = `adapt:${col}`;
+      if (!adaptationSumDirty && adaptationSumCache.has(cacheKey)) {
+        return adaptationSumCache.get(cacheKey);
+      }
+      const n = computeAdaptationRowSum(getSynNumeric, col);
+      const out = String(n);
+      adaptationSumCache.set(cacheKey, out);
+      adaptationSumDirty = false;
+      return out;
+    }
     if (sheetName === 'SYNTHESIS' && isSumproductCell(cell) && bdCols) {
       if (!synFiltersDirty && cell?.v != null && cell.v !== '') {
         return String(cell.v);
@@ -121,21 +156,22 @@ export function createWorkbookSession() {
       if (cached !== '') return cached;
     }
     if (sheetName === 'BD' && ready.value && engine.hasFormula(sheetName, row, col)) {
-      const hfKey = `${row}:${col}`;
-      if (hfDisplayCache.has(hfKey)) return hfDisplayCache.get(hfKey);
       const computed = engine.getCellValue(sheetName, row, col);
-      if (computed !== '' && computed !== '#REF!') {
-        hfDisplayCache.set(hfKey, computed);
-        return computed;
-      }
+      if (computed !== '' && computed !== '#REF!') return computed;
     }
     return displayValue(cell);
   }
 
   function isFormulaCell(sheetName, row, col, cell) {
+    if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
+      return true;
+    }
     if (isSumproductCell(cell)) return true;
-    if (sheetName === 'BD' && cell?.f) return true;
-    if (ready.value) return engine.hasFormula(sheetName, row, col);
+    if (sheetName === 'BD') {
+      if (!cell?.f) return false;
+      if (ready.value) return engine.hasFormula(sheetName, row, col);
+      return true;
+    }
     return false;
   }
 
@@ -145,7 +181,7 @@ export function createWorkbookSession() {
     synGridGetter = null;
     synFiltersDirty = false;
     clearSumproductCache();
-    clearHfDisplayCache();
+    clearAdaptationSumCache();
     ready.value = false;
   }
 

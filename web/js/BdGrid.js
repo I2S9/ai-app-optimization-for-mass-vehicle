@@ -10,7 +10,6 @@ import {
   getCell,
   displayValue,
   displayCellValue,
-  isReadonlyCell,
   isStructureRow,
   isTitleMarkerRow,
   rowStyleClass,
@@ -21,7 +20,8 @@ import {
   bdMassCol,
   bdTitleCol,
   shouldDisplayBodyRow,
-} from './bdStore.js?v=20260521-outline-fin';
+} from './bdStore.js?v=edit-fix2';
+import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import {
   ROW_H,
   visibleRowRange,
@@ -33,7 +33,9 @@ import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
   BD_POSITION_COLS,
-} from './bdColumnConfig.js';
+  isBdNumericEntryCell,
+} from './bdColumnConfig.js?v=input-fix1';
+import { createGridCellEditor } from './gridCellEdit.js?v=input-fix2';
 
 export default {
   name: 'BdGrid',
@@ -41,6 +43,7 @@ export default {
     sheet: { type: Object, required: true },
     sheetName: { type: String, default: 'BD' },
     session: { type: Object, default: null },
+    rawBd: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
   },
   emits: ['cell-change'],
@@ -48,6 +51,7 @@ export default {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
     const viewportH = ref(600);
+    const editEpoch = ref(0);
 
     const cellMap = shallowRef(new Map());
     watch(
@@ -142,38 +146,54 @@ export default {
 
     const scrollSync = createScrollRafSync({ scrollTop });
 
-    function onCellInput(row, col, value) {
+    function commitCellInput(row, col, value) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
+      const hadFormula = Boolean(cell?.f);
       if (!cell) {
-        cell = { r: row, c: col, v: value };
+        cell = { r: row, c: col, v: value, userEdited: true };
         props.sheet.cells.push(cell);
         cellMap.value.set(key, cell);
       } else {
         cell.v = value;
+        cell.userEdited = true;
         delete cell.f;
       }
+      if (props.rawBd) upsertRawCell(props.rawBd, row, col, value);
+      editEpoch.value += 1;
+      invalidateDisplayCache();
+      emit('cell-change', { row, col, value, sheet: props.sheetName || 'BD' });
       if (props.session?.ready?.value) {
-        props.session.setCellValue(props.sheetName, row, col, value);
+        void props.session
+          .setCellValue(props.sheetName, row, col, value)
+          .catch((e) => console.warn('Engine setCellValue:', e));
       }
-      emit('cell-change', { row, col, value });
     }
 
-    function cellReadonly(row, col) {
+    function seedEditValue(row, col) {
       const cell = getCell(cellMap.value, row, col);
-      if (props.session?.ready?.value) {
-        return props.session.isFormulaCell(
-          props.sheetName,
-          row,
-          col,
-          cell
-        );
+      if (cell?.v != null && String(cell.v).trim() !== '') {
+        return String(cell.v);
       }
-      return isReadonlyCell(cell, row, props.sheet.dataStartRow);
+      return cellDisplay(row, col);
+    }
+
+    const cellEditor = createGridCellEditor({
+      isNumericAt: (row, col) => isBdNumericEntryCell(row, col),
+      seedAt: seedEditValue,
+      displayAt: (row, col) => cellDisplay(row, col),
+      commitAt: commitCellInput,
+    });
+    const { boundValue, onCellFocus, onCellInput, onCellBlur, onCellKeydown } =
+      cellEditor;
+
+    /** Row 1 = Excel headers only; all body rows editable. */
+    function cellReadonly(row, col) {
+      return row < 2;
     }
 
     function cellDisplay(row, col) {
-      const cacheKey = `${calcRevision.value}:${engineReady.value}:${props.outlineOnly}:${props.sheet === null ? 0 : 1}`;
+      const cacheKey = `${calcRevision.value}:${editEpoch.value}:${engineReady.value}:${props.outlineOnly}:${props.sheet === null ? 0 : 1}`;
       if (cacheKey !== displayCacheKey) {
         invalidateDisplayCache();
         displayCacheKey = cacheKey;
@@ -189,6 +209,11 @@ export default {
       const cell = getCell(map, row, col);
 
       if (props.sheetName === 'BD') {
+        if (cell?.userEdited) {
+          const plain = cell?.v != null ? String(cell.v) : '';
+          displayCache.set(hitKey, plain);
+          return plain;
+        }
         const masked = displayCellValue(
           map,
           row,
@@ -214,7 +239,7 @@ export default {
           !bookmark &&
           props.session?.ready?.value &&
           props.session.isFormulaCell(props.sheetName, row, col, cell);
-        if (useFormula) {
+        if (useFormula && cell?.f) {
           const computed = props.session.getDisplayValue(
             props.sheetName,
             row,
@@ -241,7 +266,14 @@ export default {
 
     watch(
       () => props.sheet,
-      () => invalidateDisplayCache()
+      (sheet) => {
+        if (sheet?.cellMap instanceof Map) {
+          cellMap.value = sheet.cellMap;
+        } else if (sheet) {
+          cellMap.value = buildCellMap(sheet.cells, sheet.headerRows);
+        }
+        invalidateDisplayCache();
+      }
     );
     watch(
       () => props.outlineOnly,
@@ -294,7 +326,11 @@ export default {
           props.sheet.matrixColors
         ),
       onScroll: scrollSync.onScroll,
+      boundValue,
+      onCellFocus,
       onCellInput,
+      onCellBlur,
+      onCellKeydown,
     };
   },
   template: `
@@ -352,11 +388,21 @@ export default {
                 <template v-if="cellReadonly(entry.excelRow, col)">
                   <span :title="getCell(entry.excelRow, col)?.f || ''">{{ cellDisplay(entry.excelRow, col) }}</span>
                 </template>
+                <span
+                  v-else-if="!isCellEditing(entry.excelRow, col)"
+                  class="grid-cell-text"
+                  @mousedown.prevent="openCellEdit(entry.excelRow, col, $event)"
+                >{{ cellDisplay(entry.excelRow, col) }}</span>
                 <input
                   v-else
                   type="text"
-                  :value="cellDisplay(entry.excelRow, col)"
-                  @change="onCellInput(entry.excelRow, col, $event.target.value)"
+                  class="grid-cell-input"
+                  autocomplete="off"
+                  spellcheck="false"
+                  @focus="onCellFocus(entry.excelRow, col, $event)"
+                  @input="onCellInput(entry.excelRow, col, $event)"
+                  @blur="onCellBlur(entry.excelRow, col, $event)"
+                  @keydown="onCellKeydown(entry.excelRow, col, $event)"
                 />
               </td>
             </tr>

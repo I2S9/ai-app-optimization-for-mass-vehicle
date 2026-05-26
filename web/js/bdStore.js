@@ -473,6 +473,26 @@ export function isReadonlyCell(cell, row, dataStartRow) {
   if (!cell) return false;
   return Boolean(cell.f);
 }
+
+/** Body rows users may edit (mass, vehicle cols, etc.) — not L1/L2 bands or headers. */
+export function isBdBodyEditableCell(sheet, row, col) {
+  const dataStart = sheet?.dataStartRow ?? 6;
+  if (row < dataStart) return false;
+  const map =
+    sheet?.cellMap instanceof Map
+      ? sheet.cellMap
+      : buildCellMap(sheet?.cells, sheet?.headerRows);
+  const sh = sheet?.sectionHeaderRows;
+  if (isStructureRow(map, row, sh) || isTitleMarkerRow(map, row, sh)) {
+    return false;
+  }
+  const l1 = bdSubsystemL1Col(sheet);
+  const l2 = bdSubsystemL2Col(sheet);
+  const dept = bdDesignDeptCol(sheet);
+  if (col === l1 || col === l2 || col === dept) return false;
+  if (BD_POSITION_COLS.has(col) || BD_MASS_AV_AR_COLS.has(col)) return false;
+  return true;
+}
 /** Raw title in frozen column A (Date). */
 export function colATitle(map, row) {
   const a = displayValue(getCell(map, row, 'A'));

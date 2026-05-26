@@ -3,6 +3,10 @@
  */
 import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from 'vue';
 import { getCell } from './bdStore.js?v=syn-perf30';
+import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
+import { isSynAdaptationSumCell } from './synthesisCalc.js?v=adapt-sum1';
+import { isSynNumericEntryCell } from './synStore.js?v=input-fix1';
+import { createGridCellEditor } from './gridCellEdit.js?v=input-fix2';
 import {
   computeSynBodyRows,
   isSynPanelGapEntry,
@@ -68,6 +72,7 @@ export default {
   props: {
     sheet: { type: Object, required: true },
     session: { type: Object, default: null },
+    rawSyn: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
   },
   emits: ['cell-change'],
@@ -269,24 +274,50 @@ export default {
 
     const scrollSync = createScrollRafSync({ scrollTop, scrollLeft });
 
-    function onCellInput(row, col, value) {
+    const editEpoch = ref(0);
+    const calcRevision = computed(() => props.session?.revision?.value ?? 0);
+
+    function commitCellInput(row, col, value) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
       if (!cell) {
-        cell = { r: row, c: col, v: value };
+        cell = { r: row, c: col, v: value, userEdited: true };
         props.sheet.cells.push(cell);
         cellMap.value.set(key, cell);
       } else {
         cell.v = value;
+        cell.userEdited = true;
         delete cell.f;
       }
-      props.session?.setCellValue?.('SYNTHESIS', row, col, value);
-      emit('cell-change', { row, col, value });
+      if (props.rawSyn) upsertRawCell(props.rawSyn, row, col, value);
+      editEpoch.value += 1;
+      emit('cell-change', { row, col, value, sheet: 'SYNTHESIS' });
+      void props.session
+        ?.setCellValue?.('SYNTHESIS', row, col, value)
+        ?.catch((e) => console.warn('Synthesis setCellValue:', e));
     }
+
+    function seedEditValue(row, col) {
+      const cell = getCell(cellMap.value, row, col);
+      if (cell?.v != null && String(cell.v).trim() !== '') {
+        return String(cell.v);
+      }
+      return cellDisplay(row, col);
+    }
+
+    const cellEditor = createGridCellEditor({
+      isNumericAt: (row, col) =>
+        isSynNumericEntryCell(row, col, pillarColumns.value),
+      seedAt: seedEditValue,
+      displayAt: (row, col) => cellDisplay(row, col),
+      commitAt: commitCellInput,
+    });
+    const { isCellEditing, openCellEdit } = cellEditor;
 
     /** Only virtual gap rows (no Excel row) stay display-only. */
     function cellReadonly(row, col) {
-      return row == null;
+      if (row == null) return true;
+      return isSynAdaptationSumCell(row, col);
     }
 
     function formatVal(v) {
@@ -297,6 +328,8 @@ export default {
     }
 
     function cellDisplay(row, col) {
+      void calcRevision.value;
+      void editEpoch.value;
       if (row == null) return '';
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         if (usesPillarLetterOverlay(col)) return '';
@@ -310,14 +343,16 @@ export default {
       }
       const cell = getCell(cellMap.value, row, col);
       let displayCell = cell;
-      if (props.session?.getDisplayValue) {
+      if (cell?.userEdited) {
+        displayCell = cell;
+      } else if (props.session?.getDisplayValue) {
         const fromSession = props.session.getDisplayValue(
           'SYNTHESIS',
           row,
           col,
           cell
         );
-        if (fromSession != null && fromSession !== '') {
+        if (fromSession != null && !cell?.userEdited) {
           displayCell = { ...(cell || {}), v: fromSession };
         }
       }
@@ -534,7 +569,12 @@ export default {
       pillarLetterOverlays,
       usesPillarLetterOverlay,
       onScroll: scrollSync.onScroll,
-      onCellInput,
+      isCellEditing,
+      openCellEdit,
+      onCellFocus: cellEditor.onCellFocus,
+      onCellInput: cellEditor.onCellInput,
+      onCellBlur: cellEditor.onCellBlur,
+      onCellKeydown: cellEditor.onCellKeydown,
     };
   },
   template: `
@@ -625,11 +665,21 @@ export default {
                 <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, p.col)">
                   <span>{{ isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, p.col) }}</span>
                 </template>
+                <span
+                  v-else-if="!isCellEditing(entry.excelRow, p.col)"
+                  class="grid-cell-text"
+                  @mousedown.prevent="openCellEdit(entry.excelRow, p.col, $event)"
+                >{{ cellDisplay(entry.excelRow, p.col) }}</span>
                 <input
                   v-else
                   type="text"
-                  :value="cellDisplay(entry.excelRow, p.col)"
-                  @change="onCellInput(entry.excelRow, p.col, $event.target.value)"
+                  class="grid-cell-input"
+                  autocomplete="off"
+                  spellcheck="false"
+                  @focus="onCellFocus(entry.excelRow, p.col, $event)"
+                  @input="onCellInput(entry.excelRow, p.col, $event)"
+                  @blur="onCellBlur(entry.excelRow, p.col, $event)"
+                  @keydown="onCellKeydown(entry.excelRow, p.col, $event)"
                 />
               </td>
               <td v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></td>
@@ -692,11 +742,21 @@ export default {
                     isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, colEntry.col)
                   }}</span>
                 </template>
+                <span
+                  v-else-if="!isCellEditing(entry.excelRow, colEntry.col)"
+                  class="grid-cell-text"
+                  @mousedown.prevent="openCellEdit(entry.excelRow, colEntry.col, $event)"
+                >{{ cellDisplay(entry.excelRow, colEntry.col) }}</span>
                 <input
                   v-else
                   type="text"
-                  :value="cellDisplay(entry.excelRow, colEntry.col)"
-                  @change="onCellInput(entry.excelRow, colEntry.col, $event.target.value)"
+                  class="grid-cell-input"
+                  autocomplete="off"
+                  spellcheck="false"
+                  @focus="onCellFocus(entry.excelRow, colEntry.col, $event)"
+                  @input="onCellInput(entry.excelRow, colEntry.col, $event)"
+                  @blur="onCellBlur(entry.excelRow, colEntry.col, $event)"
+                  @keydown="onCellKeydown(entry.excelRow, colEntry.col, $event)"
                 />
               </td>
               <td v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></td>

@@ -151,7 +151,10 @@ export function applySynRow25PresetCells(cells = []) {
     let cell = cells.find((c) => c.r === row && c.c === col);
     if (!cell) {
       cells.push({ r: row, c: col, v: String(value) });
-    } else if (!cell.v || String(cell.v).trim() === '') {
+    } else if (
+      !cell.userEdited &&
+      (!cell.v || String(cell.v).trim() === '')
+    ) {
       cell.v = String(value);
     }
   }
@@ -169,7 +172,7 @@ export function applySynRow26ZeroCells(cells = []) {
     let cell = cells.find((c) => c.r === row && c.c === col);
     if (!cell) {
       cells.push({ r: row, c: col, v: '0' });
-    } else {
+    } else if (!cell.userEdited) {
       cell.v = '0';
       delete cell.f;
     }
@@ -180,6 +183,36 @@ export function applySynRow26ZeroCells(cells = []) {
 export function isSynRow26ZeroCol(row, col) {
   if (Number(row) !== SYN_ROW_26_ZERO_ROW) return false;
   return isSynHeaderPanelVehicleCol(col);
+}
+
+function parseSynBandNum(v) {
+  if (v == null || v === '') return 0;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+}
+
+/** Numeric value for ADAPTATION band rows 26–40 (presets unless userEdited). */
+export function getSynAdaptBandNumeric(getCell, row, col) {
+  const cell = getCell(row, col);
+  if (cell?.userEdited) {
+    return parseSynBandNum(displayValue(cell));
+  }
+  if (isSynRow26ZeroCol(row, col)) {
+    return 0;
+  }
+  const preset = synRowCjPresetRaw(row, col);
+  if (preset !== undefined) {
+    if (preset == null || preset === '') return 0;
+    return Number(preset);
+  }
+  const raw = cell ? displayValue(cell) : '';
+  if (raw && isSynNumericRaw(raw)) {
+    return parseSynBandNum(raw);
+  }
+  if (cell?.v != null && cell.v !== '') {
+    return parseSynBandNum(cell.v);
+  }
+  return 0;
 }
 
 /** Rows 27–422 — display C…J preset tables (null = empty cell). */
@@ -479,6 +512,7 @@ export function applySynRowsCjPresetCells(cells = []) {
     for (const [display, value] of rowMap) {
       const col = displayToExcelCol(display);
       const cell = cells.find((c) => c.r === row && c.c === col);
+      if (cell?.userEdited) continue;
       if (value == null) {
         if (cell) {
           cell.v = '';
@@ -1230,6 +1264,17 @@ export function isSynZeroFillDataCol(row, col, pillarColumns) {
   return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
 }
 
+/** Editable cells that must receive a numeric value (adapt band + metric C–J). */
+export function isSynNumericEntryCell(row, col, pillarColumns) {
+  if (isSynZeroFillDataCol(row, col, pillarColumns)) return true;
+  if (!isSynHeaderPanelVehicleCol(col) || isSynSpacerDisplayExcelCol(col)) {
+    return false;
+  }
+  if (SYN_METRIC_CJ_WHITE_ROWS.has(row)) return true;
+  if (row === 18 || row === 19) return true;
+  return false;
+}
+
 export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (isSynPillarColAtRow(col, row, pillarColumns)) {
     const raw = cell ? displayValue(cell) : '';
@@ -1244,15 +1289,25 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     return synHeaderPanelLabel(map, row);
   }
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {
+    if (cell?.userEdited) {
+      const rawEdited = displayValue(cell);
+      if (isSynNumericRaw(rawEdited)) {
+        return synTranslateText(formatSynNumericDisplay(rawEdited), col);
+      }
+      return synTranslateText(rawEdited, col);
+    }
     if (isSynRow26ZeroCol(row, col)) {
       return '0,00';
     }
     if (row === SYN_ZERO_FILL_FIRST_ROW) {
-      const preset = synRow25PresetRaw(col);
-      if (preset !== undefined) {
-        if (preset == null || preset === '') return '';
-        return synTranslateText(formatSynNumericDisplay(String(preset)), col);
+      const raw25 = cell ? displayValue(cell) : '';
+      if (raw25 && String(raw25).trim() !== '') {
+        if (isSynNumericRaw(raw25)) {
+          return synTranslateText(formatSynNumericDisplay(raw25), col);
+        }
+        return synTranslateText(raw25, col);
       }
+      return '0,00';
     }
     const cjPreset = synRowCjPresetRaw(row, col);
     if (cjPreset !== undefined) {
