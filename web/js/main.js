@@ -1,6 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
 import BdGrid from './BdGrid.js?v=syn-scroll4';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-scroll4';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-perf65-revert';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix11';

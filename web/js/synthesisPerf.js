@@ -64,7 +64,7 @@ export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
 /** ADAPTATION band row 25+: display C & H — same grey as SP1 pillar (B). */
 export const SYN_ADAPT_GREY_DISPLAY_COLS = ['C', 'H'];
 
-/** ADAPTATION band rows 25–41: display D–G & I–J — fluorescent yellow (42+ grey). */
+/** ADAPTATION band row 25+: display D–G & I–J — fluorescent yellow. */
 export const SYN_ADAPT_FLUO_DISPLAY_COLS = ['D', 'E', 'F', 'G', 'I', 'J'];
 
 export function isSynFilterGreyExcelCol(excelCol) {

@@ -40,7 +40,7 @@ import {
   isSynSpacerDisplayExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf66';
+} from './synStore.js?v=syn-perf65';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -50,12 +50,12 @@ import {
 import {
   ROW_H,
   visibleRowRange,
-  rowOverscanForColCount,
+  rowOverscan,
   colOverscanPx,
   shouldVirtualizeRows,
   shouldVirtualizeCols,
   createScrollRafSync,
-} from './gridScroll.js?v=syn-scroll4';
+} from './gridScroll.js?v=syn-scroll3';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -146,15 +146,12 @@ export default {
 
     const visibleScrollCols = computed(() => {
       if (!virtualizeCols.value) return scrollableCols.value;
-      const cols = scrollableCols.value;
-      if (!cols.length) return cols;
       const buf = colBufferPx.value;
       const min = scrollLeft.value - buf;
       const max = scrollLeft.value + viewportW.value + buf;
-      const visible = cols.filter(
+      return scrollableCols.value.filter(
         (c) => c.left + c.width >= min && c.left <= max
       );
-      return visible.length ? visible : cols;
     });
 
     const leftPad = computed(() => {
@@ -180,9 +177,7 @@ export default {
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
-    const rowBuffer = computed(() =>
-      rowOverscanForColCount(viewportH.value, scrollableCols.value.length)
-    );
+    const rowBuffer = computed(() => rowOverscan(viewportH.value));
     const visibleRange = computed(() => {
       if (!virtualizeRows.value) {
         return { start: 0, end: rowCount.value };
