@@ -19,6 +19,10 @@ import {
   isSynPillarCol,
   isSynPillarColAtRow,
   synPillarLetterForRow,
+  synPillarLettersFromTitle,
+  findSynEchappementRow,
+  SYN_PILLAR_LETTER_ROW_STEP,
+  SYN_PILLAR_OVERLAY_COLS,
   isSynMetricRow,
   isSynHeaderPanelRow,
   isSynHeaderPanelBoldCol,
@@ -34,7 +38,7 @@ import {
   isSynSpacerColWhiteDisplayRow,
   isSynSpacerDisplayExcelCol,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf60';
+} from './synStore.js?v=syn-perf62';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -42,6 +46,7 @@ import {
   synPillarColWidth,
 } from './synthesisPerf.js?v=syn-perf36';
 const ROW_H = 21;
+const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 const BUFFER_ROWS = 6;
 const BUFFER_PX = 280;
@@ -168,6 +173,49 @@ export default {
       return Math.max(0, (rowCount.value - visibleStart.value - shown) * ROW_H);
     });
 
+    function bodyTopForExcelRow(excelRow) {
+      const rows = bodyRows.value;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].excelRow === excelRow) {
+          return SYN_HEAD_ROW_H + i * ROW_H;
+        }
+      }
+      return null;
+    }
+
+    function usesPillarLetterOverlay(col) {
+      return SYN_PILLAR_OVERLAY_COLS.has(col) && pillarColumns.value.has(col);
+    }
+
+    const pillarLetterOverlays = computed(() => {
+      const start = findSynEchappementRow(cellMap.value, props.sheet);
+      const overlays = [];
+      for (const layout of columnLayout.value) {
+        if (!SYN_PILLAR_OVERLAY_COLS.has(layout.col)) continue;
+        if (!pillarColumns.value.has(layout.col)) continue;
+        const title = pillarColumns.value.get(layout.col)?.title ?? '';
+        const letters = synPillarLettersFromTitle(title);
+        const chars = [];
+        for (let i = 0; i < letters.length; i++) {
+          const excelRow = start + i * SYN_PILLAR_LETTER_ROW_STEP;
+          const top = bodyTopForExcelRow(excelRow);
+          if (top == null) continue;
+          const ch = letters[i];
+          chars.push({
+            ch: ch === ' ' ? '\u00a0' : ch,
+            top,
+          });
+        }
+        overlays.push({
+          col: layout.col,
+          left: layout.left,
+          width: layout.width,
+          chars,
+        });
+      }
+      return overlays;
+    });
+
     const colspan = computed(() => {
       let n = 1 + pinnedCols.value.length + visibleScrollCols.value.length;
       if (leftPad.value > 0) n += 1;
@@ -220,6 +268,7 @@ export default {
     function cellDisplay(row, col) {
       if (row == null) return '';
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
+        if (usesPillarLetterOverlay(col)) return '';
         return synPillarLetterForRow(
           row,
           col,
@@ -430,6 +479,8 @@ export default {
       cellExtraClass,
       headerEdgeRight,
       headerLabelEdgeRight,
+      pillarLetterOverlays,
+      usesPillarLetterOverlay,
       onScroll,
       onCellInput,
     };
@@ -437,6 +488,33 @@ export default {
   template: `
     <div class="bd-grid-root synthesis-grid">
       <div class="bd-grid-scroll syn-scroll" ref="scrollEl" @scroll.passive="onScroll">
+        <div
+          class="syn-table-wrap"
+          :style="{ width: tableWidth + 'px', minWidth: tableWidth + 'px' }"
+        >
+        <div
+          v-if="pillarLetterOverlays.length"
+          class="syn-pillar-overlays"
+          aria-hidden="true"
+        >
+          <div
+            v-for="pillar in pillarLetterOverlays"
+            :key="'pillar-overlay-' + pillar.col"
+            class="syn-pillar-overlay-col"
+            :class="{ 'syn-pillar-k': isSynSp2DisplayExcelCol(pillar.col) }"
+            :style="{
+              left: pillar.left + 'px',
+              width: pillar.width + 'px',
+            }"
+          >
+            <span
+              v-for="(item, idx) in pillar.chars"
+              :key="pillar.col + '-' + idx"
+              class="syn-pillar-overlay-char"
+              :style="{ top: item.top + 'px' }"
+            >{{ item.ch }}</span>
+          </div>
+        </div>
         <table
           class="bd-table syn-table"
           role="grid"
@@ -519,6 +597,9 @@ export default {
                     'syn-pillar-col': isGapEntry(entry)
                       ? isGapGreenPillarCol(colEntry.col)
                       : isPillarColForEntry(entry, colEntry.col),
+                    'syn-pillar-overlay-host':
+                      !isGapEntry(entry) &&
+                      usesPillarLetterOverlay(colEntry.col),
                     'syn-panel-gap-pillar':
                       isGapEntry(entry) && isGapGreenPillarCol(colEntry.col),
                     'syn-pillar-k': isSynSp2DisplayExcelCol(colEntry.col),
@@ -566,6 +647,7 @@ export default {
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   `,

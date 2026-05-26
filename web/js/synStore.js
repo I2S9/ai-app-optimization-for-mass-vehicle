@@ -22,6 +22,9 @@ export const SYN_VEHICLE_COL_START = 'G';
 /** Header panel colour band — display C…J (Excel H…O), rows 3–22. */
 export const SYN_HDR_PANEL_COL_START = 'H';
 export const SYN_HDR_PANEL_COL_END = 'O';
+/** Rows 18–19, display columns C–J (Excel H–O). */
+export const SYN_HDR_METRIC_ROW_BG = '#ebf1de';
+export const SYN_HDR_METRIC_BG_ROWS = new Set([18, 19]);
 export const SYN_HDR_PANEL_GAP_COUNT = 2;
 /** Blank rows before Date (display 1–2); pillars B/K keep pillar fill. */
 export const SYN_HDR_PANEL_TOP_GAP_COUNT = 2;
@@ -44,6 +47,10 @@ export const SYN_FILTER_ROW_LABELS = {
 
 /** Mass / portfolio summary rows between filter band and ADAPTATION (Excel F16–F22). */
 export const SYN_METRIC_ROWS = new Set([15, 16, 17, 18, 19, 20, 21, 22]);
+/** Metric rows whose vehicle-column numbers are shown with a kg suffix. */
+export const SYN_METRIC_KG_ROWS = new Set([16, 18, 19, 20]);
+/** SP1 / SP2 pillars — vertical title rendered in a grid overlay (Excel G & P). */
+export const SYN_PILLAR_OVERLAY_COLS = new Set(['G', 'P']);
 export const SYN_METRIC_ROW_LABELS = {
   15: '',
   16: 'Curb mass:',
@@ -302,10 +309,22 @@ export function formatSynMetricValue(row, col, raw) {
   }
   if (isSynNumericRaw(s)) {
     const n = parseFloat(s.replace(',', '.'));
-    if (Number.isFinite(n) && Math.abs(n) >= 100) {
-      return `${formatSynNumericDisplay(n)} kg`;
+    if (!Number.isFinite(n)) return s;
+    const formatted = formatSynNumericDisplay(n);
+    if (SYN_METRIC_KG_ROWS.has(row) || Math.abs(n) >= 100) {
+      return `${formatted} kg`;
     }
-    if (Number.isFinite(n)) return formatSynNumericDisplay(n);
+    return formatted;
+  }
+  if (
+    SYN_METRIC_KG_ROWS.has(row) &&
+    /\d/.test(s) &&
+    !/\bkg\b/i.test(s)
+  ) {
+    const n = parseFloat(s.replace(/[^\d,.-]/g, '').replace(',', '.'));
+    if (Number.isFinite(n)) {
+      return `${formatSynNumericDisplay(String(n))} kg`;
+    }
   }
   return s;
 }
@@ -517,6 +536,17 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.backgroundColor = bg;
     style.color = '#000';
     style.border = 'none';
+    return style;
+  }
+  if (
+    SYN_HDR_METRIC_BG_ROWS.has(row) &&
+    isSynHeaderPanelVehicleCol(col) &&
+    !isSynSpacerDisplayExcelCol(col)
+  ) {
+    style.background = SYN_HDR_METRIC_ROW_BG;
+    style.backgroundColor = SYN_HDR_METRIC_ROW_BG;
+    style.color = '#000';
+    if (isSynHeaderPanelBoldCol(row, col)) style.fontWeight = '700';
     return style;
   }
   const greyStyle = synFilterGreyColStyle(row, col);

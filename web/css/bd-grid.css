@@ -674,10 +674,19 @@
   background-color: #a6a6a6 !important;
   color: #000 !important;
 }
+/* Rows 18–19, display C–J (Excel H–O) — wins over header/metric panel greys */
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) {
   background: #ebf1de !important;
+  background-color: #ebf1de !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) span {
   background-color: #ebf1de !important;
   color: #000 !important;
 }
@@ -957,7 +966,53 @@
   background: transparent !important;
 }
 .synthesis-grid .syn-scroll {
-  contain: strict;
+  contain: layout style;
+}
+.synthesis-grid .syn-table-wrap {
+  position: relative;
+}
+.synthesis-grid .syn-pillar-overlays {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 40;
+  overflow: visible;
+}
+.synthesis-grid .syn-pillar-overlay-col {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+.synthesis-grid .syn-pillar-overlay-char {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 28px;
+  margin-top: -4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: #000;
+  z-index: 50;
+  pointer-events: none;
+  text-shadow: 0 0 1px #fff;
+}
+.synthesis-grid .bd-table tbody td.syn-pillar-col.syn-pillar-overlay-host,
+.synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col.syn-pillar-overlay-host {
+  color: transparent !important;
+}
+.synthesis-grid .bd-table tbody td.syn-pillar-col.syn-pillar-overlay-host input,
+.synthesis-grid .bd-table tbody td.syn-pillar-col.syn-pillar-overlay-host span {
+  color: transparent !important;
 }
 /* Pillar — SP1 (B) #bfbfbf; SP2 (K) #92d050 — same layout, no grid lines */
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k),
