@@ -349,7 +349,9 @@ export default {
       const row = entry.excelRow;
       const cls = synRowStyleClass(cellMap.value, row, props.sheet);
       const list = [cls];
-      if (isSynHeaderPanelRow(row)) list.push('syn-header-block', 'syn-proj-table-frame');
+      if (isSynHeaderPanelRow(row)) {
+        list.push('syn-header-block', 'syn-proj-table-frame', 'syn-hdr-panel-grid');
+      }
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
       if (row === 16 || row === 18) list.push('syn-metric-curb');
