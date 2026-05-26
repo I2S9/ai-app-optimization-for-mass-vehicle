@@ -1,6 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=20260521-outline-fin';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-perf62';
+import BdGrid from './BdGrid.js?v=syn-scroll3';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-perf65';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix11';
@@ -12,7 +12,7 @@ import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix1
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
   setup() {
-    const loading = ref(true);
+    const bdLoading = ref(true);
     const synthesisLoading = ref(false);
     const error = ref(null);
     const bdSheet = ref(null);
@@ -39,6 +39,22 @@ const App = {
     const isGridPage = computed(
       () => route.value === 'database' || route.value === 'synthesis'
     );
+
+    const overlayMessage = computed(() => {
+      if (isSynthesis.value && synthesisLoading.value) return 'Loading synthesis…';
+      if (isSynthesis.value && bdLoading.value) return 'Loading…';
+      if (bdLoading.value) return 'Loading database…';
+      return 'Loading…';
+    });
+
+    const showContentOverlay = computed(() => {
+      if (isSynthesis.value) {
+        if (synthesisSheet.value) return false;
+        return synthesisLoading.value || bdLoading.value || !error.value;
+      }
+      if (isDatabase.value) return bdLoading.value || !bdSheet.value;
+      return false;
+    });
 
     function scheduleEngine() {
       if (engineStarted || !bdSheet.value || !isGridPage.value) return;
@@ -76,11 +92,19 @@ const App = {
         })
         .catch((e) => {
           error.value = e.message;
+          synthesisLoadPromise = null;
         })
         .finally(() => {
           synthesisLoading.value = false;
         });
       return synthesisLoadPromise;
+    }
+
+    async function loadBd() {
+      const bdRes = await fetch('/public/data/bd-sheet.json');
+      if (!bdRes.ok) throw new Error(`Failed to load BD data (${bdRes.status})`);
+      bdRaw.value = await bdRes.json();
+      bdSheet.value = transformBdSheet(bdRaw.value);
     }
 
     onMounted(async () => {
@@ -89,20 +113,17 @@ const App = {
       if (routeParam && NAV_ITEMS.some((n) => n.id === routeParam)) {
         route.value = routeParam;
       }
+      const wantSynthesis = route.value === 'synthesis';
+      const synPromise = wantSynthesis ? loadSynthesis() : null;
       try {
-        const bdRes = await fetch('/public/data/bd-sheet.json');
-        if (!bdRes.ok) throw new Error(`Failed to load BD data (${bdRes.status})`);
-        bdRaw.value = await bdRes.json();
-        bdSheet.value = transformBdSheet(bdRaw.value);
-        if (route.value === 'synthesis') {
-          await loadSynthesis();
-        }
+        await loadBd();
         scheduleEngine();
       } catch (e) {
         error.value = e.message;
       } finally {
-        loading.value = false;
+        bdLoading.value = false;
       }
+      if (synPromise) await synPromise;
     });
 
     onUnmounted(() => session.destroy());
@@ -163,8 +184,10 @@ const App = {
     }
 
     return {
-      loading,
+      bdLoading,
       synthesisLoading,
+      overlayMessage,
+      showContentOverlay,
       error,
       bdSheet,
       synthesisSheet,
@@ -238,19 +261,20 @@ const App = {
             </button>
           </template>
         </div>
-        <span class="status" v-if="loading">Loading…</span>
-        <span class="status" v-else-if="isSynthesis && synthesisLoading">Loading synthesis…</span>
+        <span class="status" v-if="bdLoading && isDatabase">Loading…</span>
+        <span class="status" v-else-if="isSynthesis && (synthesisLoading || (bdLoading && !synthesisSheet))">Loading synthesis…</span>
         <span class="status error-text" v-else-if="error">{{ error }}</span>
         <span class="status" v-else-if="isGridPage && dirty">Unsaved changes</span>
       </header>
       <div class="app-body">
         <main class="app-content">
-          <div v-if="loading" class="loading-overlay">Loading database…</div>
-          <div v-else-if="isSynthesis && synthesisLoading" class="loading-overlay">Loading synthesis…</div>
-          <div v-else-if="isSynthesis && !synthesisSheet && error" class="loading-overlay error-text">{{ error }}</div>
-          <div v-else-if="isSynthesis && !synthesisSheet" class="loading-overlay error-text">
-            Missing synthesis-sheet.json
-          </div>
+          <SynthesisGrid
+            v-if="isSynthesis && synthesisSheet"
+            :sheet="synthesisSheet"
+            :session="session"
+            :outline-only="outlineOnly"
+            @cell-change="onCellChange"
+          />
           <BdGrid
             v-else-if="isDatabase && bdSheet"
             :sheet="bdSheet"
@@ -259,13 +283,11 @@ const App = {
             :outline-only="outlineOnly"
             @cell-change="onCellChange"
           />
-          <SynthesisGrid
-            v-else-if="isSynthesis && synthesisSheet"
-            :sheet="synthesisSheet"
-            :session="session"
-            :outline-only="outlineOnly"
-            @cell-change="onCellChange"
-          />
+          <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
+          <div v-else-if="isSynthesis && !synthesisSheet && error" class="loading-overlay error-text">{{ error }}</div>
+          <div v-else-if="isSynthesis && !synthesisSheet" class="loading-overlay error-text">
+            Missing synthesis-sheet.json
+          </div>
           <EmptyPage v-else :title="currentNav.label" />
         </main>
       </div>

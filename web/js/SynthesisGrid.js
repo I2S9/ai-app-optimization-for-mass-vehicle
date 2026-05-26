@@ -14,6 +14,8 @@ import {
   synHeaderPanelVehicleClass,
   synCellAccentClass,
   synFilterGreyColClass,
+  synAdaptBandColClass,
+  synMetricCjWhiteColClass,
   formatSynNumericDisplay,
   synRowStyleClass,
   isSynPillarCol,
@@ -35,21 +37,27 @@ import {
   isSynHdrLmDividerRightEntry,
   isSynHdrLmDividerLeftEntry,
   isSynHdrAaDividerRightEntry,
-  isSynSpacerColWhiteDisplayRow,
   isSynSpacerDisplayExcelCol,
+  synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf62';
+} from './synStore.js?v=syn-perf65';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
   synStickyColWidth,
   synPillarColWidth,
 } from './synthesisPerf.js?v=syn-perf36';
-const ROW_H = 21;
+import {
+  ROW_H,
+  visibleRowRange,
+  rowOverscan,
+  colOverscanPx,
+  shouldVirtualizeRows,
+  shouldVirtualizeCols,
+  createScrollRafSync,
+} from './gridScroll.js?v=syn-scroll3';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
-const BUFFER_ROWS = 6;
-const BUFFER_PX = 280;
 
 export default {
   name: 'SynthesisGrid',
@@ -131,15 +139,23 @@ export default {
 
     const stickyLabelLeft = computed(() => ROW_NUM_W);
 
+    const virtualizeCols = computed(() =>
+      shouldVirtualizeCols(tableWidth.value, viewportW.value)
+    );
+    const colBufferPx = computed(() => colOverscanPx(viewportW.value));
+
     const visibleScrollCols = computed(() => {
-      const min = scrollLeft.value - BUFFER_PX;
-      const max = scrollLeft.value + viewportW.value + BUFFER_PX;
+      if (!virtualizeCols.value) return scrollableCols.value;
+      const buf = colBufferPx.value;
+      const min = scrollLeft.value - buf;
+      const max = scrollLeft.value + viewportW.value + buf;
       return scrollableCols.value.filter(
         (c) => c.left + c.width >= min && c.left <= max
       );
     });
 
     const leftPad = computed(() => {
+      if (!virtualizeCols.value) return 0;
       const first = visibleScrollCols.value[0];
       const pin = pinnedCols.value[0];
       if (!first || !pin) return 0;
@@ -147,6 +163,7 @@ export default {
     });
 
     const rightPad = computed(() => {
+      if (!virtualizeCols.value) return 0;
       const last = visibleScrollCols.value[visibleScrollCols.value.length - 1];
       if (!last) return 0;
       return Math.max(0, tableWidth.value - (last.left + last.width));
@@ -157,18 +174,31 @@ export default {
     );
     const rowCount = computed(() => bodyRows.value.length);
 
-    const visibleStart = computed(() =>
-      Math.max(0, Math.floor(scrollTop.value / ROW_H) - BUFFER_ROWS)
+    const virtualizeRows = computed(() =>
+      shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
-    const visibleEnd = computed(() => {
-      const n = Math.ceil(viewportH.value / ROW_H) + BUFFER_ROWS * 2;
-      return Math.min(rowCount.value, visibleStart.value + n);
+    const rowBuffer = computed(() => rowOverscan(viewportH.value));
+    const visibleRange = computed(() => {
+      if (!virtualizeRows.value) {
+        return { start: 0, end: rowCount.value };
+      }
+      return visibleRowRange(
+        scrollTop.value,
+        viewportH.value,
+        rowCount.value,
+        rowBuffer.value
+      );
     });
+    const visibleStart = computed(() => visibleRange.value.start);
+    const visibleEnd = computed(() => visibleRange.value.end);
     const visibleRows = computed(() =>
       bodyRows.value.slice(visibleStart.value, visibleEnd.value)
     );
-    const topSpacer = computed(() => visibleStart.value * ROW_H);
+    const topSpacer = computed(() =>
+      virtualizeRows.value ? visibleStart.value * ROW_H : 0
+    );
     const bottomSpacer = computed(() => {
+      if (!virtualizeRows.value) return 0;
       const shown = visibleEnd.value - visibleStart.value;
       return Math.max(0, (rowCount.value - visibleStart.value - shown) * ROW_H);
     });
@@ -233,10 +263,7 @@ export default {
       return { left: `${stickyLabelLeft.value}px` };
     }
 
-    function onScroll(e) {
-      scrollTop.value = e.target.scrollTop;
-      scrollLeft.value = e.target.scrollLeft;
-    }
+    const scrollSync = createScrollRafSync({ scrollTop, scrollLeft });
 
     function onCellInput(row, col, value) {
       const key = `${row}:${col}`;
@@ -383,8 +410,14 @@ export default {
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         return display ? 'syn-pillar-has-char' : '';
       }
+      const spacerCol = synSpacerColClass(col);
+      if (spacerCol) return spacerCol;
       const greyCol = synFilterGreyColClass(row, col);
       if (greyCol) return greyCol;
+      const adaptCol = synAdaptBandColClass(row, col, pillarColumns.value);
+      if (adaptCol) return adaptCol;
+      const metricWhiteCol = synMetricCjWhiteColClass(row, col);
+      if (metricWhiteCol) return metricWhiteCol;
       const accent = synCellAccentClass(display);
       if (accent) return accent;
       if (isSynHeaderPanelRow(row)) {
@@ -431,10 +464,12 @@ export default {
         getCell(cellMap.value, row, col)
       );
       updateViewport();
+      scrollSync.flush();
       window.addEventListener('resize', updateViewport);
     });
     onUnmounted(() => {
       window.removeEventListener('resize', updateViewport);
+      scrollSync.dispose();
     });
 
     return {
@@ -465,7 +500,7 @@ export default {
         isSynPillarColAtRow(col, row, pillarColumns.value),
       isSynSp2DisplayExcelCol,
       isSynSpacerDisplayExcelCol,
-      isSynSpacerColWhiteDisplayRow,
+      synSpacerColClass,
       isSynHdrLmDividerRightCol,
       isSynHdrLmDividerLeftCol,
       isSynHdrAaDividerRightCol,
@@ -481,7 +516,7 @@ export default {
       headerLabelEdgeRight,
       pillarLetterOverlays,
       usesPillarLetterOverlay,
-      onScroll,
+      onScroll: scrollSync.onScroll,
       onCellInput,
     };
   },
@@ -534,6 +569,7 @@ export default {
                 v-for="entry in visibleScrollCols"
                 :key="'L-' + entry.col"
                 class="col-letter"
+                :class="{ 'syn-spacer-col-l-hdr': isSynSpacerDisplayExcelCol(entry.col) }"
                 :style="colStyle(entry.col, entry.width)"
               >{{ entry.letter }}</th>
               <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
@@ -609,9 +645,7 @@ export default {
                     'syn-header-edge-right':
                       !isGapEntry(entry) &&
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
-                    'syn-spacer-col-l':
-                      isSynSpacerDisplayExcelCol(colEntry.col) &&
-                      isSynSpacerColWhiteDisplayRow(entry.displayRow),
+                    'syn-spacer-col-l': isSynSpacerDisplayExcelCol(colEntry.col),
                     'syn-hdr-edge-lm-right': isSynHdrLmDividerRightEntry(
                       entry,
                       colEntry.col

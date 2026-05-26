@@ -22,14 +22,18 @@ import {
   bdTitleCol,
   shouldDisplayBodyRow,
 } from './bdStore.js?v=20260521-outline-fin';
-import { ROW_H, visibleRowRange } from './gridScroll.js?v=syn-scroll2';
+import {
+  ROW_H,
+  visibleRowRange,
+  rowOverscan,
+  shouldVirtualizeRows,
+  createScrollRafSync,
+} from './gridScroll.js?v=syn-scroll3';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
   BD_POSITION_COLS,
 } from './bdColumnConfig.js';
-
-const ROW_OVERSCAN = 8;
 
 export default {
   name: 'BdGrid',
@@ -81,21 +85,31 @@ export default {
     });
 
     const rowCount = computed(() => bodyRows.value.length);
-    const visibleRange = computed(() =>
-      visibleRowRange(
+    const virtualizeRows = computed(() =>
+      shouldVirtualizeRows(rowCount.value, viewportH.value)
+    );
+    const rowOverscanPx = computed(() => rowOverscan(viewportH.value));
+    const visibleRange = computed(() => {
+      if (!virtualizeRows.value) {
+        return { start: 0, end: rowCount.value };
+      }
+      return visibleRowRange(
         scrollTop.value,
         viewportH.value,
         rowCount.value,
-        ROW_OVERSCAN
-      )
-    );
+        rowOverscanPx.value
+      );
+    });
     const visibleStart = computed(() => visibleRange.value.start);
     const visibleEnd = computed(() => visibleRange.value.end);
     const visibleRows = computed(() =>
       bodyRows.value.slice(visibleStart.value, visibleEnd.value)
     );
-    const topSpacer = computed(() => visibleStart.value * ROW_H);
+    const topSpacer = computed(() =>
+      virtualizeRows.value ? visibleStart.value * ROW_H : 0
+    );
     const bottomSpacer = computed(() => {
+      if (!virtualizeRows.value) return 0;
       const shown = visibleEnd.value - visibleStart.value;
       const remaining = rowCount.value - visibleStart.value - shown;
       return Math.max(0, remaining * ROW_H);
@@ -126,9 +140,7 @@ export default {
       return col === 'A';
     }
 
-    function onScroll(e) {
-      scrollTop.value = e.target.scrollTop;
-    }
+    const scrollSync = createScrollRafSync({ scrollTop });
 
     function onCellInput(row, col, value) {
       const key = `${row}:${col}`;
@@ -246,6 +258,7 @@ export default {
     });
     onUnmounted(() => {
       window.removeEventListener('resize', updateViewport);
+      scrollSync.dispose();
     });
 
     return {
@@ -280,7 +293,7 @@ export default {
           sectionHeaderRows.value,
           props.sheet.matrixColors
         ),
-      onScroll,
+      onScroll: scrollSync.onScroll,
       onCellInput,
     };
   },

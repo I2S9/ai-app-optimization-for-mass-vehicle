@@ -25,3 +25,48 @@ export function shouldVirtualizeRows(rowCount, viewportH) {
   const visible = Math.ceil(viewportH / ROW_H);
   return rowCount > visible + 60;
 }
+
+/** Skip column windowing when the table fits in the viewport. */
+export function shouldVirtualizeCols(tableWidth, viewportW) {
+  return tableWidth > viewportW + 120;
+}
+
+/**
+ * Coalesce scroll events to one reactive update per animation frame
+ * (reduces Vue re-renders and row recycle flicker while scrolling).
+ */
+export function createScrollRafSync(refs) {
+  const { scrollTop, scrollLeft = null } = refs;
+  let rafId = 0;
+  let pendingTop = 0;
+  let pendingLeft = 0;
+
+  function apply() {
+    rafId = 0;
+    scrollTop.value = pendingTop;
+    if (scrollLeft) scrollLeft.value = pendingLeft;
+  }
+
+  function onScroll(e) {
+    pendingTop = e.target.scrollTop;
+    if (scrollLeft) pendingLeft = e.target.scrollLeft;
+    if (!rafId) rafId = requestAnimationFrame(apply);
+  }
+
+  function flush() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    apply();
+  }
+
+  function dispose() {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+
+  return { onScroll, flush, dispose };
+}

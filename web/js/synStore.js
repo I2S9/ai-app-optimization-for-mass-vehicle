@@ -4,6 +4,8 @@ import { translateValue, translateSubsystemLabel } from './bdTranslate.js';
 import {
   displayToExcelCol,
   isSynFilterGreyExcelCol,
+  isSynAdaptGreyExcelCol,
+  isSynAdaptFluoExcelCol,
   isSynProjHeaderGreenExcelCol,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
@@ -47,6 +49,8 @@ export const SYN_FILTER_ROW_LABELS = {
 
 /** Mass / portfolio summary rows between filter band and ADAPTATION (Excel F16–F22). */
 export const SYN_METRIC_ROWS = new Set([15, 16, 17, 18, 19, 20, 21, 22]);
+/** Metric panel rows 15–22: display C–J white band (not 18–19). */
+export const SYN_METRIC_CJ_WHITE_ROWS = new Set([15, 16, 17, 20, 21, 22]);
 /** Metric rows whose vehicle-column numbers are shown with a kg suffix. */
 export const SYN_METRIC_KG_ROWS = new Set([16, 18, 19, 20]);
 /** SP1 / SP2 pillars — vertical title rendered in a grid overlay (Excel G & P). */
@@ -91,6 +95,8 @@ export function synDisplayRowNumber(excelRow) {
 
 /** Grey band for SP1 TARGET pillar (display column B). */
 export const SYN_PILLAR_BG = '#bfbfbf';
+/** ADAPTATION band row 25+ — fluorescent yellow (display D–G, I–J). */
+export const SYN_ADAPT_FLUO_BG = '#ffff00';
 /** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
 export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
@@ -441,9 +447,16 @@ export function isSynHdrLmDividerCol(row, col) {
   return isSynHdrLmDividerRightCol(row, col);
 }
 
-/** Display column L — white gutter (display rows 1–24). */
-export function isSynSpacerColWhiteDisplayRow(displayRow) {
-  return displayRow >= 1 && displayRow <= 24;
+/** Display column L (Excel Q) — white gutter, all body rows. */
+export function synSpacerColClass(col) {
+  return isSynSpacerDisplayExcelCol(col) ? 'syn-spacer-col-l' : '';
+}
+
+export function synSpacerColStyle(col) {
+  if (synSpacerColClass(col)) {
+    return { backgroundColor: '#fff', color: '#000' };
+  }
+  return null;
 }
 
 export function isSynFilterRow(row, sheet) {
@@ -525,9 +538,9 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.textAlign = 'left';
     style.color = '#000';
   }
-  if (isSynSpacerDisplayExcelCol(col) && isSynHeaderPanelRow(row)) {
-    style.backgroundColor = '#fff';
-    style.color = '#000';
+  const spacerStyle = synSpacerColStyle(col);
+  if (spacerStyle) {
+    Object.assign(style, spacerStyle);
     return style;
   }
   if (isSynPillarColAtRow(col, row, pillarColumns)) {
@@ -547,6 +560,16 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.backgroundColor = SYN_HDR_METRIC_ROW_BG;
     style.color = '#000';
     if (isSynHeaderPanelBoldCol(row, col)) style.fontWeight = '700';
+    return style;
+  }
+  const adaptStyle = synAdaptBandColStyle(row, col, pillarColumns);
+  if (adaptStyle) {
+    Object.assign(style, adaptStyle);
+    return style;
+  }
+  const metricWhiteStyle = synMetricCjWhiteColStyle(row, col);
+  if (metricWhiteStyle) {
+    Object.assign(style, metricWhiteStyle);
     return style;
   }
   const greyStyle = synFilterGreyColStyle(row, col);
@@ -637,8 +660,44 @@ export function synFilterGreyColStyle(row, col) {
   return null;
 }
 
+/** Rows 15, 16, 17, 20, 21, 22 — display columns C–J (Excel H–O) white. */
+export function synMetricCjWhiteColClass(row, col) {
+  if (!SYN_METRIC_CJ_WHITE_ROWS.has(row)) return '';
+  if (!isSynHeaderPanelVehicleCol(col)) return '';
+  return 'syn-metric-cj-white';
+}
+
+export function synMetricCjWhiteColStyle(row, col) {
+  if (synMetricCjWhiteColClass(row, col)) {
+    return { backgroundColor: '#fff', color: '#000' };
+  }
+  return null;
+}
+
+/** Row 25+ — display C/H grey (SP1 grey), D–G & I–J fluo yellow; not label A or pillars. */
+export function synAdaptBandColClass(row, col, pillarColumns) {
+  if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
+  if (col === SYN_LABEL_COL) return '';
+  if (isSynPillarColAtRow(col, row, pillarColumns)) return '';
+  if (isSynAdaptGreyExcelCol(col)) return 'syn-adapt-col-grey';
+  if (isSynAdaptFluoExcelCol(col)) return 'syn-adapt-col-fluo';
+  return '';
+}
+
+export function synAdaptBandColStyle(row, col, pillarColumns) {
+  const cls = synAdaptBandColClass(row, col, pillarColumns);
+  if (cls === 'syn-adapt-col-grey') {
+    return { backgroundColor: SYN_PILLAR_BG, color: '#000' };
+  }
+  if (cls === 'syn-adapt-col-fluo') {
+    return { backgroundColor: SYN_ADAPT_FLUO_BG, color: '#000' };
+  }
+  return null;
+}
+
 /** Rows 3–22, columns C–J: P1H / HEV / MHEVP2 / metric rows / default grey. */
 export function synHeaderPanelVehicleClass(row, col, displayText) {
+  if (synMetricCjWhiteColClass(row, col)) return '';
   if (SYN_HEADER_SPACER_ROWS.has(row)) return '';
   if (!isSynHeaderPanelRow(row) || !isSynHeaderPanelVehicleCol(col)) return '';
   const accent = synCellAccentClass(displayText);

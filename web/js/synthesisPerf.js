@@ -61,8 +61,28 @@ export const SYN_PROJ_TABLE_EDGE_DISPLAY_COLS = {
 /** Filter band rows 3–14: fixed grey cells in display columns C and H. */
 export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
 
+/** ADAPTATION band row 25+: display C & H — same grey as SP1 pillar (B). */
+export const SYN_ADAPT_GREY_DISPLAY_COLS = ['C', 'H'];
+
+/** ADAPTATION band row 25+: display D–G & I–J — fluorescent yellow. */
+export const SYN_ADAPT_FLUO_DISPLAY_COLS = ['D', 'E', 'F', 'G', 'I', 'J'];
+
 export function isSynFilterGreyExcelCol(excelCol) {
   for (const d of SYN_FILTER_GREY_DISPLAY_COLS) {
+    if (excelCol === displayToExcelCol(d)) return true;
+  }
+  return false;
+}
+
+export function isSynAdaptGreyExcelCol(excelCol) {
+  for (const d of SYN_ADAPT_GREY_DISPLAY_COLS) {
+    if (excelCol === displayToExcelCol(d)) return true;
+  }
+  return false;
+}
+
+export function isSynAdaptFluoExcelCol(excelCol) {
+  for (const d of SYN_ADAPT_FLUO_DISPLAY_COLS) {
     if (excelCol === displayToExcelCol(d)) return true;
   }
   return false;
