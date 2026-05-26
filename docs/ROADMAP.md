@@ -3,10 +3,30 @@
 État actuel (mai 2026) :
 
 - **Database (BD)** : parité OK avec Excel (à re-vérifier ponctuellement).
-- **Synthesis** : valeurs OK sur beaucoup de lignes, **colonnes A–J** ; reste (K+, couleurs, blocs) = travail UI en parallèle, **non bloquant** pour BDD + moteur.
-- **Front** : Vue 3, grilles virtualisées, `WorkbookSession` + HyperFormula (BD) dans un **Web Worker** (`workbookEngine.worker.js`).
-- **Données** : `web/public/data/*.json` statiques ; pas d’API ; `api/` = placeholder Laravel (non utilisé).
+- **Synthesis** : valeurs OK sur beaucoup de lignes, **colonnes A–J** ; ligne **25 ADAPTATION** = somme 26–40 (moteur session) ; reste (K+, couleurs) = UI en parallèle.
+- **Front** : Vue 3, grilles virtualisées, navigation menu **keep-alive** (`v-show`, préchargement Syn en arrière-plan).
+- **Édition** : saisie fluide (input non contrôlé pendant edit), validation numérique, persistance locale **patchs v2** (IndexedDB + localStorage).
+- **Calcul** : `WorkbookSession` + SUMPRODUCT Syn ; HyperFormula BD dans **Web Worker** (chargement différé ~3 s).
+- **Données** : `web/public/data/*.json` au boot ; **pas d’API Databricks** encore.
 - **Entreprise** : Databricks seulement (pas MySQL/Supabase en prod).
+
+### Déjà livré (récent)
+
+| Zone | Statut |
+|------|--------|
+| Grilles BD/Syn affichage + edit | OK |
+| Sauvegarde locale (même navigateur) | OK (patchs cellules) |
+| Ligne 25 sommes C–J | OK |
+| Menu burger Database ↔ Synthesis | Optimisé (grilles gardées en mémoire) |
+| Auth Microsoft + hébergement | **À faire** (IT) |
+
+### Prochaines étapes (ordre recommandé)
+
+1. **IT** : Databricks Apps ou Azure Static Web + Entra ID (SSO).
+2. **API** : `GET/PUT` session + table Delta (patchs, pas 12 Mo par save).
+3. **Perf calcul** : invalidation par cellules (pas `revision` → toute la grille).
+4. **Premier chargement** : snapshot compressé ou chargement par zone (réduire parse JSON).
+5. **Golden tests** : `docs/golden-cells.md` (5–10 cellules témoin).
 
 ---
 
@@ -88,6 +108,7 @@ Dossier cible : `api/` (Python, pas Laravel).
 
 ### A3 — Branchement front (dev, ~3–5 j)
 
+- [x] Persistance locale patchs (`sessionPersistence.js` v2) en attendant l’API
 - [ ] `loadBd()` / `loadSynthesis()` : API si dispo, sinon fallback `public/data/*.json`
 - [ ] Après chaque edit : marquer session dirty (déjà `dirty` dans `main.js`)
 - [ ] **Enregistrer** + timer **60 s** → `PUT` snapshot complet
@@ -143,6 +164,7 @@ Fichiers : `workbookEngine.worker.js`, `workbookEngineClient.js`, `workbookEngin
 
 ### B4 — Perf affichage (dev, ~1 semaine)
 
+- [x] Navigation menu : grilles BD/Syn **gardées montées** (`v-show` + preload Syn)
 - [ ] Re-render **dirty cells** seulement (pas `revision` → toute la grille)
 - [ ] Vérifier scroll 60 fps BD + Syn
 

@@ -1,4 +1,4 @@
-import { ref, computed, shallowRef, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import {
   buildCellMap,
   buildWidthMap,
@@ -35,7 +35,7 @@ import {
   BD_POSITION_COLS,
   isBdNumericEntryCell,
 } from './bdColumnConfig.js?v=input-fix1';
-import { createGridCellEditor } from './gridCellEdit.js?v=input-fix2';
+import { createGridCellEditor } from './gridCellEdit.js?v=edit-caret1';
 
 export default {
   name: 'BdGrid',
@@ -45,6 +45,7 @@ export default {
     session: { type: Object, default: null },
     rawBd: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
+    paneVisible: { type: Boolean, default: true },
   },
   emits: ['cell-change'],
   setup(props, { emit }) {
@@ -54,16 +55,6 @@ export default {
     const editEpoch = ref(0);
 
     const cellMap = shallowRef(new Map());
-    watch(
-      () => props.sheet,
-      (sheet) => {
-        cellMap.value =
-          sheet?.cellMap instanceof Map
-            ? sheet.cellMap
-            : buildCellMap(sheet?.cells, sheet?.headerRows);
-      },
-      { immediate: true }
-    );
 
     const widthMap = computed(() =>
       buildWidthMap(
@@ -135,6 +126,18 @@ export default {
       displayCacheKey = '';
     }
 
+    watch(
+      () => props.sheet,
+      (sheet) => {
+        cellMap.value =
+          sheet?.cellMap instanceof Map
+            ? sheet.cellMap
+            : buildCellMap(sheet?.cells, sheet?.headerRows);
+        invalidateDisplayCache();
+      },
+      { immediate: true }
+    );
+
     function colStyle(col) {
       const w = widthMap.value.get(col) || 72;
       return { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
@@ -170,22 +173,19 @@ export default {
       }
     }
 
-    function seedEditValue(row, col) {
-      const cell = getCell(cellMap.value, row, col);
-      if (cell?.v != null && String(cell.v).trim() !== '') {
-        return String(cell.v);
-      }
-      return cellDisplay(row, col);
-    }
-
     const cellEditor = createGridCellEditor({
       isNumericAt: (row, col) => isBdNumericEntryCell(row, col),
-      seedAt: seedEditValue,
       displayAt: (row, col) => cellDisplay(row, col),
       commitAt: commitCellInput,
     });
-    const { boundValue, onCellFocus, onCellInput, onCellBlur, onCellKeydown } =
-      cellEditor;
+    const {
+      boundValue,
+      onCellMouseDown,
+      onCellFocus,
+      onCellInput,
+      onCellBlur,
+      onCellKeydown,
+    } = cellEditor;
 
     /** Row 1 = Excel headers only; all body rows editable. */
     function cellReadonly(row, col) {
@@ -198,10 +198,13 @@ export default {
         invalidateDisplayCache();
         displayCacheKey = cacheKey;
       }
-      const hitKey = `${row}:${col}`;
-      if (displayCache.has(hitKey)) return displayCache.get(hitKey);
-
       const map = cellMap.value;
+      const hitKey = `${row}:${col}`;
+      if (displayCache.has(hitKey)) {
+        const cached = displayCache.get(hitKey);
+        if (cached !== '' || !getCell(map, row, col)) return cached;
+        displayCache.delete(hitKey);
+      }
       const sh = sectionHeaderRows.value;
       const canon =
         props.sheet.canonicalSectionMap ??
@@ -265,23 +268,24 @@ export default {
     }
 
     watch(
-      () => props.sheet,
-      (sheet) => {
-        if (sheet?.cellMap instanceof Map) {
-          cellMap.value = sheet.cellMap;
-        } else if (sheet) {
-          cellMap.value = buildCellMap(sheet.cells, sheet.headerRows);
-        }
-        invalidateDisplayCache();
-      }
-    );
-    watch(
       () => props.outlineOnly,
       () => {
         scrollTop.value = 0;
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
         invalidateDisplayCache();
       }
+    );
+
+    watch(
+      () => props.paneVisible,
+      (visible) => {
+        if (!visible) return;
+        nextTick(() => {
+          updateViewport();
+          scrollSync.flush();
+        });
+      },
+      { immediate: true }
     );
 
     onMounted(() => {
@@ -327,6 +331,7 @@ export default {
         ),
       onScroll: scrollSync.onScroll,
       boundValue,
+      onCellMouseDown,
       onCellFocus,
       onCellInput,
       onCellBlur,
@@ -388,17 +393,14 @@ export default {
                 <template v-if="cellReadonly(entry.excelRow, col)">
                   <span :title="getCell(entry.excelRow, col)?.f || ''">{{ cellDisplay(entry.excelRow, col) }}</span>
                 </template>
-                <span
-                  v-else-if="!isCellEditing(entry.excelRow, col)"
-                  class="grid-cell-text"
-                  @mousedown.prevent="openCellEdit(entry.excelRow, col, $event)"
-                >{{ cellDisplay(entry.excelRow, col) }}</span>
                 <input
                   v-else
                   type="text"
                   class="grid-cell-input"
                   autocomplete="off"
                   spellcheck="false"
+                  :value="boundValue(entry.excelRow, col, cellDisplay(entry.excelRow, col))"
+                  @mousedown="onCellMouseDown(entry.excelRow, col, $event)"
                   @focus="onCellFocus(entry.excelRow, col, $event)"
                   @input="onCellInput(entry.excelRow, col, $event)"
                   @blur="onCellBlur(entry.excelRow, col, $event)"

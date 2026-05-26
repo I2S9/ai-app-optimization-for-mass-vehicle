@@ -1,6 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
-import BdGrid from './BdGrid.js?v=input-fix2';
-import SynthesisGrid from './SynthesisGrid.js?v=input-fix2';
+import BdGrid from './BdGrid.js?v=edit-caret1';
+import SynthesisGrid from './SynthesisGrid.js?v=edit-caret1';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix11';
@@ -41,6 +41,11 @@ const App = {
     let synthesisLoadPromise = null;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
     let preservedSynRaw = null;
+    /** Skip re-running transformBdSheet / transformSynthesisSheet when raw unchanged. */
+    const bdSheetRevision = ref(0);
+    const synSheetRevision = ref(0);
+    let bdSheetBuiltAt = -1;
+    let synSheetBuiltAt = -1;
 
     const autoSave = createAutoSave(
       () => ({
@@ -77,13 +82,12 @@ const App = {
 
     const showContentOverlay = computed(() => {
       if (error.value) return false;
+      if (isDatabase.value) {
+        return bdLoading.value || !bdSheet.value;
+      }
       if (isSynthesis.value) {
         if (synthesisSheet.value) return false;
         return synthesisLoading.value || bdLoading.value;
-      }
-      if (isDatabase.value) {
-        if (bdSheet.value) return false;
-        return bdLoading.value;
       }
       return false;
     });
@@ -120,13 +124,40 @@ const App = {
       return JSON.parse(JSON.stringify(raw));
     }
 
-    function applyBdFromRaw() {
+    function applyBdFromRaw(force = false) {
+      if (!bdRaw.value) return;
+      if (!force && bdSheet.value && bdSheetBuiltAt === bdSheetRevision.value) {
+        return;
+      }
       bdSheet.value = transformBdSheet(cloneRaw(bdRaw.value));
+      bdSheetBuiltAt = bdSheetRevision.value;
     }
 
-    function applySynFromRaw() {
+    function applySynFromRaw(force = false) {
       if (!synRaw.value) return;
+      if (!force && synthesisSheet.value && synSheetBuiltAt === synSheetRevision.value) {
+        return;
+      }
       synthesisSheet.value = transformSynthesisSheet(cloneRaw(synRaw.value));
+      synSheetBuiltAt = synSheetRevision.value;
+    }
+
+    function bumpBdSheetRevision() {
+      bdSheetRevision.value += 1;
+    }
+
+    function bumpSynSheetRevision() {
+      synSheetRevision.value += 1;
+    }
+
+    function scheduleSynPreload() {
+      if (synthesisSheet.value || synthesisLoadPromise) return;
+      const run = () => void loadSynthesis();
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 2500 });
+      } else {
+        setTimeout(run, 400);
+      }
     }
 
     async function fetchBdFromServer() {
@@ -148,7 +179,8 @@ const App = {
       synthesisLoading.value = true;
       synthesisLoadPromise = (async () => {
         if (!synRaw.value) await fetchSynFromServer();
-        applySynFromRaw();
+        bumpSynSheetRevision();
+        applySynFromRaw(true);
       })()
         .catch((e) => {
           error.value = e.message;
@@ -193,11 +225,13 @@ const App = {
           await fetchBdFromServer();
         }
 
-        applyBdFromRaw();
+        bumpBdSheetRevision();
+        applyBdFromRaw(true);
 
         if (wantSynthesis) {
           if (synRaw.value) {
-            applySynFromRaw();
+            bumpSynSheetRevision();
+            applySynFromRaw(true);
           } else {
             await loadSynthesis();
           }
@@ -206,6 +240,7 @@ const App = {
         }
 
         scheduleEngine();
+        scheduleSynPreload();
       } catch (e) {
         error.value = e.message;
         console.error('Startup failed:', e);
@@ -261,11 +296,15 @@ const App = {
       bdLoading.value = true;
       try {
         await fetchBdFromServer();
-        applyBdFromRaw();
+        bumpBdSheetRevision();
+        applyBdFromRaw(true);
         synRaw.value = null;
+        synthesisSheet.value = null;
+        synSheetBuiltAt = -1;
         if (route.value === 'synthesis') {
           await fetchSynFromServer();
-          applySynFromRaw();
+          bumpSynSheetRevision();
+          applySynFromRaw(true);
         }
         await session.loadSheets([
           { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
@@ -283,8 +322,11 @@ const App = {
     function navigate(id) {
       route.value = id;
       menuOpen.value = false;
-      if (id === 'synthesis') loadSynthesis();
-      if (id === 'database' || id === 'synthesis') scheduleEngine();
+      if (id === 'synthesis') {
+        void loadSynthesis();
+      } else if (id === 'database' || id === 'synthesis') {
+        scheduleEngine();
+      }
     }
 
     function toggleOutline() {
@@ -313,11 +355,13 @@ const App = {
           matrixState.value?.syn ?? null
         );
         bdRaw.value = result.bdRaw;
-        applyBdFromRaw();
+        bumpBdSheetRevision();
+        applyBdFromRaw(true);
         if (result.synRaw) {
           synRaw.value = result.synRaw;
           preservedSynRaw = result.synRaw;
-          applySynFromRaw();
+          bumpSynSheetRevision();
+          applySynFromRaw(true);
         }
         if (engineStarted) {
           await session.loadSheets([
@@ -345,6 +389,7 @@ const App = {
       synthesisSheet,
       isDatabase,
       isSynthesis,
+      isGridPage,
       dirty,
       saveStatus,
       saveError,
@@ -446,16 +491,8 @@ const App = {
       </header>
       <div class="app-body">
         <main class="app-content">
-          <SynthesisGrid
-            v-if="isSynthesis && synthesisSheet"
-            :sheet="synthesisSheet"
-            :session="session"
-            :raw-syn="synRaw"
-            :outline-only="outlineOnly"
-            @cell-change="onCellChange"
-          />
           <BdGrid
-            v-else-if="isDatabase && bdSheet"
+            v-if="isDatabase && bdSheet"
             :sheet="bdSheet"
             sheet-name="BD"
             :session="session"
@@ -463,10 +500,20 @@ const App = {
             :outline-only="outlineOnly"
             @cell-change="onCellChange"
           />
+          <SynthesisGrid
+            v-else-if="isSynthesis && synthesisSheet"
+            :sheet="synthesisSheet"
+            :session="session"
+            :raw-syn="synRaw"
+            :outline-only="outlineOnly"
+            @cell-change="onCellChange"
+          />
           <div v-else-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
-          <div v-else-if="isSynthesis && !synthesisSheet && error" class="loading-overlay error-text">{{ error }}</div>
-          <div v-else-if="isSynthesis && !synthesisSheet" class="loading-overlay error-text">
+          <div
+            v-else-if="isSynthesis && !synthesisSheet"
+            class="loading-overlay error-text"
+          >
             Missing synthesis-sheet.json
           </div>
           <EmptyPage v-else :title="currentNav.label" />
