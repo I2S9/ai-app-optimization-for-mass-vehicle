@@ -651,6 +651,17 @@
   font-weight: 700 !important;
   font-size: 12px !important;
 }
+/* ADAPTATION band — bold when cell shows a value (rows 25…last, display C–J) */
+.synthesis-grid .bd-table tbody td.syn-adapt-cj-bold:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-cj-bold:not(.syn-pillar-col) {
+  font-weight: 700 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-adapt-cj-bold input,
+.synthesis-grid .bd-table tbody td.syn-adapt-cj-bold span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-cj-bold:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-cj-bold:not(.syn-pillar-col) span {
+  font-weight: 700 !important;
+}
 /* Header panel rows 3–22, columns C–J (Excel H–O) — wins over filter/metric band greys */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col):not(.syn-proj-hdr-green),

@@ -3,6 +3,7 @@ import { displayValue, getCell, isSectionLabel } from './bdStore.js';
 import { translateValue, translateSubsystemLabel } from './bdTranslate.js';
 import {
   displayToExcelCol,
+  excelToDisplayCol,
   isSynFilterGreyExcelCol,
   isSynAdaptGreyExcelCol,
   isSynAdaptFluoExcelCol,
@@ -120,6 +121,41 @@ export const SYN_PILLAR_FIRST_ROW = 3;
 export const SYN_PILLAR_LETTER_ROW_STEP = 2;
 /** From this row, display columns C+ show 0,00 through last column (ADAPTATION band and below). */
 export const SYN_ZERO_FILL_FIRST_ROW = 25;
+
+/** Row 25 — display C…J preset values (Excel H…O); null = empty cell. */
+const SYN_ROW_25_DISPLAY_VALUES = new Map([
+  ['C', 35.8],
+  ['D', null],
+  ['E', 107.5],
+  ['F', 104.0],
+  ['G', 107.5],
+  ['H', 36.6],
+  ['I', 108.7],
+  ['J', 115.2],
+]);
+
+export function synRow25PresetRaw(col) {
+  if (!isSynHeaderPanelVehicleCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!SYN_ROW_25_DISPLAY_VALUES.has(d)) return undefined;
+  return SYN_ROW_25_DISPLAY_VALUES.get(d);
+}
+
+/** Seed row 25 C–J when sheet cells are empty (keeps user edits). */
+export function applySynRow25PresetCells(cells = []) {
+  const row = SYN_ZERO_FILL_FIRST_ROW;
+  for (const [display, value] of SYN_ROW_25_DISPLAY_VALUES) {
+    if (value == null) continue;
+    const col = displayToExcelCol(display);
+    let cell = cells.find((c) => c.r === row && c.c === col);
+    if (!cell) {
+      cells.push({ r: row, c: col, v: String(value) });
+    } else if (!cell.v || String(cell.v).trim() === '') {
+      cell.v = String(value);
+    }
+  }
+  return cells;
+}
 
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
@@ -634,6 +670,8 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     return style;
   }
   if (cell?.b) style.fontWeight = '700';
+  const disp = synDisplayValue(cell, map, row, col, sheet, pillarColumns);
+  Object.assign(style, synAdaptCjBoldFontStyle(row, col, disp, sheet) || {});
   return style;
 }
 
@@ -660,6 +698,28 @@ export function isSynHeaderPanelBoldCol(row, col) {
 export function synHeaderPanelBoldFontStyle(row, col) {
   if (!isSynHeaderPanelBoldCol(row, col)) return null;
   return { fontWeight: '700', fontSize: '12px' };
+}
+
+/** Rows 25…last — display C–J with a displayed value (not empty / not 0,00 placeholder). */
+export function isSynAdaptCjBoldRow(row, sheet) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || r < SYN_ZERO_FILL_FIRST_ROW) return false;
+  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? SYN_MAX_EXCEL_ROW;
+  return r <= last;
+}
+
+export function isSynAdaptCjValueBold(row, col, displayText, sheet) {
+  if (!isSynAdaptCjBoldRow(row, sheet)) return false;
+  if (!isSynHeaderPanelVehicleCol(col)) return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
+  const t = String(displayText ?? '').trim();
+  if (!t || t === '0,00') return false;
+  return true;
+}
+
+export function synAdaptCjBoldFontStyle(row, col, displayText, sheet) {
+  if (!isSynAdaptCjValueBold(row, col, displayText, sheet)) return null;
+  return { fontWeight: '700' };
 }
 
 /** Avenger like (#d8e4bc) / P1X (#c0504d) — exact cell value (row 5 Silhouette). */
@@ -820,6 +880,20 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     return synHeaderPanelLabel(map, row);
   }
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {
+    const raw = cell ? displayValue(cell) : '';
+    if (raw && String(raw).trim() !== '') {
+      if (isSynNumericRaw(raw)) {
+        return synTranslateText(formatSynNumericDisplay(raw), col);
+      }
+      return synTranslateText(raw, col);
+    }
+    if (row === SYN_ZERO_FILL_FIRST_ROW) {
+      const preset = synRow25PresetRaw(col);
+      if (preset !== undefined) {
+        if (preset == null || preset === '') return '';
+        return synTranslateText(formatSynNumericDisplay(String(preset)), col);
+      }
+    }
     return '0,00';
   }
   if (!cell) return '';

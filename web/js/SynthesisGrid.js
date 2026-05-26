@@ -29,6 +29,7 @@ import {
   isSynMetricRow,
   isSynHeaderPanelRow,
   isSynHeaderPanelBoldCol,
+  isSynAdaptCjValueBold,
   isSynSp2DisplayExcelCol,
   isSynProjHeaderGreenCol,
   synProjHeaderGreenStyle,
@@ -42,7 +43,7 @@ import {
   isSynSpacerDisplayExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf66';
+} from './synStore.js?v=syn-perf67';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -411,10 +412,13 @@ export default {
       return { ...base, ...cellInlineStyle(row, col) };
     }
 
-    function withHdrPanelBold(row, col, cls) {
-      const bold = isSynHeaderPanelBoldCol(row, col) ? 'syn-hdr-panel-bold' : '';
-      const parts = [cls, bold].filter(Boolean);
-      return parts.join(' ');
+    function withHdrPanelBold(row, col, cls, display = '') {
+      const parts = [cls];
+      if (isSynHeaderPanelBoldCol(row, col)) parts.push('syn-hdr-panel-bold');
+      if (isSynAdaptCjValueBold(row, col, display, props.sheet)) {
+        parts.push('syn-adapt-cj-bold');
+      }
+      return parts.filter(Boolean).join(' ');
     }
 
     function cellExtraClass(row, col, display) {
@@ -424,22 +428,22 @@ export default {
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return spacerCol;
       const spotBlue = synSpotBlueColClass(row, col);
-      if (spotBlue) return withHdrPanelBold(row, col, spotBlue);
+      if (spotBlue) return withHdrPanelBold(row, col, spotBlue, display);
       const greyCol = synFilterGreyColClass(row, col);
-      if (greyCol) return withHdrPanelBold(row, col, greyCol);
+      if (greyCol) return withHdrPanelBold(row, col, greyCol, display);
       const adaptCol = synAdaptBandColClass(row, col, pillarColumns.value);
-      if (adaptCol) return withHdrPanelBold(row, col, adaptCol);
+      if (adaptCol) return withHdrPanelBold(row, col, adaptCol, display);
       const metricWhiteCol = synMetricCjWhiteColClass(row, col);
-      if (metricWhiteCol) return withHdrPanelBold(row, col, metricWhiteCol);
+      if (metricWhiteCol) return withHdrPanelBold(row, col, metricWhiteCol, display);
       const accent = synCellAccentClass(display);
-      if (accent) return withHdrPanelBold(row, col, accent);
+      if (accent) return withHdrPanelBold(row, col, accent, display);
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
-        const combined = withHdrPanelBold(row, col, hdrCls);
+        const combined = withHdrPanelBold(row, col, hdrCls, display);
         if (combined) return combined;
       }
       if (isSynProjHeaderGreenCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-proj-hdr-green');
+        return withHdrPanelBold(row, col, 'syn-proj-hdr-green', display);
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (
@@ -447,12 +451,12 @@ export default {
         rc === 'syn-row-subsection' ||
         rc === 'syn-row-separator'
       ) {
-        return withHdrPanelBold(row, col, '');
+        return withHdrPanelBold(row, col, '', display);
       }
       if (isSynMetricRow(row)) {
-        return withHdrPanelBold(row, col, synMetricCellClass(row, col, display) || '');
+        return withHdrPanelBold(row, col, synMetricCellClass(row, col, display) || '', display);
       }
-      return withHdrPanelBold(row, col, synProjectCellClass(display, col));
+      return withHdrPanelBold(row, col, synProjectCellClass(display, col), display);
     }
 
     function updateViewport() {
