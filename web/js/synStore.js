@@ -706,7 +706,7 @@ export function synMetricCjWhiteColStyle(row, col) {
   return null;
 }
 
-/** Row 25+ — C/H grey; D–G & I–J fluo through row 41, then grey like C/H. */
+/** Row 25+ — C/H grey; D–G & I–J fluo (rows 25–41 + listed extra rows), else grey like C/H. */
 export function synAdaptBandColClass(row, col, pillarColumns) {
   if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
   if (col === SYN_LABEL_COL) return '';

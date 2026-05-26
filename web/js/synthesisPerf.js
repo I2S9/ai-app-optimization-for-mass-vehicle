@@ -68,6 +68,11 @@ export const SYN_ADAPT_GREY_DISPLAY_COLS = ['C', 'H'];
 export const SYN_ADAPT_FLUO_DISPLAY_COLS = ['D', 'E', 'F', 'G', 'I', 'J'];
 /** Last Excel row with fluo yellow on D–G & I–J (row 42+ → grey like C/H). */
 export const SYN_ADAPT_FLUO_LAST_ROW = 41;
+/** Extra rows (display C–J band): D–G & I–J fluo outside the 25–41 block. */
+export const SYN_ADAPT_FLUO_EXTRA_ROWS = new Set([
+  44, 51, 56, 60, 62, 63, 64, 75, 83, 88, 164, 287, 297, 306, 311, 312, 318, 321, 360,
+  365, 366, 393, 394, 395, 396, 397, 402,
+]);
 
 export function isSynFilterGreyExcelCol(excelCol) {
   for (const d of SYN_FILTER_GREY_DISPLAY_COLS) {
@@ -90,10 +95,12 @@ export function isSynAdaptFluoExcelCol(excelCol) {
   return false;
 }
 
-/** Fluorescent yellow band — ADAPTATION rows 25 through 41 only. */
+/** Fluorescent yellow on D–G & I–J — rows 25–41 plus SYN_ADAPT_FLUO_EXTRA_ROWS. */
 export function isSynAdaptFluoBandRow(row) {
   const r = Number(row);
-  return Number.isFinite(r) && r >= 25 && r <= SYN_ADAPT_FLUO_LAST_ROW;
+  if (!Number.isFinite(r)) return false;
+  if (SYN_ADAPT_FLUO_EXTRA_ROWS.has(r)) return true;
+  return r >= 25 && r <= SYN_ADAPT_FLUO_LAST_ROW;
 }
 
 export function isSynProjHeaderGreenExcelCol(excelCol) {
