@@ -37,19 +37,20 @@ import {
   isSynHdrLmDividerLeftCol,
   isSynHdrAaDividerRightCol,
   isSynHdrCjDividerRightEntry,
+  isSynHdrMaDividerRightEntry,
   isSynHdrLmDividerRightEntry,
   isSynHdrLmDividerLeftEntry,
   isSynHdrAaDividerRightEntry,
   isSynSpacerDisplayExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf73';
+} from './synStore.js?v=syn-perf84';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
   synStickyColWidth,
   synPillarColWidth,
-} from './synthesisPerf.js?v=syn-perf37';
+} from './synthesisPerf.js?v=syn-perf38';
 import {
   ROW_H,
   visibleRowRange,
@@ -522,6 +523,7 @@ export default {
       isSynHdrLmDividerLeftEntry,
       isSynHdrAaDividerRightEntry,
       isSynHdrCjDividerRightEntry,
+      isSynHdrMaDividerRightEntry,
       isSynProjHeaderGreenCol,
       synProjHeaderGreenStyle,
       cellInlineStyle,
@@ -662,6 +664,10 @@ export default {
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
                     'syn-spacer-col-l': isSynSpacerDisplayExcelCol(colEntry.col),
                     'syn-hdr-edge-cj-right': isSynHdrCjDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-ma-right': isSynHdrMaDividerRightEntry(
                       entry,
                       colEntry.col
                     ),

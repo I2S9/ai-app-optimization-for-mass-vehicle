@@ -70,9 +70,12 @@ export const SYN_ADAPT_FLUO_DISPLAY_COLS = ['D', 'E', 'F', 'G', 'I', 'J'];
 export const SYN_ADAPT_FLUO_LAST_ROW = 41;
 /** Extra rows (display C–J band): D–G & I–J fluo outside the 25–41 block. */
 export const SYN_ADAPT_FLUO_EXTRA_ROWS = new Set([
-  44, 51, 56, 60, 62, 63, 64, 75, 83, 88, 164, 287, 297, 306, 311, 312, 318, 321, 360,
+  44, 51, 56, 60, 62, 63, 64, 75, 83, 88, 164, 289, 297, 306, 311, 312, 318, 321, 360,
   365, 366, 393, 394, 395, 396, 397, 402,
 ]);
+/** Extra rows: display I & J only — fluorescent yellow (not D–G). */
+export const SYN_ADAPT_FLUO_IJ_ONLY_ROWS = new Set([422]);
+export const SYN_ADAPT_FLUO_IJ_ONLY_DISPLAY_COLS = ['I', 'J'];
 
 export function isSynFilterGreyExcelCol(excelCol) {
   for (const d of SYN_FILTER_GREY_DISPLAY_COLS) {
@@ -98,7 +101,7 @@ export function isSynAdaptFluoExcelCol(excelCol) {
 /** Spot blue — display F & G on listed Excel rows. */
 export const SYN_SPOT_BLUE_FG_DISPLAY_COLS = ['F', 'G'];
 export const SYN_SPOT_BLUE_FG_ROWS = new Set([
-  53, 71, 72, 73, 89, 91, 98, 164, 204, 212, 278, 286, 343, 345, 360, 364, 383, 384,
+  53, 71, 72, 73, 89, 91, 98, 164, 204, 212, 278, 288, 343, 345, 360, 364, 383, 384,
   388, 389, 393, 394, 395, 396,
 ]);
 /** Spot blue — display I & J on listed Excel rows. */
@@ -134,6 +137,20 @@ export function isSynAdaptFluoBandRow(row) {
   if (!Number.isFinite(r)) return false;
   if (SYN_ADAPT_FLUO_EXTRA_ROWS.has(r)) return true;
   return r >= 25 && r <= SYN_ADAPT_FLUO_LAST_ROW;
+}
+
+export function isSynAdaptFluoIjOnlyExcelCol(excelCol) {
+  for (const d of SYN_ADAPT_FLUO_IJ_ONLY_DISPLAY_COLS) {
+    if (excelCol === displayToExcelCol(d)) return true;
+  }
+  return false;
+}
+
+/** Excel row + column — I & J fluo only (outside full D–G / I–J band rows). */
+export function isSynAdaptFluoIjOnlyCell(row, excelCol) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return false;
+  return SYN_ADAPT_FLUO_IJ_ONLY_ROWS.has(r) && isSynAdaptFluoIjOnlyExcelCol(excelCol);
 }
 
 export function isSynProjHeaderGreenExcelCol(excelCol) {

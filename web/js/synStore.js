@@ -8,6 +8,7 @@ import {
   isSynAdaptGreyExcelCol,
   isSynAdaptFluoExcelCol,
   isSynAdaptFluoBandRow,
+  isSynAdaptFluoIjOnlyCell,
   isSynSpotBlueCell,
   isSynProjHeaderGreenExcelCol,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
@@ -181,9 +182,9 @@ export function isSynRow26ZeroCol(row, col) {
   return isSynHeaderPanelVehicleCol(col);
 }
 
-/** Rows 27–75 — display C…J preset tables (null = empty cell). */
+/** Rows 27–422 — display C…J preset tables (null = empty cell). */
 export const SYN_ADAPT_CJ_PRESET_FIRST_ROW = 27;
-export const SYN_ADAPT_CJ_PRESET_LAST_ROW = 75;
+export const SYN_ADAPT_CJ_PRESET_LAST_ROW = 422;
 const SYN_CJ_PRESET_DISPLAY_COLS = ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
 
 function synCjPresetRowMap(values) {
@@ -192,7 +193,10 @@ function synCjPresetRowMap(values) {
   return m;
 }
 
-const SYN_ROWS_CJ_PRESETS = new Map([
+const SYN_CJ_PRESET_ZERO_ROW = synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0]);
+
+function synCjPresetEntriesThrough116() {
+  return [
   [27, synCjPresetRowMap([0, 30, 27.1, 30, 27.1, 0, 33.8, 33.8])],
   [28, synCjPresetRowMap([0, 6.8, 6.8, 6.8, 6.8, 0, 6.8, 6.8])],
   [29, synCjPresetRowMap([22.2, 20.1, 21.1, 20.1, 21.1, 21.6, 20.0, 21.0])],
@@ -242,6 +246,221 @@ const SYN_ROWS_CJ_PRESETS = new Map([
   [73, synCjPresetRowMap([15.3, 15.3, 15.3, 10.8, 10.8, 14.3, 14.3, 14.3])],
   [74, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
   [75, synCjPresetRowMap([0, 106.0, 117.0, 106.0, 117.0, 0, 106.0, 117.0])],
+  [76, synCjPresetRowMap([0, 0, 0, null, null, 0, null, null])],
+  [77, synCjPresetRowMap([0, 94.5, 105.5, 94.5, 105.5, 0, 94.5, 105.5])],
+  [78, synCjPresetRowMap([0, 0, 0, null, null, 0, null, null])],
+  [79, synCjPresetRowMap([0, 11.5, 11.5, 11.5, 11.5, 0, 11.5, 11.5])],
+  [80, synCjPresetRowMap([0, 0, 0, null, null, 0, null, null])],
+  [81, synCjPresetRowMap([0, 0, 0, null, null, 0, null, null])],
+  [82, synCjPresetRowMap([0, 0, 0, null, null, 0, null, null])],
+  [83, synCjPresetRowMap([328.8, 284.8, 284.8, 280.8, 280.8, 355.0, 301.0, 301.0])],
+  [84, synCjPresetRowMap([39.2, 0, 0, 0, 0, 0, 0, 0])],
+  [85, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [86, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [87, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [88, synCjPresetRowMap([328.8, 284.8, 284.8, 280.8, 280.8, 355.0, 311.0, 311.0])],
+  [89, synCjPresetRowMap([15.1, 15.1, 15.1, 11.0, 11.0, 15.0, 15.0, 15.0])],
+  [90, synCjPresetRowMap([1.5, 1.5, 1.5, 1.5, 1.5, 1.3, 1.3, 1.3])],
+  [91, synCjPresetRowMap([13.6, 13.6, 13.6, 9.5, 9.5, 13.7, 13.7, 13.7])],
+  [92, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [93, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [94, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [95, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [96, synCjPresetRowMap([5.5, 4.8, 4.8, 4.8, 4.8, 5.3, 5.3, 5.3])],
+  [97, synCjPresetRowMap([5.5, 4.8, 4.8, 4.8, 4.8, 5.3, 5.3, 5.3])],
+  [98, synCjPresetRowMap([8.7, 8.7, 8.7, 6.2, 6.2, 11.0, 11.0, 11.0])],
+  [99, synCjPresetRowMap([6.9, 6.9, 6.9, 4.4, 4.4, 0, 0, 0])],
+  [100, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [101, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [102, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [103, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [104, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [105, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [106, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [107, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [108, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [109, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [110, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [111, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [112, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [113, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [114, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [115, synCjPresetRowMap([0, 0, 0, 0, 0, 0, 0, 0])],
+  [116, SYN_CJ_PRESET_ZERO_ROW],
+  ];
+}
+
+function synCjPresetEntries117To157() {
+  const entries = [];
+  for (let row = 117; row <= 148; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([149, synCjPresetRowMap([1.8, 1.8, 1.8, 1.8, 1.8, 2.7, 2.7, 2.7])]);
+  entries.push([150, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([151, SYN_CJ_PRESET_ZERO_ROW]);
+  for (let row = 152; row <= 157; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  return entries;
+}
+
+function synCjPresetEntries158To198() {
+  const entries = [];
+  for (let row = 158; row <= 163; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([164, synCjPresetRowMap([13.2, 12.3, 12.3, 12.3, 12.3, 13.7, 12.7, 12.6])]);
+  entries.push([165, synCjPresetRowMap([13.2, 12.3, 12.3, 12.3, 12.3, 0, 0, 0])]);
+  for (let row = 166; row <= 180; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([181, synCjPresetRowMap([6.3, 5.5, 5.5, 5.5, 5.5, 5.6, 5.6, 5.6])]);
+  entries.push([182, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([183, synCjPresetRowMap([1, 1, 1, 1, 1, 1, 1, 1])]);
+  entries.push([184, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([185, synCjPresetRowMap([1, 1, 1, 1, 1, 0.4, 0.4, 0.4])]);
+  entries.push([186, synCjPresetRowMap([2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4, 2.4])]);
+  entries.push([187, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([188, synCjPresetRowMap([0.9, 0.1, 0.1, 0.1, 0.1, 0.8, 0.8, 0.8])]);
+  for (let row = 189; row <= 198; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  return entries;
+}
+
+function synCjPresetEntries199To239() {
+  const entries = [];
+  entries.push([199, synCjPresetRowMap([1, 1, 1, 1, 1, 1, 1, 1])]);
+  for (let row = 200; row <= 203; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([204, synCjPresetRowMap([9.3, 9.3, 9.3, 8.4, 8.4, 10.1, 10.1, 10.1])]);
+  entries.push([205, synCjPresetRowMap([0.7, 0.7, 0.7, 0.7, 0.7, 0, 0, 0])]);
+  for (let row = 206; row <= 207; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([208, synCjPresetRowMap([1.8, 1.8, 1.8, 1.8, 1.8, 2.4, 2.4, 2.4])]);
+  entries.push([209, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([210, synCjPresetRowMap([1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2, 1.2])]);
+  entries.push([211, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([212, synCjPresetRowMap([0, 0, 0, 1, 1, 0, 0, 0])]);
+  entries.push([213, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([214, synCjPresetRowMap([0.3, 0.3, 0.3, 0.3, 0.3, 0.2, 0.2, 0.2])]);
+  for (let row = 215; row <= 228; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([229, synCjPresetRowMap([5.3, 5.3, 5.3, 3.3, 3.3, 5.2, 5.2, 5.2])]);
+  for (let row = 230; row <= 239; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  return entries;
+}
+
+function synCjPresetEntries240To280() {
+  const entries = [];
+  for (let row = 240; row <= 263; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([264, synCjPresetRowMap([0.6, 0.6, 0.6, 0.6, 0.6, 0.5, 0.5, 0.5])]);
+  entries.push([265, synCjPresetRowMap([0.4, 0.4, 0.4, 0.4, 0.4, 0.5, 0.5, 0.5])]);
+  for (let row = 266; row <= 267; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([268, synCjPresetRowMap([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])]);
+  for (let row = 269; row <= 276; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([277, synCjPresetRowMap([1.2, 0, 0, 0, 0, 1.1, 1.1, 1.1])]);
+  entries.push([278, synCjPresetRowMap([1.2, 0, 0, 0, 0, 1.1, 1.1, 1.1])]);
+  entries.push([279, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([280, synCjPresetRowMap([10.4, 10.4, 10.4, 9.4, 9.4, 20.3, 13.3, 13.3])]);
+  return entries;
+}
+
+function synCjPresetEntries281To321() {
+  const entries = [];
+  entries.push([281, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([282, synCjPresetRowMap([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])]);
+  for (let row = 283; row <= 286; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([287, synCjPresetRowMap([2.4, 2.4, 2.4, 2.4, 2.4, 8.9, 8.9, 8.9])]);
+  entries.push([288, synCjPresetRowMap([7.8, 7.8, 7.8, 6.8, 6.8, 11.2, 11.2, 11.2])]);
+  entries.push([289, synCjPresetRowMap([10.6, 7.5, 7.5, 7.5, 7.5, 9.9, 9.6, 9.6])]);
+  entries.push([290, synCjPresetRowMap([8.1, 8.1, 8.1, 8.1, 8.1, 7.8, 7.8, 7.8])]);
+  entries.push([291, synCjPresetRowMap([1, 1, 1, 1, 1, 0.8, 0.8, 0.8])]);
+  entries.push([292, synCjPresetRowMap([3.7, 3.7, 3.7, 3.7, 3.7, 3.8, 3.8, 3.8])]);
+  entries.push([293, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([294, synCjPresetRowMap([3.4, 3.4, 3.4, 3.4, 3.4, 3.3, 3.3, 3.3])]);
+  entries.push([295, synCjPresetRowMap([4.9, 4.9, 4.9, 4.9, 4.9, 4.7, 4.7, 4.7])]);
+  entries.push([296, synCjPresetRowMap([4.9, 4.9, 4.9, 4.9, 4.9, 0, 0, 0])]);
+  entries.push([297, synCjPresetRowMap([33.8, 31.2, 31.2, 31.2, 31.2, 38.7, 39.7, 36.5])]);
+  entries.push([298, synCjPresetRowMap([29.5, 27.0, 27.0, 27.0, 27.0, 33.7, 34.7, 30.5])]);
+  entries.push([299, synCjPresetRowMap([4.2, 4.2, 4.2, 4.2, 4.2, 4.9, 4.9, 6.0])]);
+  for (let row = 300; row <= 305; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  return entries;
+}
+
+/** Rows 306–321 — display C…J (capture fin de bande ADAPTATION). */
+export const SYN_ADAPT_CJ_PRESET_ROW_306 = 306;
+export const SYN_ADAPT_CJ_PRESET_ROW_321 = 321;
+
+function synCjPresetEntries306To321() {
+  const entries = [];
+  entries.push([306, synCjPresetRowMap([58.4, 54.9, 54.9, 54.9, 54.9, 70.1, 63.5, 65.6])]);
+  entries.push([307, synCjPresetRowMap([5.7, 5.3, 5.3, 5.3, 5.3, 5.7, 5.7, 5.3])]);
+  entries.push([308, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([309, synCjPresetRowMap([4.3, 4.3, 4.3, 4.3, 4.3, 4.9, 4.9, 5.0])]);
+  entries.push([310, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([311, synCjPresetRowMap([23.5, 24.2, 24.2, 24.2, 24.2, 28.4, 24.2, 24.2])]);
+  entries.push([312, synCjPresetRowMap([24.9, 21.1, 21.1, 21.1, 21.1, 31.1, 28.7, 31.1])]);
+  entries.push([313, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([314, synCjPresetRowMap([13.7, 13.7, 13.7, 13.7, 13.7, 15.9, 15.9, 15.9])]);
+  entries.push([315, synCjPresetRowMap([1.3, 1.3, 1.3, 1.3, 1.3, 1.8, 1.8, 1.8])]);
+  entries.push([316, synCjPresetRowMap([9.6, 9.6, 9.6, 9.6, 9.6, 10.9, 10.9, 10.9])]);
+  entries.push([317, synCjPresetRowMap([2.7, 2.7, 2.7, 2.7, 2.7, 3.2, 3.2, 3.2])]);
+  entries.push([318, synCjPresetRowMap([81.2, 94.0, 94.5, 94.0, 94.5, 104.6, 94.0, 94.5])]);
+  entries.push([319, synCjPresetRowMap([0, null, null, null, null, 0, null, null])]);
+  entries.push([320, synCjPresetRowMap([0, null, null, null, null, 0, null, null])]);
+  entries.push([321, synCjPresetRowMap([0, 94.0, 94.5, 94.0, 94.5, 0, 94.0, 94.5])]);
+  return entries;
+}
+
+/** Rows 402–422 — display C…J (capture fin de feuille). */
+function synCjPresetEntries402To422() {
+  const entries = [];
+  entries.push([402, synCjPresetRowMap([11.3, 10.3, 10.3, 10.3, 10.3, 13.3, 14.8, 14.8])]);
+  entries.push([403, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([404, synCjPresetRowMap([2.9, 2.9, 2.9, 2.9, 2.9, 5.9, 5.9, 5.4])]);
+  entries.push([405, synCjPresetRowMap([8.5, 7.5, 7.5, 7.5, 7.5, 7.4, 7.4, 12.0])]);
+  entries.push([406, synCjPresetRowMap([10.9, 10.9, 10.9, 10.9, 10.9, 12.0, 12.0, 12.0])]);
+  entries.push([407, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([408, synCjPresetRowMap([10.9, 10.9, 10.9, 10.9, 10.9, 12.0, 12.0, 12.0])]);
+  entries.push([409, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([410, synCjPresetRowMap([0, 0, 0, 0, 0, 0.2, 0.2, 0.2])]);
+  entries.push([411, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([412, synCjPresetRowMap([0, 0, 0, 0, 0, 0.2, 0.2, 0.2])]);
+  entries.push([413, SYN_CJ_PRESET_ZERO_ROW]);
+  entries.push([414, synCjPresetRowMap([2.6, 2.6, 2.6, 2.6, 2.6, 2.6, 2.6, 2.6])]);
+  entries.push([415, synCjPresetRowMap([2.6, 2.6, 2.6, 2.6, 2.6, 0, 0, 0])]);
+  for (let row = 416; row <= 421; row++) {
+    entries.push([row, SYN_CJ_PRESET_ZERO_ROW]);
+  }
+  entries.push([422, synCjPresetRowMap([0, 0, 0, 8.0, 8.0, 4.6, -18.6, -20.6])]);
+  return entries;
+}
+
+const SYN_ROWS_CJ_PRESETS = new Map([
+  ...synCjPresetEntriesThrough116(),
+  ...synCjPresetEntries117To157(),
+  ...synCjPresetEntries158To198(),
+  ...synCjPresetEntries199To239(),
+  ...synCjPresetEntries240To280(),
+  ...synCjPresetEntries281To321(),
+  ...synCjPresetEntries306To321(),
+  ...synCjPresetEntries402To422(),
 ]);
 
 export function synRowCjPresetRaw(row, col) {
@@ -254,7 +473,7 @@ export function synRowCjPresetRaw(row, col) {
   return rowMap.get(d);
 }
 
-/** Rows 27–75 — force display C…J presets (overrides legacy export). */
+/** Rows 27–321 — force display C…J presets (overrides legacy export). */
 export function applySynRowsCjPresetCells(cells = []) {
   for (const [row, rowMap] of SYN_ROWS_CJ_PRESETS) {
     for (const [display, value] of rowMap) {
@@ -264,6 +483,8 @@ export function applySynRowsCjPresetCells(cells = []) {
         if (cell) {
           cell.v = '';
           delete cell.f;
+        } else {
+          cells.push({ r: row, c: col, v: '' });
         }
         continue;
       }
@@ -589,6 +810,15 @@ export function isSynHdrCjDividerRightCol(row, col) {
   return n >= start && n < endJ;
 }
 
+/** Rows 3–22 — bold vertical line right of display M…Z (between columns M–AA). */
+export function isSynHdrMaDividerRightCol(row, col) {
+  if (!isSynHeaderPanelRow(row)) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_START));
+  const endAa = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END));
+  return n >= start && n < endAa;
+}
+
 /** Bold vertical divider — right edge of display L (header panel rows 3–22). */
 export function isSynHdrLmDividerRightCol(row, col) {
   if (!isSynHeaderPanelRow(row)) return false;
@@ -621,6 +851,11 @@ export function isSynHdrAaDividerRightEntry(entry, col) {
 export function isSynHdrCjDividerRightEntry(entry, col) {
   if (!entry || entry.excelRow == null) return false;
   return isSynHdrCjDividerRightCol(entry.excelRow, col);
+}
+
+export function isSynHdrMaDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrMaDividerRightCol(entry.excelRow, col);
 }
 
 export function isSynHdrLmDividerRightEntry(entry, col) {
@@ -817,9 +1052,10 @@ export function isSynHeaderPanelBoldCol(row, col) {
   }
   if (col === SYN_LABEL_COL) return false;
   const n = colToNum(col);
-  return (
-    n >= colToNum(SYN_HDR_PANEL_COL_START) && n <= colToNum(SYN_HDR_PANEL_COL_END)
-  );
+  if (n >= colToNum(SYN_HDR_PANEL_COL_START) && n <= colToNum(SYN_HDR_PANEL_COL_END)) {
+    return true;
+  }
+  return isSynProjHeaderGreenExcelCol(col);
 }
 
 export function synHeaderPanelBoldFontStyle(row, col) {
@@ -922,6 +1158,7 @@ export function synAdaptBandColClass(row, col, pillarColumns) {
   if (isSynSpacerDisplayExcelCol(col)) return '';
   if (isSynPillarColAtRow(col, row, pillarColumns)) return '';
   if (isSynAdaptGreyExcelCol(col)) return 'syn-adapt-col-grey';
+  if (isSynAdaptFluoIjOnlyCell(row, col)) return 'syn-adapt-col-fluo';
   if (isSynAdaptFluoExcelCol(col)) {
     return isSynAdaptFluoBandRow(row) ? 'syn-adapt-col-fluo' : 'syn-adapt-col-grey';
   }
