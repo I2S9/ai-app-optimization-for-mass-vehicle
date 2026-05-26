@@ -15,6 +15,7 @@ import {
   synCellAccentClass,
   synFilterGreyColClass,
   synAdaptBandColClass,
+  synSpotBlueColClass,
   synMetricCjWhiteColClass,
   formatSynNumericDisplay,
   synRowStyleClass,
@@ -41,13 +42,13 @@ import {
   isSynSpacerDisplayExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf65';
+} from './synStore.js?v=syn-perf66';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
   synStickyColWidth,
   synPillarColWidth,
-} from './synthesisPerf.js?v=syn-perf36';
+} from './synthesisPerf.js?v=syn-perf37';
 import {
   ROW_H,
   visibleRowRange,
@@ -422,6 +423,8 @@ export default {
       }
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return spacerCol;
+      const spotBlue = synSpotBlueColClass(row, col);
+      if (spotBlue) return withHdrPanelBold(row, col, spotBlue);
       const greyCol = synFilterGreyColClass(row, col);
       if (greyCol) return withHdrPanelBold(row, col, greyCol);
       const adaptCol = synAdaptBandColClass(row, col, pillarColumns.value);

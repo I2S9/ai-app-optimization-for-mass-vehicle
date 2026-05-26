@@ -7,6 +7,7 @@ import {
   isSynAdaptGreyExcelCol,
   isSynAdaptFluoExcelCol,
   isSynAdaptFluoBandRow,
+  isSynSpotBlueCell,
   isSynProjHeaderGreenExcelCol,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
@@ -106,6 +107,8 @@ export const SYN_VAL_P1X_BG = '#c0504d';
 /** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
 export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
+/** Spot highlights — same blue as Database sub-section bands. */
+export const SYN_SPOT_BLUE_BG = '#00b0f0';
 export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4]);
 /** Last Excel row exported / shown in the Synthesis grid. */
 export const SYN_MAX_EXCEL_ROW = 422;
@@ -571,6 +574,12 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.border = 'none';
     return style;
   }
+  const spotBlueStyle = synSpotBlueColStyle(row, col);
+  if (spotBlueStyle) {
+    Object.assign(style, spotBlueStyle);
+    Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
+    return style;
+  }
   const greyStyle = synFilterGreyColStyle(row, col);
   if (greyStyle) {
     Object.assign(style, greyStyle);
@@ -706,8 +715,21 @@ export function synMetricCjWhiteColStyle(row, col) {
   return null;
 }
 
+export function synSpotBlueColClass(row, col) {
+  if (isSynSpotBlueCell(row, col)) return 'syn-spot-blue';
+  return '';
+}
+
+export function synSpotBlueColStyle(row, col) {
+  if (synSpotBlueColClass(row, col)) {
+    return { backgroundColor: SYN_SPOT_BLUE_BG, color: '#000' };
+  }
+  return null;
+}
+
 /** Row 25+ — C/H grey; D–G & I–J fluo (rows 25–41 + listed extra rows), else grey like C/H. */
 export function synAdaptBandColClass(row, col, pillarColumns) {
+  if (isSynSpotBlueCell(row, col)) return '';
   if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
   if (col === SYN_LABEL_COL) return '';
   if (isSynSpacerDisplayExcelCol(col)) return '';

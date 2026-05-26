@@ -1602,3 +1602,24 @@
 .synthesis-grid .bd-table tbody tr.syn-header-block.syn-hdr-panel-grid td.data-cell.syn-hdr-edge-cj-right.syn-metric-cj-white:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
 }
+/* Spot blue — display F/G & I/J on listed rows (overrides ADAPTATION band) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue.readonly:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue[class*='cell-proj-']:not(.syn-pillar-col):not(.syn-spacer-col-l) {
+  background: #00b0f0 !important;
+  background-color: #00b0f0 !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-spacer-col-l) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-spacer-col-l) span {
+  height: 21px;
+  line-height: 21px;
+  background: #00b0f0 !important;
+  background-color: #00b0f0 !important;
+  color: #000 !important;
+}

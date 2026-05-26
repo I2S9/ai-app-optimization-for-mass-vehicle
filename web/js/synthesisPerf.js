@@ -95,6 +95,39 @@ export function isSynAdaptFluoExcelCol(excelCol) {
   return false;
 }
 
+/** Spot blue — display F & G on listed Excel rows. */
+export const SYN_SPOT_BLUE_FG_DISPLAY_COLS = ['F', 'G'];
+export const SYN_SPOT_BLUE_FG_ROWS = new Set([
+  53, 71, 72, 73, 89, 91, 98, 164, 204, 212, 278, 286, 343, 345, 360, 364, 383, 384,
+  388, 389, 393, 394, 395, 396,
+]);
+/** Spot blue — display I & J on listed Excel rows. */
+export const SYN_SPOT_BLUE_IJ_DISPLAY_COLS = ['I', 'J'];
+export const SYN_SPOT_BLUE_IJ_ROWS = new Set([278, 393]);
+
+export function isSynSpotBlueFgExcelCol(excelCol) {
+  for (const d of SYN_SPOT_BLUE_FG_DISPLAY_COLS) {
+    if (excelCol === displayToExcelCol(d)) return true;
+  }
+  return false;
+}
+
+export function isSynSpotBlueIjExcelCol(excelCol) {
+  for (const d of SYN_SPOT_BLUE_IJ_DISPLAY_COLS) {
+    if (excelCol === displayToExcelCol(d)) return true;
+  }
+  return false;
+}
+
+/** Excel row + column — fixed blue highlight (overrides ADAPTATION band colours). */
+export function isSynSpotBlueCell(row, excelCol) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return false;
+  if (SYN_SPOT_BLUE_FG_ROWS.has(r) && isSynSpotBlueFgExcelCol(excelCol)) return true;
+  if (SYN_SPOT_BLUE_IJ_ROWS.has(r) && isSynSpotBlueIjExcelCol(excelCol)) return true;
+  return false;
+}
+
 /** Fluorescent yellow on D–G & I–J — rows 25–41 plus SYN_ADAPT_FLUO_EXTRA_ROWS. */
 export function isSynAdaptFluoBandRow(row) {
   const r = Number(row);
