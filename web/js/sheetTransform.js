@@ -425,7 +425,9 @@ export function transformSynthesisSheet(sheet) {
   const cells = applySynRowsCjPresetCells(
     applySynRow26ZeroCells(
       applySynRow25PresetCells(
-        (sheet.cells || []).filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
+        (sheet.cells || [])
+          .filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
+          .map((c) => ({ ...c }))
       )
     )
   );

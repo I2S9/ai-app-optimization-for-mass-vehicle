@@ -2,20 +2,23 @@
 
 export const ROW_H = 21;
 
-/** Hard cap so tall viewports never mount the whole sheet (Synthesis ≈ 400 rows × 300+ cols). */
-export const MAX_RENDERED_ROWS = 72;
+/**
+ * Hard cap on mounted rows when row virtualization is active (Database sheet).
+ */
+export const MAX_RENDERED_ROWS = 220;
+export const SYN_MAX_RENDERED_ROWS = 120;
 
 /** Rows to render above/below the viewport. */
-export function rowOverscan(viewportH, minRows = 10, maxRows = 24) {
+export function rowOverscan(viewportH, minRows = 20, maxRows = 56) {
   const visible = Math.max(1, Math.ceil(viewportH / ROW_H));
-  return Math.min(maxRows, Math.max(minRows, Math.ceil(visible * 0.75)));
+  return Math.min(maxRows, Math.max(minRows, Math.ceil(visible * 0.85)));
 }
 
 /** Tighter row buffer when many columns are on screen (Synthesis). */
 export function rowOverscanForColCount(viewportH, colCount) {
   const base = rowOverscan(viewportH);
-  if (colCount > 120) return Math.min(base, 12);
-  if (colCount > 60) return Math.min(base, 16);
+  if (colCount > 120) return Math.min(base, 20);
+  if (colCount > 60) return Math.min(base, 28);
   return base;
 }
 
@@ -32,10 +35,66 @@ export function visibleRowRange(scrollTop, viewportH, rowCount, overscan) {
   return { start, end };
 }
 
-/** Skip row virtualization when the sheet is small enough to paint in one pass. */
+/**
+ * Expanding row window: once a row range was visited it stays mounted (until the
+ * cap forces a trim around the viewport). Fixes "grey band + reload" when
+ * scrolling back up on Database.
+ */
+export function createRowScrollCache(maxSpan = MAX_RENDERED_ROWS) {
+  let lo = 0;
+  let hi = 0;
+  let primed = false;
+
+  function reset() {
+    lo = 0;
+    hi = 0;
+    primed = false;
+  }
+
+  function resolve(scrollTop, viewportH, rowCount, overscan) {
+    if (rowCount <= 0) return { start: 0, end: 0 };
+
+    const { start, end } = visibleRowRange(
+      scrollTop,
+      viewportH,
+      rowCount,
+      overscan
+    );
+    if (!primed) {
+      lo = start;
+      hi = end;
+      primed = true;
+      return { start: lo, end: hi };
+    }
+
+    lo = Math.min(lo, start);
+    hi = Math.max(hi, end);
+    hi = Math.min(hi, rowCount);
+
+    const span = hi - lo;
+    if (span > maxSpan) {
+      const viewStart = Math.max(0, Math.floor(scrollTop / ROW_H) - overscan);
+      const viewEnd = Math.min(
+        rowCount,
+        viewStart + Math.ceil(viewportH / ROW_H) + overscan * 2
+      );
+      const viewMid = (viewStart + viewEnd) >> 1;
+      const half = Math.floor(maxSpan / 2);
+      lo = Math.max(0, viewMid - half);
+      hi = Math.min(rowCount, lo + maxSpan);
+      if (hi - lo < maxSpan) lo = Math.max(0, hi - maxSpan);
+    }
+
+    return { start: lo, end: hi };
+  }
+
+  return { resolve, reset };
+}
+
+/** Row windowing when the body is taller than the viewport buffer. */
 export function shouldVirtualizeRows(rowCount, viewportH) {
   const visible = Math.ceil(viewportH / ROW_H);
-  return rowCount > visible + 60;
+  return rowCount > visible + 24;
 }
 
 /** Skip column windowing when the table fits in the viewport. */
@@ -44,41 +103,25 @@ export function shouldVirtualizeCols(tableWidth, viewportW) {
 }
 
 /**
- * Coalesce scroll events to one reactive update per animation frame
- * (reduces Vue re-renders and row recycle flicker while scrolling).
+ * Scroll position is applied synchronously so the virtual row window matches
+ * the native scroll position (no grey spacer flash between frames).
  */
 export function createScrollRafSync(refs) {
   const { scrollTop, scrollLeft = null } = refs;
-  let rafId = 0;
-  let pendingTop = 0;
-  let pendingLeft = 0;
-
-  function apply() {
-    rafId = 0;
-    scrollTop.value = pendingTop;
-    if (scrollLeft) scrollLeft.value = pendingLeft;
-  }
 
   function onScroll(e) {
-    pendingTop = e.target.scrollTop;
-    if (scrollLeft) pendingLeft = e.target.scrollLeft;
-    if (!rafId) rafId = requestAnimationFrame(apply);
+    scrollTop.value = e.target.scrollTop;
+    if (scrollLeft) scrollLeft.value = e.target.scrollLeft;
   }
 
   function flush() {
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = 0;
-    }
-    apply();
+    const el = refs.getScrollEl?.() ?? null;
+    if (!el) return;
+    scrollTop.value = el.scrollTop;
+    if (scrollLeft) scrollLeft.value = el.scrollLeft;
   }
 
-  function dispose() {
-    if (rafId) {
-      cancelAnimationFrame(rafId);
-      rafId = 0;
-    }
-  }
+  function dispose() {}
 
   return { onScroll, flush, dispose };
 }

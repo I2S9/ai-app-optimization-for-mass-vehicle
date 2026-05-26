@@ -1,7 +1,16 @@
 /**
  * Synthesis grid — Excel A–E hidden; display letters F→A, G→B, …
  */
-import { ref, computed, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  shallowRef,
+  onMounted,
+  onUnmounted,
+  watch,
+  watchEffect,
+  nextTick,
+} from 'vue';
 import { getCell, buildCellMap } from './bdStore.js?v=input-fix3';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import { isSynAdaptationSumCell } from './synthesisCalc.js?v=adapt-sum1';
@@ -58,13 +67,14 @@ import {
 } from './synthesisPerf.js?v=syn-perf38';
 import {
   ROW_H,
-  visibleRowRange,
-  rowOverscan,
   colOverscanPx,
+  rowOverscanForColCount,
   shouldVirtualizeRows,
   shouldVirtualizeCols,
+  createRowScrollCache,
   createScrollRafSync,
-} from './gridScroll.js?v=syn-scroll3';
+  SYN_MAX_RENDERED_ROWS,
+} from './gridScroll.js?v=syn-nav-perf1';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -201,20 +211,30 @@ export default {
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
-    const rowBuffer = computed(() => rowOverscan(viewportH.value));
-    const visibleRange = computed(() => {
+    const rowBuffer = computed(() =>
+      rowOverscanForColCount(viewportH.value, displayColumns.value.length)
+    );
+    const rowScrollCache = createRowScrollCache(SYN_MAX_RENDERED_ROWS);
+    const visibleStart = ref(0);
+    const visibleEnd = ref(0);
+
+    watchEffect(() => {
+      const count = rowCount.value;
       if (!virtualizeRows.value) {
-        return { start: 0, end: rowCount.value };
+        visibleStart.value = 0;
+        visibleEnd.value = count;
+        return;
       }
-      return visibleRowRange(
+      const range = rowScrollCache.resolve(
         scrollTop.value,
         viewportH.value,
-        rowCount.value,
+        count,
         rowBuffer.value
       );
+      visibleStart.value = range.start;
+      visibleEnd.value = range.end;
     });
-    const visibleStart = computed(() => visibleRange.value.start);
-    const visibleEnd = computed(() => visibleRange.value.end);
+
     const visibleRows = computed(() =>
       bodyRows.value.slice(visibleStart.value, visibleEnd.value)
     );
@@ -287,7 +307,11 @@ export default {
       return { left: `${stickyLabelLeft.value}px` };
     }
 
-    const scrollSync = createScrollRafSync({ scrollTop, scrollLeft });
+    const scrollSync = createScrollRafSync({
+      scrollTop,
+      scrollLeft,
+      getScrollEl: () => scrollEl.value,
+    });
 
     const editEpoch = ref(0);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
@@ -562,6 +586,7 @@ export default {
     watch(
       () => props.outlineOnly,
       () => {
+        rowScrollCache.reset();
         scrollTop.value = 0;
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
       }

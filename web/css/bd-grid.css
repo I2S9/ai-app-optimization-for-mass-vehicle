@@ -379,11 +379,19 @@
   color: #fff;
   font-weight: 600;
 }
-.bd-spacer-top {
-  height: 0;
+/* Virtual-scroll placeholders — white so the scroll area never shows grey bands */
+.bd-spacer-top td,
+.bd-spacer-bottom td {
+  padding: 0 !important;
+  border: none !important;
+  background: #fff !important;
+  line-height: 0;
+  vertical-align: top;
 }
+.bd-spacer-top,
 .bd-spacer-bottom {
   height: 0;
+  pointer-events: none;
 }
 
 /* ── SYNTHESIS sheet (feuille Excel complète) ── */

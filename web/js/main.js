@@ -1,4 +1,4 @@
-import { createApp, ref, computed, onMounted, onUnmounted } from 'vue';
+import { createApp, ref, computed, onMounted, onUnmounted, KeepAlive } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-nav4';
 import SynthesisGrid from './SynthesisGrid.js?v=grid-nav4';
 import { createEditHistory } from './editHistory.js?v=undo1';
@@ -6,7 +6,7 @@ import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix11';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=20260526-syn-max-422';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-nav-perf1';
 import { createWorkbookSession } from './workbookSession.js?v=adapt-sum1';
 import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix10';
 import {
@@ -18,7 +18,7 @@ import {
 } from './sessionPersistence.js?v=persist-v2';
 
 const App = {
-  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
+  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal, KeepAlive },
   setup() {
     const bdLoading = ref(true);
     const synthesisLoading = ref(false);
@@ -44,6 +44,7 @@ const App = {
     let applyingHistory = false;
     let engineStarted = false;
     let synthesisLoadPromise = null;
+    let synthesisPreparePromise = null;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
     let preservedSynRaw = null;
     /** Skip re-running transformBdSheet / transformSynthesisSheet when raw unchanged. */
@@ -134,16 +135,12 @@ const App = {
       window.addEventListener('keydown', onInteract, true);
     }
 
-    function cloneRaw(raw) {
-      return JSON.parse(JSON.stringify(raw));
-    }
-
     function applyBdFromRaw(force = false) {
       if (!bdRaw.value) return;
       if (!force && bdSheet.value && bdSheetBuiltAt === bdSheetRevision.value) {
         return;
       }
-      bdSheet.value = transformBdSheet(cloneRaw(bdRaw.value));
+      bdSheet.value = transformBdSheet(bdRaw.value);
       bdSheetBuiltAt = bdSheetRevision.value;
     }
 
@@ -152,7 +149,7 @@ const App = {
       if (!force && synthesisSheet.value && synSheetBuiltAt === synSheetRevision.value) {
         return;
       }
-      synthesisSheet.value = transformSynthesisSheet(cloneRaw(synRaw.value));
+      synthesisSheet.value = transformSynthesisSheet(synRaw.value);
       synSheetBuiltAt = synSheetRevision.value;
     }
 
@@ -164,14 +161,20 @@ const App = {
       synSheetRevision.value += 1;
     }
 
-    function scheduleSynPreload() {
-      if (synthesisSheet.value || synthesisLoadPromise) return;
-      const run = () => void loadSynthesis();
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(run, { timeout: 2500 });
-      } else {
-        setTimeout(run, 400);
-      }
+    /** Fetch + transform Synthesis in background (no grid mount until user opens the page). */
+    function startSynBackgroundPrepare() {
+      if (synthesisSheet.value) return Promise.resolve();
+      if (synthesisPreparePromise) return synthesisPreparePromise;
+      synthesisPreparePromise = (async () => {
+        if (!synRaw.value) await fetchSynFromServer();
+        bumpSynSheetRevision();
+        applySynFromRaw(true);
+      })().catch((e) => {
+        synthesisPreparePromise = null;
+        console.warn('Synthesis background prepare failed:', e);
+        throw e;
+      });
+      return synthesisPreparePromise;
     }
 
     async function fetchBdFromServer() {
@@ -191,13 +194,9 @@ const App = {
       if (synthesisSheet.value) return Promise.resolve();
       if (synthesisLoadPromise) return synthesisLoadPromise;
       synthesisLoading.value = true;
-      synthesisLoadPromise = (async () => {
-        if (!synRaw.value) await fetchSynFromServer();
-        bumpSynSheetRevision();
-        applySynFromRaw(true);
-      })()
+      synthesisLoadPromise = startSynBackgroundPrepare()
         .catch((e) => {
-          error.value = e.message;
+          error.value = e?.message || String(e);
           synthesisLoadPromise = null;
         })
         .finally(() => {
@@ -254,7 +253,7 @@ const App = {
         }
 
         scheduleEngine();
-        scheduleSynPreload();
+        void startSynBackgroundPrepare();
       } catch (e) {
         error.value = e.message;
         console.error('Startup failed:', e);
@@ -406,6 +405,7 @@ const App = {
       loadedFromLocal.value = false;
       engineStarted = false;
       synthesisLoadPromise = null;
+      synthesisPreparePromise = null;
       synthesisSheet.value = null;
       bdLoading.value = true;
       try {
@@ -652,26 +652,34 @@ const App = {
       </header>
       <div class="app-body">
         <main class="app-content">
-          <BdGrid
-            v-if="isDatabase && bdSheet"
-            :sheet="bdSheet"
-            sheet-name="BD"
-            :session="session"
-            :raw-bd="bdRaw"
-            :outline-only="outlineOnly"
-            :external-edit-tick="externalEditTick"
-            @cell-change="onCellChange"
-          />
-          <SynthesisGrid
-            v-else-if="isSynthesis && synthesisSheet"
-            :sheet="synthesisSheet"
-            :session="session"
-            :raw-syn="synRaw"
-            :outline-only="outlineOnly"
-            :external-edit-tick="externalEditTick"
-            @cell-change="onCellChange"
-          />
-          <div v-else-if="error" class="loading-overlay error-text">{{ error }}</div>
+          <KeepAlive>
+            <BdGrid
+              v-if="bdSheet && isDatabase"
+              key="bd-grid"
+              :sheet="bdSheet"
+              sheet-name="BD"
+              :session="session"
+              :raw-bd="bdRaw"
+              :outline-only="outlineOnly"
+              :pane-visible="isDatabase"
+              :external-edit-tick="externalEditTick"
+              @cell-change="onCellChange"
+            />
+          </KeepAlive>
+          <KeepAlive>
+            <SynthesisGrid
+              v-if="synthesisSheet && isSynthesis"
+              key="syn-grid"
+              :sheet="synthesisSheet"
+              :session="session"
+              :raw-syn="synRaw"
+              :outline-only="outlineOnly"
+              :pane-visible="isSynthesis"
+              :external-edit-tick="externalEditTick"
+              @cell-change="onCellChange"
+            />
+          </KeepAlive>
+          <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
           <div
             v-else-if="isSynthesis && !synthesisSheet"
@@ -679,7 +687,10 @@ const App = {
           >
             Missing synthesis-sheet.json
           </div>
-          <EmptyPage v-else :title="currentNav.label" />
+          <EmptyPage
+            v-else-if="!isDatabase && !isSynthesis"
+            :title="currentNav.label"
+          />
         </main>
       </div>
       <MatrixModal

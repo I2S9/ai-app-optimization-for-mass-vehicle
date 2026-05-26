@@ -1,4 +1,13 @@
-import { ref, computed, shallowRef, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  shallowRef,
+  onMounted,
+  onUnmounted,
+  watch,
+  watchEffect,
+  nextTick,
+} from 'vue';
 import {
   buildCellMap,
   buildWidthMap,
@@ -24,11 +33,11 @@ import {
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import {
   ROW_H,
-  visibleRowRange,
   rowOverscan,
   shouldVirtualizeRows,
+  createRowScrollCache,
   createScrollRafSync,
-} from './gridScroll.js?v=syn-scroll4';
+} from './gridScroll.js?v=syn-scroll5';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
@@ -86,19 +95,26 @@ export default {
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
     const rowOverscanPx = computed(() => rowOverscan(viewportH.value));
-    const visibleRange = computed(() => {
+    const rowScrollCache = createRowScrollCache();
+    const visibleStart = ref(0);
+    const visibleEnd = ref(0);
+
+    watchEffect(() => {
+      const count = rowCount.value;
       if (!virtualizeRows.value) {
-        return { start: 0, end: rowCount.value };
+        visibleStart.value = 0;
+        visibleEnd.value = count;
+        return;
       }
-      return visibleRowRange(
+      const range = rowScrollCache.resolve(
         scrollTop.value,
         viewportH.value,
-        rowCount.value,
+        count,
         rowOverscanPx.value
       );
+      visibleStart.value = range.start;
+      visibleEnd.value = range.end;
     });
-    const visibleStart = computed(() => visibleRange.value.start);
-    const visibleEnd = computed(() => visibleRange.value.end);
     const visibleRows = computed(() =>
       bodyRows.value.slice(visibleStart.value, visibleEnd.value)
     );
@@ -149,7 +165,10 @@ export default {
       return col === 'A';
     }
 
-    const scrollSync = createScrollRafSync({ scrollTop });
+    const scrollSync = createScrollRafSync({
+      scrollTop,
+      getScrollEl: () => scrollEl.value,
+    });
 
     watch(
       () => props.externalEditTick,
@@ -321,6 +340,7 @@ export default {
     watch(
       () => props.outlineOnly,
       () => {
+        rowScrollCache.reset();
         scrollTop.value = 0;
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
         invalidateDisplayCache();

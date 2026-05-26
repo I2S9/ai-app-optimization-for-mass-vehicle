@@ -2,7 +2,7 @@
  * Arrow-key navigation between editable grid cells (Excel-style, low latency).
  */
 import { nextTick } from 'vue';
-import { ROW_H } from './gridScroll.js?v=grid-nav4';
+import { ROW_H } from './gridScroll.js?v=syn-scroll5';
 
 const ARROW_KEYS = new Set([
   'ArrowUp',
