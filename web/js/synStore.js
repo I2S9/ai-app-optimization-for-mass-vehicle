@@ -6,6 +6,7 @@ import {
   isSynFilterGreyExcelCol,
   isSynAdaptGreyExcelCol,
   isSynAdaptFluoExcelCol,
+  isSynAdaptFluoBandRow,
   isSynProjHeaderGreenExcelCol,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
@@ -24,6 +25,8 @@ export const SYN_VEHICLE_COL_START = 'G';
 /** Header panel colour band — display C…J (Excel H…O), rows 3–22. */
 export const SYN_HDR_PANEL_COL_START = 'H';
 export const SYN_HDR_PANEL_COL_END = 'O';
+/** Rows 3–19, display C…J — bold + slightly larger text. */
+export const SYN_HDR_PANEL_BOLD_LAST_ROW = 19;
 /** Rows 18–19, display columns C–J (Excel H–O). */
 export const SYN_HDR_METRIC_ROW_BG = '#ebf1de';
 export const SYN_HDR_METRIC_BG_ROWS = new Set([18, 19]);
@@ -95,8 +98,11 @@ export function synDisplayRowNumber(excelRow) {
 
 /** Grey band for SP1 TARGET pillar (display column B). */
 export const SYN_PILLAR_BG = '#bfbfbf';
-/** ADAPTATION band row 25+ — fluorescent yellow (display D–G, I–J). */
+/** ADAPTATION band rows 25–41 — fluorescent yellow (display D–G, I–J). */
 export const SYN_ADAPT_FLUO_BG = '#ffff00';
+/** Silhouette row 5 — Avenger like / P1X accent fills. */
+export const SYN_VAL_AVENGER_BG = '#d8e4bc';
+export const SYN_VAL_P1X_BG = '#c0504d';
 /** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
 export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
@@ -408,6 +414,15 @@ export function synProjHeaderGreenStyle() {
   };
 }
 
+/** Rows 3–22 — bold vertical line right of display C…I (between columns C–J). */
+export function isSynHdrCjDividerRightCol(row, col) {
+  if (!isSynHeaderPanelRow(row)) return false;
+  const n = colToNum(col);
+  const start = colToNum(SYN_HDR_PANEL_COL_START);
+  const endJ = colToNum(SYN_HDR_PANEL_COL_END);
+  return n >= start && n < endJ;
+}
+
 /** Bold vertical divider — right edge of display L (header panel rows 3–22). */
 export function isSynHdrLmDividerRightCol(row, col) {
   if (!isSynHeaderPanelRow(row)) return false;
@@ -435,6 +450,11 @@ export function isSynHdrLmDividerLeftEntry(entry, col) {
 export function isSynHdrAaDividerRightEntry(entry, col) {
   if (!entry || entry.excelRow == null) return false;
   return isSynHdrAaDividerRightCol(entry.excelRow, col);
+}
+
+export function isSynHdrCjDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrCjDividerRightCol(entry.excelRow, col);
 }
 
 export function isSynHdrLmDividerRightEntry(entry, col) {
@@ -551,6 +571,12 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.border = 'none';
     return style;
   }
+  const greyStyle = synFilterGreyColStyle(row, col);
+  if (greyStyle) {
+    Object.assign(style, greyStyle);
+    Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
+    return style;
+  }
   if (
     SYN_HDR_METRIC_BG_ROWS.has(row) &&
     isSynHeaderPanelVehicleCol(col) &&
@@ -559,7 +585,7 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.background = SYN_HDR_METRIC_ROW_BG;
     style.backgroundColor = SYN_HDR_METRIC_ROW_BG;
     style.color = '#000';
-    if (isSynHeaderPanelBoldCol(row, col)) style.fontWeight = '700';
+    Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
     return style;
   }
   const adaptStyle = synAdaptBandColStyle(row, col, pillarColumns);
@@ -572,12 +598,6 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     Object.assign(style, metricWhiteStyle);
     return style;
   }
-  const greyStyle = synFilterGreyColStyle(row, col);
-  if (greyStyle) {
-    Object.assign(style, greyStyle);
-    if (isSynHeaderPanelBoldCol(row, col)) style.fontWeight = '700';
-    return style;
-  }
   if (isSynProjHeaderGreenCol(row, col)) {
     style.background = SYN_SP2_TARGET_BG;
     style.backgroundColor = SYN_SP2_TARGET_BG;
@@ -588,11 +608,10 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   const accentStyle = synCellAccentStyle(raw);
   if (accentStyle) {
     Object.assign(style, accentStyle);
+    Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
     return style;
   }
-  if (isSynHeaderPanelBoldCol(row, col)) {
-    style.fontWeight = '700';
-  }
+  Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
   const rowCls = synRowStyleClass(map, row, sheet);
   if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) {
     const rowColor =
@@ -616,14 +635,25 @@ function isSynHeaderPanelVehicleCol(col) {
   );
 }
 
-/** Rows 3–22, display column C through last data column (Excel H+). */
+/** Rows 3–19, display columns C–J (Excel H–O). */
 export function isSynHeaderPanelBoldCol(row, col) {
-  if (!isSynHeaderPanelRow(row)) return false;
+  const r = Number(row);
+  if (!Number.isFinite(r) || r < SYN_GRID_FIRST_ROW || r > SYN_HDR_PANEL_BOLD_LAST_ROW) {
+    return false;
+  }
   if (col === SYN_LABEL_COL) return false;
-  return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
+  const n = colToNum(col);
+  return (
+    n >= colToNum(SYN_HDR_PANEL_COL_START) && n <= colToNum(SYN_HDR_PANEL_COL_END)
+  );
 }
 
-/** Avenger like (light green) / P1X (#c0504d) — exact cell value. */
+export function synHeaderPanelBoldFontStyle(row, col) {
+  if (!isSynHeaderPanelBoldCol(row, col)) return null;
+  return { fontWeight: '700', fontSize: '12px' };
+}
+
+/** Avenger like (#d8e4bc) / P1X (#c0504d) — exact cell value (row 5 Silhouette). */
 export function synCellAccentClass(displayText) {
   const u = String(displayText ?? '')
     .trim()
@@ -637,15 +667,17 @@ export function synCellAccentClass(displayText) {
 export function synCellAccentStyle(displayText) {
   const cls = synCellAccentClass(displayText);
   if (cls === 'syn-val-p1x') {
-    return { backgroundColor: '#c0504d', color: '#fff' };
+    return { backgroundColor: SYN_VAL_P1X_BG, color: '#fff' };
   }
   if (cls === 'syn-val-avenger-like') {
-    return { backgroundColor: '#c6efce', color: '#000' };
+    return { backgroundColor: SYN_VAL_AVENGER_BG, color: '#000' };
   }
   return null;
 }
 
 /** Rows 3–14, display columns C & H (Excel H & M) — #a6a6a6. */
+export const SYN_FILTER_GREY_BG = '#a6a6a6';
+
 export function synFilterGreyColClass(row, col) {
   if (row >= 3 && row <= 14 && isSynFilterGreyExcelCol(col)) {
     return 'syn-filter-col-grey';
@@ -655,7 +687,7 @@ export function synFilterGreyColClass(row, col) {
 
 export function synFilterGreyColStyle(row, col) {
   if (synFilterGreyColClass(row, col)) {
-    return { backgroundColor: '#a6a6a6', color: '#000' };
+    return { backgroundColor: SYN_FILTER_GREY_BG, color: '#000' };
   }
   return null;
 }
@@ -674,14 +706,16 @@ export function synMetricCjWhiteColStyle(row, col) {
   return null;
 }
 
-/** Row 25+ — display C/H grey (SP1 grey), D–G & I–J fluo yellow; not label A or pillars. */
+/** Row 25+ — C/H grey; D–G & I–J fluo through row 41, then grey like C/H. */
 export function synAdaptBandColClass(row, col, pillarColumns) {
   if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
   if (col === SYN_LABEL_COL) return '';
   if (isSynSpacerDisplayExcelCol(col)) return '';
   if (isSynPillarColAtRow(col, row, pillarColumns)) return '';
   if (isSynAdaptGreyExcelCol(col)) return 'syn-adapt-col-grey';
-  if (isSynAdaptFluoExcelCol(col)) return 'syn-adapt-col-fluo';
+  if (isSynAdaptFluoExcelCol(col)) {
+    return isSynAdaptFluoBandRow(row) ? 'syn-adapt-col-fluo' : 'syn-adapt-col-grey';
+  }
   return '';
 }
 
@@ -709,7 +743,9 @@ export function synHeaderPanelVehicleClass(row, col, displayText) {
   if (v.includes('MHEVP2')) return 'syn-hdr-val-mhevp2';
   if (v.includes('P1H')) return 'syn-hdr-val-p1h';
   if (v.includes('HEV')) return 'syn-hdr-val-hev';
-  if (row === 18 || row === 19) return 'syn-hdr-row-metric-bg';
+  if ((row === 18 || row === 19) && !isSynFilterGreyExcelCol(col)) {
+    return 'syn-hdr-row-metric-bg';
+  }
   return 'syn-hdr-val-default';
 }
 

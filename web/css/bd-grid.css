@@ -418,13 +418,18 @@
   font-weight: 600;
   border-bottom: none !important;
 }
-/* Header panel above ADAPTATION (rows 3–22): light grey + bold black frame */
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col),
+/* Header panel above ADAPTATION (rows 3–22): grid lines on every data cell */
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-row-num):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-label-col,
-.synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label,
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-proj-hdr-green) {
+.synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label {
   border: 1px solid #b4b4b4 !important;
+}
+/* Header panel — default grey fill (accent / P1H / HEV cells keep their own colour) */
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label {
   background: #f7f7f7 !important;
   color: #000;
 }
@@ -554,16 +559,16 @@
 }
 /* Bold vertical divider between display L and M (rows 3–22) — see end of file */
 /* Filter band (rows 3–14) — same panel, slightly deeper grey */
-.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-proj-hdr-green),
-.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.col-sticky-label {
   background: #f2f2f2 !important;
   font-weight: 600;
 }
 /* Metric rows (15–22): inside panel through % Forecast/target */
-.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']),
-.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.readonly:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-metric-cj-white),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.col-sticky-label {
   background: #f7f7f7 !important;
@@ -630,14 +635,18 @@
   background: #92d050 !important;
   background-color: #92d050 !important;
 }
-/* Header panel rows 3–22, display column C → last column — bold text */
+/* Header panel rows 3–19, display columns C–J — bold + slightly larger text */
 .synthesis-grid .bd-table tbody td.syn-hdr-panel-bold:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-panel-bold:not(.syn-pillar-col) {
   font-weight: 700 !important;
+  font-size: 12px !important;
 }
 .synthesis-grid .bd-table tbody td.syn-hdr-panel-bold input,
-.synthesis-grid .bd-table tbody td.syn-hdr-panel-bold span {
+.synthesis-grid .bd-table tbody td.syn-hdr-panel-bold span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-panel-bold:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-panel-bold:not(.syn-pillar-col) span {
   font-weight: 700 !important;
+  font-size: 12px !important;
 }
 /* Header panel rows 3–22, columns C–J (Excel H–O) — wins over filter/metric band greys */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default:not(.syn-pillar-col):not(.syn-proj-hdr-green),
@@ -668,38 +677,99 @@
   background-color: #ffff00 !important;
   color: #000 !important;
 }
-/* Silhouette row — Avenger like (green) & P1X (#c0504d), wins over filter grey */
+/* Silhouette row 5 — Avenger like (#d8e4bc) & P1X (#c0504d), full cell fill */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default.syn-val-avenger-like:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) {
-  background: #c6efce !important;
-  background-color: #c6efce !important;
+  background: #d8e4bc !important;
+  background-color: #d8e4bc !important;
+  color: #000 !important;
+  padding: 0 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) span {
+  display: block;
+  width: 100%;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 4px;
+  border: none;
+  background: #d8e4bc !important;
+  background-color: #d8e4bc !important;
   color: #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-val-p1x:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-default.syn-val-p1x:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-val-p1x:not(.syn-pillar-col) {
   background: #c0504d !important;
   background-color: #c0504d !important;
   color: #fff !important;
+  padding: 0 !important;
 }
-.synthesis-grid .bd-table tbody td.syn-val-p1x input,
-.synthesis-grid .bd-table tbody td.syn-val-p1x span {
+.synthesis-grid .bd-table tbody td.data-cell.syn-val-p1x:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-val-p1x:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col) span {
+  display: block;
+  width: 100%;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 4px;
+  border: none;
+  background: #c0504d !important;
+  background-color: #c0504d !important;
   color: #fff !important;
 }
-/* Filter rows 3–14 — display columns C & H (#a6a6a6) */
+/* Rows 3–14 — display columns C & H (#a6a6a6), full cell fill */
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-filter-col-grey:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-filter-col-grey:not(.syn-pillar-col):not(.syn-proj-hdr-green) {
   background: #a6a6a6 !important;
   background-color: #a6a6a6 !important;
   color: #000 !important;
+  padding: 0 !important;
 }
-/* Rows 18–19, display C–J (Excel H–O) — wins over header/metric panel greys */
+.synthesis-grid .bd-table tbody td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-filter-col-grey:not(.syn-pillar-col) span {
+  display: block;
+  width: 100%;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 4px;
+  border: none;
+  background: #a6a6a6 !important;
+  background-color: #a6a6a6 !important;
+  color: #000 !important;
+}
+/* Rows 18–19, display D–J — #ebf1de (C & H stay #a6a6a6), full cell fill */
 .synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col),
@@ -707,12 +777,51 @@
   background: #ebf1de !important;
   background-color: #ebf1de !important;
   color: #000 !important;
+  padding: 0 !important;
 }
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) span,
 .synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) input,
 .synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) span,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) input,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-row-metric-bg:not(.syn-pillar-col) span {
+  display: block;
+  width: 100%;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 4px;
+  border: none;
+  background: #ebf1de !important;
   background-color: #ebf1de !important;
+  color: #000 !important;
+}
+/* Row 10 — column A (label) solid white */
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label.syn-header-spacer-white td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label.syn-header-spacer-white td.col-sticky-label {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label td.syn-label-col input,
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label td.syn-label-col span,
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label td.col-sticky-label input,
+.synthesis-grid .bd-table tbody tr.syn-hdr-row-10-label td.col-sticky-label span {
+  display: block;
+  width: 100%;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 4px;
+  border: none;
+  background: #fff !important;
+  background-color: #fff !important;
   color: #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-metric-curb td.syn-label-col {
@@ -1253,7 +1362,7 @@
   background-color: #bfbfbf !important;
   color: #000 !important;
 }
-/* ADAPTATION band row 25+ — display D–G & I–J (fluorescent yellow) */
+/* ADAPTATION band rows 25–41 — display D–G & I–J (fluorescent yellow) */
 .synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo.readonly:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l),
@@ -1293,4 +1402,129 @@
   background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;
+}
+/* Silhouette accents — last (wins header-panel greys + 19px default inputs) */
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col):not(.syn-row-num) {
+  background: #d8e4bc !important;
+  background-color: #d8e4bc !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col):not(.syn-row-num) {
+  background: #c0504d !important;
+  background-color: #c0504d !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-avenger-like:not(.syn-pillar-col) span {
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  background: #d8e4bc !important;
+  background-color: #d8e4bc !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-val-p1x:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-val-p1x:not(.syn-pillar-col) span {
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  background: #c0504d !important;
+  background-color: #c0504d !important;
+  color: #fff !important;
+}
+/* Bold black separators — must beat header-panel 1px border (rows 3–22) */
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-val-avenger-like:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-val-p1x:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-hdr-val-p1h:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-hdr-val-hev:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-hdr-val-mhevp2:not(.syn-pillar-col):not(.syn-row-num) {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-pillar-col {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-val-avenger-like:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-val-p1x:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-hdr-val-p1h:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-hdr-val-hev:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-hdr-val-mhevp2:not(.syn-pillar-col):not(.syn-row-num) {
+  border-top: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-date td.syn-pillar-col {
+  border-top: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.syn-val-avenger-like:not(.syn-pillar-col):not(.syn-row-num),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.syn-val-p1x:not(.syn-pillar-col):not(.syn-row-num) {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-spec td.syn-pillar-col {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-pole td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-pole td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-pole td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-pole td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l) {
+  border-top: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-pole td.syn-pillar-col {
+  border-top: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-finition td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-finition td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-finition td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-finition td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l) {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-below-finition td.syn-pillar-col {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-curb td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-curb td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-curb td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-curb td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l) {
+  border-top: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-above-curb td.syn-pillar-col {
+  border-top: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-panel-end td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-panel-end td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-panel-end td.data-cell:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-panel-end td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l) {
+  border-bottom: 2px solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-header-edge-right:not(.syn-pillar-col):not(.syn-spacer-col-l) {
+  border-right: 2px solid #000 !important;
+}
+/* Bold vertical dividers between display columns C–J (rows 3–22) */
+.synthesis-grid .bd-table tbody tr.syn-proj-table-frame td.data-cell.syn-hdr-edge-cj-right:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-filter-band td.data-cell.syn-hdr-edge-cj-right:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-metric-band td.data-cell.syn-hdr-edge-cj-right:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-spacer-white td.data-cell.syn-hdr-edge-cj-right:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-filter-col-grey:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-hdr-row-metric-bg:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-val-avenger-like:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-val-p1x:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-hdr-val-p1h:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-hdr-val-hev:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-hdr-val-mhevp2:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-hdr-val-default:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cj-right.syn-metric-cj-white:not(.syn-pillar-col) {
+  border-right: 2px solid #000 !important;
 }

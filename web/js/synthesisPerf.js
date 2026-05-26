@@ -64,8 +64,10 @@ export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
 /** ADAPTATION band row 25+: display C & H — same grey as SP1 pillar (B). */
 export const SYN_ADAPT_GREY_DISPLAY_COLS = ['C', 'H'];
 
-/** ADAPTATION band row 25+: display D–G & I–J — fluorescent yellow. */
+/** ADAPTATION band rows 25–41: display D–G & I–J — fluorescent yellow. */
 export const SYN_ADAPT_FLUO_DISPLAY_COLS = ['D', 'E', 'F', 'G', 'I', 'J'];
+/** Last Excel row with fluo yellow on D–G & I–J (row 42+ → grey like C/H). */
+export const SYN_ADAPT_FLUO_LAST_ROW = 41;
 
 export function isSynFilterGreyExcelCol(excelCol) {
   for (const d of SYN_FILTER_GREY_DISPLAY_COLS) {
@@ -86,6 +88,12 @@ export function isSynAdaptFluoExcelCol(excelCol) {
     if (excelCol === displayToExcelCol(d)) return true;
   }
   return false;
+}
+
+/** Fluorescent yellow band — ADAPTATION rows 25 through 41 only. */
+export function isSynAdaptFluoBandRow(row) {
+  const r = Number(row);
+  return Number.isFinite(r) && r >= 25 && r <= SYN_ADAPT_FLUO_LAST_ROW;
 }
 
 export function isSynProjHeaderGreenExcelCol(excelCol) {

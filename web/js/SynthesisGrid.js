@@ -34,6 +34,7 @@ import {
   isSynHdrLmDividerRightCol,
   isSynHdrLmDividerLeftCol,
   isSynHdrAaDividerRightCol,
+  isSynHdrCjDividerRightEntry,
   isSynHdrLmDividerRightEntry,
   isSynHdrLmDividerLeftEntry,
   isSynHdrAaDividerRightEntry,
@@ -353,6 +354,7 @@ export default {
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
       if (row === 16 || row === 18) list.push('syn-metric-curb');
       if (row === 10 || row === 15) list.push('syn-header-spacer-row', 'syn-header-spacer-white');
+      if (row === 10) list.push('syn-hdr-row-10-label');
       if (row === 9) list.push('syn-header-edge-below-spec');
       if (row === 11) list.push('syn-header-edge-above-pole');
       if (row === 14) list.push('syn-header-edge-below-finition');
@@ -406,6 +408,12 @@ export default {
       return { ...base, ...cellInlineStyle(row, col) };
     }
 
+    function withHdrPanelBold(row, col, cls) {
+      const bold = isSynHeaderPanelBoldCol(row, col) ? 'syn-hdr-panel-bold' : '';
+      const parts = [cls, bold].filter(Boolean);
+      return parts.join(' ');
+    }
+
     function cellExtraClass(row, col, display) {
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         return display ? 'syn-pillar-has-char' : '';
@@ -413,23 +421,20 @@ export default {
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return spacerCol;
       const greyCol = synFilterGreyColClass(row, col);
-      if (greyCol) return greyCol;
+      if (greyCol) return withHdrPanelBold(row, col, greyCol);
       const adaptCol = synAdaptBandColClass(row, col, pillarColumns.value);
-      if (adaptCol) return adaptCol;
+      if (adaptCol) return withHdrPanelBold(row, col, adaptCol);
       const metricWhiteCol = synMetricCjWhiteColClass(row, col);
-      if (metricWhiteCol) return metricWhiteCol;
+      if (metricWhiteCol) return withHdrPanelBold(row, col, metricWhiteCol);
       const accent = synCellAccentClass(display);
-      if (accent) return accent;
+      if (accent) return withHdrPanelBold(row, col, accent);
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
-        const bold = isSynHeaderPanelBoldCol(row, col) ? 'syn-hdr-panel-bold' : '';
-        const combined = [hdrCls, bold].filter(Boolean).join(' ');
+        const combined = withHdrPanelBold(row, col, hdrCls);
         if (combined) return combined;
       }
       if (isSynProjHeaderGreenCol(row, col)) {
-        const parts = ['syn-proj-hdr-green'];
-        if (isSynHeaderPanelBoldCol(row, col)) parts.push('syn-hdr-panel-bold');
-        return parts.join(' ');
+        return withHdrPanelBold(row, col, 'syn-proj-hdr-green');
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (
@@ -437,12 +442,12 @@ export default {
         rc === 'syn-row-subsection' ||
         rc === 'syn-row-separator'
       ) {
-        return '';
+        return withHdrPanelBold(row, col, '');
       }
       if (isSynMetricRow(row)) {
-        return synMetricCellClass(row, col, display) || '';
+        return withHdrPanelBold(row, col, synMetricCellClass(row, col, display) || '');
       }
-      return synProjectCellClass(display, col);
+      return withHdrPanelBold(row, col, synProjectCellClass(display, col));
     }
 
     function updateViewport() {
@@ -507,6 +512,7 @@ export default {
       isSynHdrLmDividerRightEntry,
       isSynHdrLmDividerLeftEntry,
       isSynHdrAaDividerRightEntry,
+      isSynHdrCjDividerRightEntry,
       isSynProjHeaderGreenCol,
       synProjHeaderGreenStyle,
       cellInlineStyle,
@@ -646,6 +652,10 @@ export default {
                       !isGapEntry(entry) &&
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
                     'syn-spacer-col-l': isSynSpacerDisplayExcelCol(colEntry.col),
+                    'syn-hdr-edge-cj-right': isSynHdrCjDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
                     'syn-hdr-edge-lm-right': isSynHdrLmDividerRightEntry(
                       entry,
                       colEntry.col
