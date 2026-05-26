@@ -366,7 +366,11 @@ export function transformBdSheet(sheet) {
   prepared.freeFieldWidth = measureFreeFieldWidth(prepared.cells);
   return prepared;
 }
-import { buildSynPillarColumns, computeSynEffectiveLastRow } from './synStore.js';
+import {
+  buildSynPillarColumns,
+  computeSynEffectiveLastRow,
+  SYN_MAX_EXCEL_ROW,
+} from './synStore.js';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 
 /** Fix legacy exports that stored shared-string indices as plain numbers. */
@@ -413,13 +417,16 @@ export function transformSynthesisSheet(sheet) {
     if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
     else if (raw) headers[col] = translateValue(String(raw));
   }
-  const cells = sheet.cells || [];
+  const cells = (sheet.cells || []).filter((c) => c.r <= SYN_MAX_EXCEL_ROW);
   const headerRows = sheet.headerRows || {};
   const cellMap = buildCellMap(cells, headerRows);
   const pillarColumns = Object.fromEntries(
     buildSynPillarColumns(sheet, cellMap)
   );
-  const effectiveLastRow = computeSynEffectiveLastRow(sheet, cellMap);
+  const effectiveLastRow = Math.min(
+    computeSynEffectiveLastRow({ ...sheet, cells }, cellMap),
+    SYN_MAX_EXCEL_ROW
+  );
   return {
     ...sheet,
     columns,

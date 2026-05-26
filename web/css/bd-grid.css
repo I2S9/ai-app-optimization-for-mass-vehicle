@@ -57,12 +57,13 @@
   width: 42px;
   box-shadow: 2px 0 3px rgba(0, 0, 0, 0.1);
 }
-/* Frozen "Date" column (A) — row context visible when scrolling right */
+/* Frozen "Date" column (A) — opaque above horizontally scrolling cells */
 .bd-table th.col-sticky-date,
 .bd-table td.col-sticky-date {
   position: sticky;
   left: 42px;
-  z-index: 3;
+  z-index: 8;
+  isolation: isolate;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
 }
 .bd-table thead th.corner {
@@ -81,10 +82,18 @@
 }
 .bd-table tbody td.col-sticky-date {
   background: #fff;
+  background-color: #fff;
+}
+.bd-table tbody td.col-sticky-date.readonly {
+  background-color: #f2f2f2;
+}
+.bd-table tbody td.col-sticky-date input,
+.bd-table tbody td.col-sticky-date.readonly span {
+  background-color: inherit;
 }
 .synthesis-grid .bd-table thead th.col-sticky-date,
 .synthesis-grid .bd-table tbody td.syn-label-col.col-sticky-date {
-  z-index: 5;
+  z-index: 8;
 }
 .bd-table tbody tr.row-fin-lot td.col-sticky-date {
   background: #fff;
@@ -585,11 +594,11 @@
   border-bottom: 1px solid #b4b4b4 !important;
   border-left: 1px solid #b4b4b4 !important;
 }
-/* Gap rows 21–22: SP1/SP2 pillars stay green (display columns B & K) */
-.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col.syn-panel-gap-pillar,
-.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.syn-pillar-col.syn-panel-gap-pillar {
-  background: #c6efce !important;
-  background-color: #c6efce !important;
+/* Gap rows 21–22: SP1 grey (B), SP2 green (K) */
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-col.syn-panel-gap-pillar:not(.syn-pillar-k),
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.syn-pillar-col.syn-panel-gap-pillar:not(.syn-pillar-k) {
+  background: #bfbfbf !important;
+  background-color: #bfbfbf !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-pillar-k.syn-panel-gap-pillar,
 .synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.data-cell.syn-pillar-k.syn-panel-gap-pillar {
@@ -737,7 +746,7 @@
   background: #92d050 !important;
   background-color: #92d050 !important;
 }
-/* SP1 TARGET pillar (display B) — pale green from row 3 to last row */
+/* SP1 TARGET pillar (display B) — #bfbfbf from row 3 to last row */
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k).readonly,
@@ -754,8 +763,8 @@
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody tr.syn-row-data td.syn-pillar-col:not(.syn-pillar-k) {
-  background: #c6efce !important;
-  background-color: #c6efce !important;
+  background: #bfbfbf !important;
+  background-color: #bfbfbf !important;
   color: #000 !important;
   border: none !important;
   box-shadow: none !important;
@@ -879,10 +888,11 @@
 }
 .synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col input,
 .synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col.readonly span,
-.synthesis-grid .bd-table tbody td.syn-label-col input,
-.synthesis-grid .bd-table tbody td.syn-label-col.readonly span {
+.synthesis-grid .bd-table tbody td.syn-label-col.col-sticky-label input,
+.synthesis-grid .bd-table tbody td.syn-label-col.col-sticky-label.readonly span {
   text-align: left;
   color: #000 !important;
+  background-color: inherit;
 }
 .synthesis-grid .bd-table tbody td.data-cell:not(.syn-label-col) input,
 .synthesis-grid .bd-table tbody td.data-cell:not(.syn-label-col).readonly span {
@@ -894,8 +904,16 @@
 .synthesis-grid .bd-table th.col-sticky-label,
 .synthesis-grid .bd-table td.col-sticky-label {
   position: sticky;
-  z-index: 5;
+  z-index: 8;
+  isolation: isolate;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.12);
+}
+.synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col,
+.synthesis-grid .bd-table tbody td.data-cell.col-sticky-label.syn-label-col {
+  background-color: #fff;
+}
+.synthesis-grid .bd-table tbody td.data-cell.col-sticky-label.syn-label-col.readonly {
+  background-color: #f2f2f2;
 }
 .synthesis-grid .bd-table thead th.col-sticky-label {
   z-index: 25;
@@ -941,7 +959,7 @@
 .synthesis-grid .syn-scroll {
   contain: strict;
 }
-/* Pillar — SP1 (B) pale green; SP2 (K) #92d050 — same layout, no grid lines */
+/* Pillar — SP1 (B) #bfbfbf; SP2 (K) #92d050 — same layout, no grid lines */
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody td.data-cell.syn-pillar-col:not(.syn-pillar-k).readonly,
@@ -989,8 +1007,8 @@
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody tr.syn-row-separator td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody tr.syn-row-data td.syn-pillar-col:not(.syn-pillar-k) {
-  background: #c6efce !important;
-  background-color: #c6efce !important;
+  background: #bfbfbf !important;
+  background-color: #bfbfbf !important;
   color: #000 !important;
 }
 .synthesis-grid .bd-table tbody td.syn-pillar-col.syn-pillar-k,
@@ -1009,6 +1027,9 @@
   background: #92d050 !important;
   background-color: #92d050 !important;
   color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k) span {
+  background: #bfbfbf !important;
 }
 .synthesis-grid .bd-table tbody td.syn-pillar-col span {
   background: transparent !important;

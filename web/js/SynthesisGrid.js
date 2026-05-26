@@ -34,7 +34,7 @@ import {
   isSynSpacerColWhiteDisplayRow,
   isSynSpacerDisplayExcelCol,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf59';
+} from './synStore.js?v=syn-perf60';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -298,7 +298,7 @@ export default {
       return isSynPillarColAtRow(col, entry.excelRow, pillarColumns.value);
     }
 
-    /** Gap rows 21–22: only display columns B & K (SP1/SP2) stay green. */
+    /** Gap rows 21–22: display B (SP1 grey) & K (SP2 green) keep pillar fill. */
     function isGapGreenPillarCol(col) {
       const letter = excelToDisplayCol(col);
       return letter === 'B' || letter === 'K';

@@ -10,7 +10,7 @@ const ROOT = path.join(__dirname, '..');
 const WB = path.join(ROOT, 'workbooks', 'base-de-donnees-complete-avec-liens.xlsm');
 const TMP = path.join(process.env.TEMP || '/tmp', 'xlsm-bd-export');
 const OUT = path.join(ROOT, 'web', 'public', 'data', 'synthesis-sheet.json');
-const MAX_ROW = 530;
+const MAX_ROW = 422;
 const MAX_COL = 'NI';
 const LABEL_COL = 'F';
 

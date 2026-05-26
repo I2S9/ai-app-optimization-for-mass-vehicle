@@ -23,7 +23,7 @@ export const SYN_VEHICLE_COL_START = 'G';
 export const SYN_HDR_PANEL_COL_START = 'H';
 export const SYN_HDR_PANEL_COL_END = 'O';
 export const SYN_HDR_PANEL_GAP_COUNT = 2;
-/** Blank rows before Date (display 1–2); pillars B/K stay green. */
+/** Blank rows before Date (display 1–2); pillars B/K keep pillar fill. */
 export const SYN_HDR_PANEL_TOP_GAP_COUNT = 2;
 
 /** Filter band labels (Excel F); export sometimes omits shared-string cells. */
@@ -82,15 +82,17 @@ export function synDisplayRowNumber(excelRow) {
   return n - (SYN_GRID_FIRST_ROW - 1);
 }
 
-/** Pale green band for SP1 TARGET pillar (Excel merge). */
-export const SYN_PILLAR_BG = '#c6efce';
+/** Grey band for SP1 TARGET pillar (display column B). */
+export const SYN_PILLAR_BG = '#bfbfbf';
 /** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
 export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
 export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4]);
+/** Last Excel row exported / shown in the Synthesis grid. */
+export const SYN_MAX_EXCEL_ROW = 422;
 /** First Synthesis body row shown in the grid (Excel row 3 = Date). */
 export const SYN_GRID_FIRST_ROW = 3;
-/** Pale-green pillar from Date (row 3) through last Synthesis row. */
+/** SP1 pillar from Date (row 3) through last Synthesis row. */
 export const SYN_PILLAR_FIRST_ROW = 3;
 /** Vertical SP1/SP2 label: one letter every N Excel rows (2 = blank row between letters). */
 export const SYN_PILLAR_LETTER_ROW_STEP = 2;
@@ -99,7 +101,7 @@ export const SYN_ZERO_FILL_FIRST_ROW = 25;
 
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
-  const last = sheet?.lastRow || 530;
+  const last = sheet?.lastRow || SYN_MAX_EXCEL_ROW;
   for (let r = 2; r <= last; r++) {
     const raw =
       synLabel(map, r) || displayValue(getCell(map, r, SYN_LABEL_COL)) || '';
@@ -111,7 +113,7 @@ export function findSynAdaptationRow(map, sheet) {
 
 /** First _ÉCHAPPEMENT row — vertical SP1 / SP2 label starts here. */
 export function findSynEchappementRow(map, sheet) {
-  const last = sheet?.lastRow || 530;
+  const last = sheet?.lastRow || SYN_MAX_EXCEL_ROW;
   for (let r = 2; r <= last; r++) {
     const raw =
       synLabel(map, r) || displayValue(getCell(map, r, SYN_LABEL_COL)) || '';
@@ -450,7 +452,7 @@ export function isSynL2SubsectionLabel(label) {
 /** Rows under an L1 title until the next L1 (e.g. between AILES and ALTERNATEUR). */
 export function isSynBetweenL1SectionRows(map, row, sheet) {
   if (isSynL1SectionLabel(synLabel(map, row))) return false;
-  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? 530;
+  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? SYN_MAX_EXCEL_ROW;
   let lastL1 = 0;
   for (let r = SYN_GRID_FIRST_ROW; r < row; r++) {
     if (isSynL1SectionLabel(synLabel(map, r))) lastL1 = r;
@@ -713,10 +715,10 @@ export function computeSynEffectiveLastRow(sheet, cellMap) {
       last = Math.max(last, r);
     }
   }
-  return last;
+  return Math.min(last, SYN_MAX_EXCEL_ROW);
 }
 
-/** Skip blank lines (e.g. after row 469); keep filter band rows 3–14. */
+/** Skip blank lines below the grid; keep filter band rows 3–14. */
 export function synRowHasContent(map, row, sheet) {
   if (isSynPanelGapRow(row)) return true;
   if (isSynHeaderPanelRow(row)) return true;

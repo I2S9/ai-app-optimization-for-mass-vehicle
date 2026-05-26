@@ -22,6 +22,7 @@ import {
   findSynAdaptationRow,
   SYN_HEADER_PANEL_LAST_ROW,
   SYN_SKIPPED_ROWS,
+  SYN_MAX_EXCEL_ROW,
 } from './synStore.js';
 import { translateValue } from './bdTranslate.js';
 
@@ -119,7 +120,7 @@ export function extractSynStructure(sheet) {
   const adapt = findSynAdaptationRow(map, sheet);
   const prefixEndRow = SYN_HEADER_PANEL_LAST_ROW;
   const colors = sheet.matrixColors || {};
-  const last = sheet.effectiveLastRow ?? sheet.lastRow ?? 530;
+  const last = sheet.effectiveLastRow ?? sheet.lastRow ?? SYN_MAX_EXCEL_ROW;
   const l1Rows = [];
   for (let r = adapt; r <= last; r++) {
     const label = synLabel(map, r);
