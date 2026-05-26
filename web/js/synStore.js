@@ -678,6 +678,7 @@ export function synMetricCjWhiteColStyle(row, col) {
 export function synAdaptBandColClass(row, col, pillarColumns) {
   if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
   if (col === SYN_LABEL_COL) return '';
+  if (isSynSpacerDisplayExcelCol(col)) return '';
   if (isSynPillarColAtRow(col, row, pillarColumns)) return '';
   if (isSynAdaptGreyExcelCol(col)) return 'syn-adapt-col-grey';
   if (isSynAdaptFluoExcelCol(col)) return 'syn-adapt-col-fluo';
@@ -742,6 +743,7 @@ export function synIsReadonly(_cell, _row, _sheet) {
 export function isSynZeroFillDataCol(row, col, pillarColumns) {
   if (row < SYN_ZERO_FILL_FIRST_ROW) return false;
   if (col === SYN_LABEL_COL) return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
   if (isSynPillarColAtRow(col, row, pillarColumns)) return false;
   return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
 }

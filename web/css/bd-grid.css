@@ -384,16 +384,16 @@
   color: #000 !important;
   font-weight: 700;
 }
-.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.readonly:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.readonly:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-row-section td.syn-label-col {
   background: #ffff00 !important;
   color: #000 !important;
   font-weight: 700;
 }
-.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.readonly:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.readonly:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.syn-label-col {
   background: #00b0f0 !important;
@@ -536,6 +536,9 @@
 }
 .synthesis-grid .bd-table tbody td.syn-spacer-col-l input,
 .synthesis-grid .bd-table tbody td.syn-spacer-col-l span {
+  height: 21px;
+  line-height: 21px;
+  background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;
 }
@@ -1235,28 +1238,28 @@
   color: #000 !important;
 }
 /* ADAPTATION band row 25+ — display C & H (#bfbfbf, same as column B) */
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-label-col),
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey.readonly:not(.syn-pillar-col):not(.syn-label-col),
-.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col) {
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey.readonly:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l) {
   background: #bfbfbf !important;
   background-color: #bfbfbf !important;
   color: #000 !important;
 }
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col) input,
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col) span {
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-grey:not(.syn-pillar-col):not(.syn-spacer-col-l) span {
   background-color: #bfbfbf !important;
   color: #000 !important;
 }
 /* ADAPTATION band row 25+ — display D–G & I–J (fluorescent yellow) */
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-label-col),
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo.readonly:not(.syn-pillar-col):not(.syn-label-col),
-.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col),
-.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo.readonly:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l),
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-tt.syn-adapt-col-fluo:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-spc.syn-adapt-col-fluo:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-energy.syn-adapt-col-fluo:not(.syn-pillar-col),
@@ -1272,8 +1275,22 @@
   background-color: #ffff00 !important;
   color: #000 !important;
 }
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col) input,
-.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col) span {
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-adapt-col-fluo:not(.syn-pillar-col):not(.syn-spacer-col-l) span {
   background-color: #ffff00 !important;
+  color: #000 !important;
+}
+/* Display column L — must stay solid white (wins over ADAPTATION fluo input rules) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.syn-adapt-col-fluo,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.syn-adapt-col-grey,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-spacer-col-l,
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-spacer-col-l,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.syn-adapt-col-fluo input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.syn-adapt-col-fluo span {
+  background: #fff !important;
+  background-color: #fff !important;
   color: #000 !important;
 }
