@@ -2026,3 +2026,35 @@
   background-color: #fff !important;
   color: #000 !important;
 }
+
+/* Display CG (Excel CL) — SP2 RESTART — after force-white so it always wins */
+.synthesis-grid .bd-table tbody td.syn-col-cl,
+.synthesis-grid .bd-table tbody td.data-cell.syn-col-cl,
+.synthesis-grid .bd-table tbody td.data-cell.syn-col-cl.readonly,
+.synthesis-grid .bd-table tbody td.syn-col-cl.syn-pillar-col,
+.synthesis-grid .bd-table tbody td.data-cell.syn-col-cl.syn-pillar-col,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.syn-col-cl,
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.syn-col-cl,
+.synthesis-grid .bd-table tbody tr.syn-row-data td.syn-col-cl,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-col-cl,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-col-cl,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-col-cl,
+.synthesis-grid .bd-table tbody tr.syn-panel-gap-row td.syn-col-cl.syn-panel-gap-pillar {
+  background: #c4d79b !important;
+  background-color: #c4d79b !important;
+  color: #000 !important;
+  border: none !important;
+}
+.synthesis-grid .bd-table tbody td.syn-col-cl input,
+.synthesis-grid .bd-table tbody td.syn-col-cl span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-col-cl input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-col-cl span {
+  background: #c4d79b !important;
+  background-color: #c4d79b !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-col-cl.syn-pillar-overlay-host,
+.synthesis-grid .bd-table tbody td.syn-col-cl.syn-pillar-overlay-host input,
+.synthesis-grid .bd-table tbody td.syn-col-cl.syn-pillar-overlay-host span {
+  color: transparent !important;
+}

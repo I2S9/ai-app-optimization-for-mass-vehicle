@@ -79,6 +79,8 @@ import {
   SYN_GRID_FIRST_ROW,
   isSynNumericEntryCell,
   SYN_BUILTIN_PILLAR_META,
+  SYN_SP2_RESTART_BG,
+  isSynSp2RestartDisplayExcelCol,
 } from './synStore.js?v=syn-pillar-cg2';
 import {
   SYN_STICKY_COL,
@@ -564,6 +566,14 @@ export default {
       const base = colStyle(col, width);
       if (isGapEntry(entry)) return base;
       const row = entry.excelRow;
+      if (row >= SYN_GRID_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col)) {
+        return {
+          ...base,
+          background: SYN_SP2_RESTART_BG,
+          backgroundColor: SYN_SP2_RESTART_BG,
+          color: '#000',
+        };
+      }
       if (isSynProjHeaderGreenCol(row, col)) {
         return { ...base, ...synProjHeaderGreenStyle() };
       }
@@ -604,7 +614,10 @@ export default {
     }
 
     function cellExtraClass(row, col, display) {
-      if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
+      if (
+        isSynPillarColAtRow(col, row, pillarColumns.value) ||
+        (row >= SYN_GRID_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col))
+      ) {
         return display ? 'syn-pillar-has-char' : '';
       }
       if (isSynForceWhiteExcelCol(col)) return 'syn-force-white-col';
