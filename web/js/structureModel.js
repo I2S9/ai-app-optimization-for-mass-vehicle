@@ -23,7 +23,7 @@ import {
   SYN_HEADER_PANEL_LAST_ROW,
   SYN_SKIPPED_ROWS,
   SYN_MAX_EXCEL_ROW,
-} from './synStore.js';
+} from './synStore.js?v=syn-cicy1';
 import { translateValue } from './bdTranslate.js';
 
 /** Same as bd-grid.css row-section / row-subsection */

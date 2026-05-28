@@ -784,6 +784,19 @@
   background-color: #ffc000 !important;
   color: #000 !important;
 }
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green) {
+  color: #00b050 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col) .grid-cell-display,
+.synthesis-grid .bd-table tbody .syn-hdr-bev-word {
+  color: #00b050 !important;
+  font-weight: 700;
+}
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-hev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-val-hev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-val-hev:not(.syn-pillar-col):not(.syn-proj-hdr-green) {
@@ -1184,23 +1197,27 @@
   color: #9c0006 !important;
 }
 
-/* Row 21: display M, P, S, V, Y red */
-.synthesis-grid .bd-table tbody td.syn-row21-mpsvy-red,
-.synthesis-grid .bd-table tbody td.data-cell.syn-row21-mpsvy-red {
-  background: #ffc7ce !important;
-  background-color: #ffc7ce !important;
-  color: #9c0006 !important;
+/* Row 21: display Q–AA — HEV red (#ff0000) */
+.synthesis-grid .bd-table tbody td.syn-row21-qaa-hev-red,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row21-qaa-hev-red,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row21-qaa-hev-red:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-metric-forecast.syn-row21-qaa-hev-red:not(.syn-pillar-col) {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+  font-weight: 600;
 }
-.synthesis-grid .bd-table tbody td.syn-row21-mpsvy-red input,
-.synthesis-grid .bd-table tbody td.syn-row21-mpsvy-red span,
-.synthesis-grid .bd-table tbody td.data-cell.syn-row21-mpsvy-red input,
-.synthesis-grid .bd-table tbody td.data-cell.syn-row21-mpsvy-red span {
-  background: #ffc7ce !important;
-  background-color: #ffc7ce !important;
-  color: #9c0006 !important;
+.synthesis-grid .bd-table tbody td.syn-row21-qaa-hev-red input,
+.synthesis-grid .bd-table tbody td.syn-row21-qaa-hev-red span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row21-qaa-hev-red input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row21-qaa-hev-red span {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+  font-weight: 600;
 }
 
-/* Row 21: display M–AA white except M, P, S, V, Y */
+/* Row 21: display M–P white */
 .synthesis-grid .bd-table tbody td.syn-row21-maa-white,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row21-maa-white,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row21-maa-white:not(.syn-pillar-col),
@@ -1216,6 +1233,27 @@
   background: #fff !important;
   background-color: #fff !important;
   color: #000 !important;
+}
+
+/* Row 22: M…AA with value — HEV red (replaces pink) */
+.synthesis-grid .bd-table tbody td.syn-row22-hev-red,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row22-hev-red,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row22-hev-red:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-metric-portfolio.syn-row22-hev-red:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-panel-end td.data-cell.syn-row22-hev-red:not(.syn-pillar-col) {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+.synthesis-grid .bd-table tbody td.syn-row22-hev-red input,
+.synthesis-grid .bd-table tbody td.syn-row22-hev-red span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row22-hev-red input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row22-hev-red span {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+  font-weight: 600;
 }
 
 /* Row 25: display M–AA green */
@@ -2924,12 +2962,19 @@
   background-color: #ffc7ce !important;
   color: #9c0006 !important;
 }
-.synthesis-grid .bd-table tbody td.data-cell.syn-row21-mpsvy-red,
-.synthesis-grid .bd-table tbody td.data-cell.syn-row21-mpsvy-red input,
-.synthesis-grid .bd-table tbody td.data-cell.syn-row21-mpsvy-red span {
-  background: #ffc7ce !important;
-  background-color: #ffc7ce !important;
-  color: #9c0006 !important;
+.synthesis-grid .bd-table tbody td.data-cell.syn-row21-qaa-hev-red,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row21-qaa-hev-red input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row21-qaa-hev-red span {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-row22-hev-red,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row22-hev-red input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row22-hev-red span {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
 }
 .synthesis-grid .bd-table tbody td.data-cell.syn-row21-maa-white,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row21-maa-white input,
@@ -2962,6 +3007,19 @@
 .synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa,
 .synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa input,
 .synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa span {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+
+/* Display-row green blocks (AC…AN, display row 26+) — #92d050 (row 13 TARGET) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-acan:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) span {
   background: #92d050 !important;
   background-color: #92d050 !important;
   color: #000 !important;

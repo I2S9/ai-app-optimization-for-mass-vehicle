@@ -27,10 +27,21 @@ export function colOverscanPx(viewportW, minPx = 480) {
   return Math.min(2400, Math.max(minPx, Math.floor(viewportW * 1.25)));
 }
 
-export function visibleRowRange(scrollTop, viewportH, rowCount, overscan) {
+/** Tighter horizontal buffer for wide Synthesis sheets. */
+export function synColOverscanPx(viewportW) {
+  return Math.min(960, Math.max(280, Math.floor(viewportW * 0.6)));
+}
+
+export function visibleRowRange(
+  scrollTop,
+  viewportH,
+  rowCount,
+  overscan,
+  maxRendered = MAX_RENDERED_ROWS
+) {
   const start = Math.max(0, Math.floor(scrollTop / ROW_H) - overscan);
   let count = Math.ceil(viewportH / ROW_H) + overscan * 2;
-  count = Math.min(count, MAX_RENDERED_ROWS);
+  count = Math.min(count, maxRendered);
   const end = Math.min(rowCount, start + count);
   return { start, end };
 }

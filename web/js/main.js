@@ -1,13 +1,18 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-nav4';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-bands3';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-acan-green1';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix12';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-pillar-cg2';
-import { createWorkbookSession } from './workbookSession.js?v=adapt-sum1';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-cicy1';
+import { createWorkbookSession } from './workbookSession.js?v=sumprod-maa3';
+import {
+  SYN_FILTER_BD_LABELS,
+  SYN_MAA_DISPLAY_START,
+  SYN_MAA_DISPLAY_END,
+} from './synthesisCalc.js?v=sumprod-maa3';
 import {
   buildMatrixState,
   applyMatrixSave,
@@ -173,6 +178,20 @@ const App = {
 
     function bumpSynSheetRevision() {
       synSheetRevision.value += 1;
+    }
+
+    /** Defer 7MB synthesis fetch/transform until the browser is idle (keeps BD snappy). */
+    function scheduleSynBackgroundPrepare() {
+      if (synthesisSheet.value || synthesisPreparePromise) return;
+      const run = () => {
+        if (synthesisSheet.value || synthesisPreparePromise) return;
+        void startSynBackgroundPrepare();
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(run, { timeout: 12000 });
+      } else {
+        setTimeout(run, 3000);
+      }
     }
 
     /** Fetch + transform Synthesis in background (no grid mount until user opens the page). */
@@ -639,6 +658,14 @@ const App = {
       matrixOpen.value = false;
     }
 
+    const bdL2Registry = computed(() => {
+      void session.revision.value;
+      return session.getBdL2Registry?.() ?? [];
+    });
+
+    const synFilterBdLabels = SYN_FILTER_BD_LABELS;
+    const synMaaColRange = `${SYN_MAA_DISPLAY_START}…${SYN_MAA_DISPLAY_END}`;
+
     return {
       bdLoading,
       synthesisLoading,
@@ -675,6 +702,9 @@ const App = {
       performUndo,
       performRedo,
       externalEditTick,
+      bdL2Registry,
+      synFilterBdLabels,
+      synMaaColRange,
     };
   },
   template: `
@@ -794,6 +824,59 @@ const App = {
           </template>
         </div>
       </header>
+      <div v-if="isDatabase && bdSheet" class="bd-syn-engine-panel">
+        <details class="bd-syn-engine-details">
+          <summary>
+            Moteur Synthesis — lignes bleues (L2), colonnes {{ synMaaColRange }}
+            <span v-if="session.ready" class="bd-syn-engine-meta">
+              · {{ bdL2Registry.length }} sous-systèmes répertoriés (BD col. AU, statut Q=S)
+            </span>
+            <span v-else class="bd-syn-engine-meta"> · moteur en chargement…</span>
+          </summary>
+          <div class="bd-syn-engine-body">
+            <p class="bd-syn-engine-lead">
+              Colonnes {{ synMaaColRange }} — calcul instantané depuis la Database&nbsp;:
+              <strong>lignes bleues</strong> = masse filtrée (col.&nbsp;V, sous-système AU, critères lignes 3–14 de la colonne)&nbsp;;
+              <strong>lignes vertes/jaunes</strong> (sections L1) = somme des lignes bleues jusqu'à la section suivante.
+              Modifier une masse ou un filtre ici met à jour Synthesis immédiatement.
+            </p>
+            <div class="bd-syn-engine-grid">
+              <section>
+                <h3>Filtres Synthesis → BD (par colonne M…AA)</h3>
+                <table class="bd-syn-engine-table">
+                  <thead>
+                    <tr><th>Ligne Syn</th><th>Col. BD</th><th>Champ</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="f in synFilterBdLabels" :key="f.synRow">
+                      <td>{{ f.synRow }}</td>
+                      <td>{{ f.bdCol }}</td>
+                      <td>{{ f.label }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+              <section>
+                <h3>Sous-systèmes L2 (col. AU) — masse totale Q=S</h3>
+                <div class="bd-syn-l2-scroll">
+                  <table class="bd-syn-engine-table bd-syn-l2-table">
+                    <thead>
+                      <tr><th>Label L2 (AU)</th><th>Lignes</th><th>Masse ΣV</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="entry in bdL2Registry" :key="entry.label">
+                        <td>{{ entry.label }}</td>
+                        <td>{{ entry.rows }}</td>
+                        <td>{{ entry.mass }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          </div>
+        </details>
+      </div>
       <div class="app-body">
         <main class="app-content">
           <KeepAlive>

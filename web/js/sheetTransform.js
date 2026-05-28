@@ -20,6 +20,20 @@ import {
   BD_SUBSYSTEM_L1_COL_RAW,
   BD_SUBSYSTEM_L2_COL_RAW,
 } from './bdColumnConfig.js';
+import {
+  buildSynPillarColumns,
+  computeSynEffectiveLastRow,
+  SYN_MAX_EXCEL_ROW,
+  SYN_BUILTIN_PILLAR_META,
+  applySynRow25PresetCells,
+  applySynRowsCjPresetCells,
+  applySynRowsMaaPresetCells,
+  applySynRowsMaaPresetHeaderRows,
+  applySynRowsAcanPresetCells,
+  applySynRowsAcanPresetHeaderRows,
+} from './synStore.js?v=syn-cicy1';
+import { filterSynDisplayColumns } from './synthesisPerf.js';
+import { sanitizeSynAdaptationSumCells } from './synthesisCalc.js?v=syn-cicy1';
 
 const POSITION_INSERT_AFTER = 'AD';
 const POSITION_INSERT_COUNT = 2;
@@ -366,19 +380,6 @@ export function transformBdSheet(sheet) {
   prepared.freeFieldWidth = measureFreeFieldWidth(prepared.cells);
   return prepared;
 }
-import {
-  buildSynPillarColumns,
-  computeSynEffectiveLastRow,
-  SYN_MAX_EXCEL_ROW,
-  SYN_BUILTIN_PILLAR_META,
-} from './synStore.js';
-import { filterSynDisplayColumns } from './synthesisPerf.js';
-import {
-  applySynRow25PresetCells,
-  applySynRow26ZeroCells,
-  applySynRowsCjPresetCells,
-  applySynRowsMaaPresetCells,
-} from './synStore.js';
 
 /** Fix legacy exports that stored shared-string indices as plain numbers. */
 function resolveSynSheetValues(sheet) {
@@ -424,18 +425,27 @@ export function transformSynthesisSheet(sheet) {
     if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
     else if (raw) headers[col] = translateValue(String(raw));
   }
-  const cells = applySynRowsMaaPresetCells(
-    applySynRowsCjPresetCells(
-      applySynRow26ZeroCells(
-        applySynRow25PresetCells(
-          (sheet.cells || [])
-            .filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
-            .map((c) => ({ ...c }))
-        )
+  const cells = [];
+  for (const c of sheet.cells || []) {
+    if (c.r <= SYN_MAX_EXCEL_ROW) cells.push(c);
+  }
+  applySynRow25PresetCells(cells);
+  applySynRowsCjPresetCells(cells);
+  applySynRowsMaaPresetCells(cells);
+  applySynRowsAcanPresetCells(cells);
+  sanitizeSynAdaptationSumCells(cells);
+  const headerRows = applySynRowsAcanPresetHeaderRows(
+    applySynRowsMaaPresetHeaderRows(
+      Object.fromEntries(
+        Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
+          row,
+          Object.fromEntries(
+            Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
+          ),
+        ])
       )
     )
   );
-  const headerRows = sheet.headerRows || {};
   const cellMap = buildCellMap(cells, headerRows);
   const pillarMap = buildSynPillarColumns(sheet, cellMap);
   for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {

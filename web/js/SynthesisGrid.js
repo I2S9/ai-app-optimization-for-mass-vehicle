@@ -13,7 +13,11 @@ import {
 } from 'vue';
 import { getCell, buildCellMap } from './bdStore.js?v=input-fix3';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
-import { isSynAdaptationSumCell } from './synthesisCalc.js?v=adapt-sum1';
+import {
+  isSynAdaptationSumCell,
+  isSynSumproductDataCell,
+  isSynSectionSumDataCell,
+} from './synthesisCalc.js?v=sumprod-maa3';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
@@ -28,6 +32,9 @@ import {
   synCellAccentClass,
   synHdrEnergyValueClass,
   synHdrEnergyValueStyle,
+  synHdrBevTextClass,
+  synHdrBevTextStyle,
+  synHdrBevDisplayHtml,
   synFilterGreyColClass,
   synAdaptBandColClass,
   synSpotBlueColClass,
@@ -48,6 +55,7 @@ import {
   isSynSp2DisplayExcelCol,
   synPillarAccentClass,
   isSynProjHeaderGreenCol,
+  isSynTargetTextGreenCell,
   synProjHeaderGreenStyle,
   isSynProjHeaderYellowCol,
   synProjHeaderYellowStyle,
@@ -59,17 +67,21 @@ import {
   isSynRow19PaaRedCol,
   synRow19MoGreenStyle,
   synRow19PaaRedStyle,
-  isSynRow20MopGreenCol,
-  isSynRow20PaaRedCol,
-  synRow20MopGreenStyle,
-  synRow20PaaRedStyle,
-  isSynRow21MpsvyRedCol,
-  isSynRow21MaaWhiteCol,
-  synRow21MpsvyRedStyle,
-  synRow21MaaWhiteStyle,
+  isSynRow20PortfolioRedCol,
+  isSynRow20PortfolioYellowCol,
+  synRow20PortfolioRedStyle,
+  synRow20PortfolioYellowStyle,
+  isSynRow21Step3Col,
+  isSynRow17MaaBlueCol,
+  synRow17MaaBlueStyle,
+  isSynRow17AcanBlueCol,
+  isSynRow18MaaGreyCol,
+  synRow18MaaGreyStyle,
+  isSynRow18AcanGreyCol,
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3FromMCol,
+  isSynRow16FluoEvery3FromAcanCol,
   isSynRow17FluoEvery3FromMCol,
   synRow16FluoStyle,
   SYN_DISPLAY_GREEN_ROWS,
@@ -78,6 +90,8 @@ import {
   synDisplayRowGreyMaaStyle,
   isSynDisplayRowGreenMaaCol,
   synDisplayRowGreenMaaStyle,
+  isSynDisplayRowGreenAcanCol,
+  synDisplayRowGreenAcanStyle,
   isSynHdrLmDividerRightCol,
   isSynHdrLmDividerLeftCol,
   isSynHdrAaDividerRightCol,
@@ -135,7 +149,8 @@ import {
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
-} from './synStore.js?v=syn-bands3';
+  synLabel,
+} from './synStore.js?v=syn-acan-green1';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -145,14 +160,14 @@ import {
 } from './synthesisPerf.js?v=syn-pillar-cg2';
 import {
   ROW_H,
-  colOverscanPx,
+  synColOverscanPx,
   rowOverscanForColCount,
   shouldVirtualizeRows,
   shouldVirtualizeCols,
-  createRowScrollCache,
   createScrollRafSync,
   SYN_MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=syn-nav-perf1';
+  visibleRowRange,
+} from './gridScroll.js?v=syn-nav-perf2';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -254,7 +269,7 @@ export default {
     const virtualizeCols = computed(() =>
       shouldVirtualizeCols(tableWidth.value, viewportW.value)
     );
-    const colBufferPx = computed(() => colOverscanPx(viewportW.value));
+    const colBufferPx = computed(() => synColOverscanPx(viewportW.value));
 
     const visibleScrollCols = computed(() => {
       if (!virtualizeCols.value) return scrollableCols.value;
@@ -286,13 +301,29 @@ export default {
     );
     const rowCount = computed(() => bodyRows.value.length);
 
+    const displayRowByExcel = computed(() => {
+      const m = new Map();
+      for (const e of bodyRows.value) {
+        if (e.excelRow != null) m.set(e.excelRow, e.displayRow);
+      }
+      return m;
+    });
+
+    const excelRowBodyIndex = computed(() => {
+      const m = new Map();
+      const rows = bodyRows.value;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].excelRow != null) m.set(rows[i].excelRow, i);
+      }
+      return m;
+    });
+
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
     const rowBuffer = computed(() =>
       rowOverscanForColCount(viewportH.value, displayColumns.value.length)
     );
-    const rowScrollCache = createRowScrollCache(SYN_MAX_RENDERED_ROWS);
     const visibleStart = ref(0);
     const visibleEnd = ref(0);
 
@@ -303,11 +334,12 @@ export default {
         visibleEnd.value = count;
         return;
       }
-      const range = rowScrollCache.resolve(
+      const range = visibleRowRange(
         scrollTop.value,
         viewportH.value,
         count,
-        rowBuffer.value
+        rowBuffer.value,
+        SYN_MAX_RENDERED_ROWS
       );
       visibleStart.value = range.start;
       visibleEnd.value = range.end;
@@ -326,13 +358,9 @@ export default {
     });
 
     function bodyTopForExcelRow(excelRow) {
-      const rows = bodyRows.value;
-      for (let i = 0; i < rows.length; i++) {
-        if (rows[i].excelRow === excelRow) {
-          return SYN_HEAD_ROW_H + i * ROW_H;
-        }
-      }
-      return null;
+      const i = excelRowBodyIndex.value.get(excelRow);
+      if (i == null) return null;
+      return SYN_HEAD_ROW_H + i * ROW_H;
     }
 
     function usesPillarLetterOverlay(col) {
@@ -408,11 +436,19 @@ export default {
 
     const editEpoch = ref(0);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
+    const displayCache = new Map();
+    let displayCacheKey = '';
+
+    function invalidateDisplayCache() {
+      displayCache.clear();
+      displayCacheKey = '';
+    }
 
     watch(
       () => props.externalEditTick,
       () => {
         editEpoch.value += 1;
+        invalidateDisplayCache();
       }
     );
 
@@ -430,6 +466,7 @@ export default {
       }
       if (props.rawSyn) upsertRawCell(props.rawSyn, row, col, value);
       editEpoch.value += 1;
+      invalidateDisplayCache();
       emit('cell-change', {
         row,
         col,
@@ -463,10 +500,18 @@ export default {
       setNavigationLock,
     } = cellEditor;
 
-    /** Only virtual gap rows (no Excel row) stay display-only. */
+    /** Formula-driven cells (SUMPRODUCT, adaptation totals) are not manually editable. */
     function cellReadonly(row, col) {
       if (row == null) return true;
-      return isSynAdaptationSumCell(row, col);
+      if (isSynAdaptationSumCell(row, col)) return true;
+      const cell = getCell(cellMap.value, row, col);
+      if (props.session?.isReadonlySynCell?.(row, col, cell)) return true;
+      const label = synLabel(cellMap.value, row);
+      const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
+      return (
+        isSynSectionSumDataCell(row, col, props.sheet, cell, label, rowClass) ||
+        isSynSumproductDataCell(row, col, props.sheet, cell, label, rowClass)
+      );
     }
 
     const cellNavigation = createGridCellNavigation({
@@ -503,22 +548,34 @@ export default {
     }
 
     function cellDisplay(row, col) {
-      void calcRevision.value;
-      void editEpoch.value;
+      const cacheKey = `${calcRevision.value}:${editEpoch.value}`;
+      if (cacheKey !== displayCacheKey) {
+        invalidateDisplayCache();
+        displayCacheKey = cacheKey;
+      }
       if (row == null) return '';
+      const hitKey = `${row}:${col}`;
+      if (displayCache.has(hitKey)) return displayCache.get(hitKey);
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
-        if (usesPillarLetterOverlay(col)) return '';
-        return synPillarLetterForRow(
+        if (usesPillarLetterOverlay(col)) {
+          displayCache.set(hitKey, '');
+          return '';
+        }
+        const pillar = synPillarLetterForRow(
           row,
           col,
           pillarColumns.value,
           cellMap.value,
           props.sheet
         );
+        displayCache.set(hitKey, pillar);
+        return pillar;
       }
       const cell = getCell(cellMap.value, row, col);
       let displayCell = cell;
-      if (cell?.userEdited) {
+      if (isSynAdaptationSumCell(row, col)) {
+        displayCell = null;
+      } else if (cell?.userEdited) {
         displayCell = cell;
       } else if (props.session?.getDisplayValue) {
         const fromSession = props.session.getDisplayValue(
@@ -539,8 +596,9 @@ export default {
         props.sheet,
         pillarColumns.value
       );
-      if (isSynMetricRow(row)) return shown;
-      return formatVal(shown);
+      const out = isSynMetricRow(row) ? shown : formatVal(shown);
+      displayCache.set(hitKey, out);
+      return out;
     }
 
     function headerEdgeRight(row, colIdx, colsLen) {
@@ -668,6 +726,10 @@ export default {
       if (isSynForceWhiteExcelCol(col)) return base;
       if (isSynSpacerDisplayExcelCol(col)) return base;
       const display = cellDisplay(row, col);
+      const bevStyle = synHdrBevTextStyle(row, display);
+      if (bevStyle) {
+        return { ...base, ...bevStyle };
+      }
       const energyStyle = synHdrEnergyValueStyle(display);
       if (energyStyle) {
         return { ...base, ...energyStyle };
@@ -680,7 +742,10 @@ export default {
           color: '#000',
         };
       }
-      if (isSynProjHeaderGreenCol(row, col)) {
+      if (
+        isSynProjHeaderGreenCol(row, col) ||
+        isSynTargetTextGreenCell(col, display)
+      ) {
         return { ...base, ...synProjHeaderGreenStyle() };
       }
       if (isSynProjHeaderYellowCol(row, col)) {
@@ -698,22 +763,32 @@ export default {
       if (isSynRow19PaaRedCol(row, col)) {
         return { ...base, ...synRow19PaaRedStyle() };
       }
-      if (isSynRow20MopGreenCol(row, col)) {
-        return { ...base, ...synRow20MopGreenStyle() };
+      if (isSynRow20PortfolioRedCol(row, col)) {
+        const style = { ...base, ...synRow20PortfolioRedStyle() };
+        if (isSynRow20PortfolioYellowCol(row, col)) {
+          Object.assign(style, synRow20PortfolioYellowStyle());
+        }
+        return style;
       }
-      if (isSynRow20PaaRedCol(row, col)) {
-        return { ...base, ...synRow20PaaRedStyle() };
+      if (isSynRow17MaaBlueCol(row, col)) {
+        return { ...base, ...synRow17MaaBlueStyle() };
       }
-      if (isSynRow21MpsvyRedCol(row, col)) {
-        return { ...base, ...synRow21MpsvyRedStyle() };
+      if (isSynRow17AcanBlueCol(row, col)) {
+        return { ...base, ...synRow17MaaBlueStyle() };
       }
-      if (isSynRow21MaaWhiteCol(row, col)) {
-        return { ...base, ...synRow21MaaWhiteStyle() };
+      if (isSynRow18MaaGreyCol(row, col)) {
+        return { ...base, ...synRow18MaaGreyStyle() };
+      }
+      if (isSynRow18AcanGreyCol(row, col)) {
+        return { ...base, ...synRow18MaaGreyStyle() };
       }
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
       if (isSynRow16FluoEvery3FromMCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
+      if (isSynRow16FluoEvery3FromAcanCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
       if (isSynRow17FluoEvery3FromMCol(row, col)) {
@@ -724,6 +799,9 @@ export default {
       }
       if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenMaaStyle() };
+      }
+      if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowGreenAcanStyle() };
       }
       return { ...base, ...cellInlineStyle(row, col) };
     }
@@ -747,15 +825,20 @@ export default {
       if (isSynForceWhiteExcelCol(col)) return 'syn-force-white-col';
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return spacerCol;
+      const bevCls = synHdrBevTextClass(row, display);
+      if (bevCls) return withHdrPanelBold(row, col, bevCls, display);
       const energyCls = synHdrEnergyValueClass(display);
       if (energyCls) return withHdrPanelBold(row, col, energyCls, display);
       // Display-row based styling (after spacer/pillar checks).
-      const displayRow = bodyRows.value.find((e) => e.excelRow === row)?.displayRow;
+      const displayRow = displayRowByExcel.value.get(row);
       if (isSynDisplayRowGreyMaaCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-grey-maa', display);
       }
       if (isSynDisplayRowGreenMaaCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-green-maa', display);
+      }
+      if (isSynDisplayRowGreenAcanCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-green-acan', display);
       }
       const spotBlue = synSpotBlueColClass(row, col);
       if (spotBlue) return withHdrPanelBold(row, col, spotBlue, display);
@@ -767,7 +850,10 @@ export default {
       if (metricWhiteCol) return withHdrPanelBold(row, col, metricWhiteCol, display);
       const accent = synCellAccentClass(display);
       if (accent) return withHdrPanelBold(row, col, accent, display);
-      if (isSynProjHeaderGreenCol(row, col)) {
+      if (
+        isSynProjHeaderGreenCol(row, col) ||
+        isSynTargetTextGreenCell(col, display)
+      ) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-green', display);
       }
       if (isSynProjHeaderYellowCol(row, col)) {
@@ -790,22 +876,34 @@ export default {
       if (isSynRow19PaaRedCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row19-paa-red', display);
       }
-      if (isSynRow20MopGreenCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row20-mop-green', display);
+      if (isSynRow20PortfolioRedCol(row, col)) {
+        const cls = isSynRow20PortfolioYellowCol(row, col)
+          ? 'syn-row20-portfolio-red syn-row20-portfolio-yellow'
+          : 'syn-row20-portfolio-red';
+        return withHdrPanelBold(row, col, cls, display);
       }
-      if (isSynRow20PaaRedCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row20-paa-red', display);
+      if (isSynRow21Step3Col(row, col, display)) {
+        return withHdrPanelBold(row, col, 'syn-row21-step3', display);
       }
-      if (isSynRow21MpsvyRedCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row21-mpsvy-red', display);
+      if (isSynRow17MaaBlueCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
       }
-      if (isSynRow21MaaWhiteCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row21-maa-white', display);
+      if (isSynRow17AcanBlueCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
+      }
+      if (isSynRow18MaaGreyCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row18-maa-grey', display);
+      }
+      if (isSynRow18AcanGreyCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row18-maa-grey', display);
       }
       if (isSynRow25MaGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row25-ma-green', display);
       }
       if (isSynRow16FluoEvery3FromMCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynRow16FluoEvery3FromAcanCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynRow17FluoEvery3FromMCol(row, col)) {
@@ -825,6 +923,17 @@ export default {
       return withHdrPanelBold(row, col, synProjectCellClass(display, col), display);
     }
 
+    function cellDisplayHtml(row, col, displayed) {
+      const value = cellShowValue(row, col, displayed);
+      const bevHtml = synHdrBevDisplayHtml(row, value);
+      if (bevHtml) return bevHtml;
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
     function updateViewport() {
       if (!scrollEl.value) return;
       viewportH.value = scrollEl.value.clientHeight;
@@ -834,9 +943,9 @@ export default {
     watch(
       () => props.outlineOnly,
       () => {
-        rowScrollCache.reset();
         scrollTop.value = 0;
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
+        invalidateDisplayCache();
       }
     );
 
@@ -853,8 +962,11 @@ export default {
     );
 
     onMounted(() => {
-      props.session?.bindSynthesisGrid?.((row, col) =>
-        getCell(cellMap.value, row, col)
+      props.session?.bindSynthesisGrid?.(
+        (row, col) => getCell(cellMap.value, row, col),
+        props.sheet,
+        (row) => synLabel(cellMap.value, row),
+        (row) => synRowStyleClass(cellMap.value, row, props.sheet)
       );
       updateViewport();
       scrollSync.flush();
@@ -866,6 +978,15 @@ export default {
     });
 
     // Vue template only sees setup() return values — keep all template helpers here.
+    /** No-op fallback when a cached synStore.js omits a table helper (avoids render crash). */
+    function synTemplateFn(name, fn) {
+      if (typeof fn === 'function') return fn;
+      console.error(
+        `[SynthesisGrid] ${name} is not a function — hard-refresh (Ctrl+F5) to reload synStore.js`
+      );
+      return () => false;
+    }
+
     const synGridTemplateHelpers = {
       excelToDisplayCol,
       isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
@@ -879,52 +1000,188 @@ export default {
       isSynHdrLmDividerRightCol,
       isSynHdrLmDividerLeftCol,
       isSynHdrAaDividerRightCol,
-      isSynHdrLmDividerRightEntry,
-      isSynHdrLmDividerLeftEntry,
-      isSynHdrAaDividerRightEntry,
-      isSynHdrCjDividerRightEntry,
-      isSynHdrMaDividerRightEntry,
-      isSynAcAnTableCellEntry,
-      isSynHdrAcAnDividerRightEntry,
-      isSynHdrAcAnDividerLeftEntry,
-      isSynHdrAcAnDividerRightEdgeEntry,
-      isSynApBbTableCellEntry,
-      isSynHdrApBbDividerRightEntry,
-      isSynHdrApBbDividerLeftEntry,
-      isSynHdrApBbDividerRightEdgeEntry,
-      isSynBsCeTableCellEntry,
-      isSynHdrBsCeDividerRightEntry,
-      isSynHdrBsCeDividerLeftEntry,
-      isSynHdrBsCeDividerRightEdgeEntry,
-      isSynBdBoTableCellEntry,
-      isSynHdrBdBoDividerRightEntry,
-      isSynHdrBdBoDividerLeftEntry,
-      isSynHdrBdBoDividerRightEdgeEntry,
-      isSynCiCyTableCellEntry,
-      isSynHdrCiCyDividerRightEntry,
-      isSynHdrCiCyDividerLeftEntry,
-      isSynHdrCiCyDividerRightEdgeEntry,
-      isSynDaDpTableCellEntry,
-      isSynHdrDaDpDividerRightEntry,
-      isSynHdrDaDpDividerLeftEntry,
-      isSynHdrDaDpDividerRightEdgeEntry,
-      isSynDrEdTableCellEntry,
-      isSynHdrDrEdDividerRightEntry,
-      isSynHdrDrEdDividerLeftEntry,
-      isSynHdrDrEdDividerRightEdgeEntry,
-      isSynEfEqTableCellEntry,
-      isSynHdrEfEqDividerRightEntry,
-      isSynHdrEfEqDividerLeftEntry,
-      isSynHdrEfEqDividerRightEdgeEntry,
-      isSynEsFeTableCellEntry,
-      isSynHdrEsFeDividerRightEntry,
-      isSynHdrEsFeDividerLeftEntry,
-      isSynHdrEsFeDividerRightEdgeEntry,
-      isSynFjFzTableCellEntry,
-      isSynHdrFjFzDividerRightEntry,
-      isSynHdrFjFzDividerLeftEntry,
-      isSynHdrFjFzDividerRightEdgeEntry,
+      isSynHdrLmDividerRightEntry: synTemplateFn(
+        'isSynHdrLmDividerRightEntry',
+        isSynHdrLmDividerRightEntry
+      ),
+      isSynHdrLmDividerLeftEntry: synTemplateFn(
+        'isSynHdrLmDividerLeftEntry',
+        isSynHdrLmDividerLeftEntry
+      ),
+      isSynHdrAaDividerRightEntry: synTemplateFn(
+        'isSynHdrAaDividerRightEntry',
+        isSynHdrAaDividerRightEntry
+      ),
+      isSynHdrCjDividerRightEntry: synTemplateFn(
+        'isSynHdrCjDividerRightEntry',
+        isSynHdrCjDividerRightEntry
+      ),
+      isSynHdrMaDividerRightEntry: synTemplateFn(
+        'isSynHdrMaDividerRightEntry',
+        isSynHdrMaDividerRightEntry
+      ),
+      isSynAcAnTableCellEntry: synTemplateFn(
+        'isSynAcAnTableCellEntry',
+        isSynAcAnTableCellEntry
+      ),
+      isSynHdrAcAnDividerRightEntry: synTemplateFn(
+        'isSynHdrAcAnDividerRightEntry',
+        isSynHdrAcAnDividerRightEntry
+      ),
+      isSynHdrAcAnDividerLeftEntry: synTemplateFn(
+        'isSynHdrAcAnDividerLeftEntry',
+        isSynHdrAcAnDividerLeftEntry
+      ),
+      isSynHdrAcAnDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrAcAnDividerRightEdgeEntry',
+        isSynHdrAcAnDividerRightEdgeEntry
+      ),
+      isSynApBbTableCellEntry: synTemplateFn(
+        'isSynApBbTableCellEntry',
+        isSynApBbTableCellEntry
+      ),
+      isSynHdrApBbDividerRightEntry: synTemplateFn(
+        'isSynHdrApBbDividerRightEntry',
+        isSynHdrApBbDividerRightEntry
+      ),
+      isSynHdrApBbDividerLeftEntry: synTemplateFn(
+        'isSynHdrApBbDividerLeftEntry',
+        isSynHdrApBbDividerLeftEntry
+      ),
+      isSynHdrApBbDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrApBbDividerRightEdgeEntry',
+        isSynHdrApBbDividerRightEdgeEntry
+      ),
+      isSynBsCeTableCellEntry: synTemplateFn(
+        'isSynBsCeTableCellEntry',
+        isSynBsCeTableCellEntry
+      ),
+      isSynHdrBsCeDividerRightEntry: synTemplateFn(
+        'isSynHdrBsCeDividerRightEntry',
+        isSynHdrBsCeDividerRightEntry
+      ),
+      isSynHdrBsCeDividerLeftEntry: synTemplateFn(
+        'isSynHdrBsCeDividerLeftEntry',
+        isSynHdrBsCeDividerLeftEntry
+      ),
+      isSynHdrBsCeDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrBsCeDividerRightEdgeEntry',
+        isSynHdrBsCeDividerRightEdgeEntry
+      ),
+      isSynBdBoTableCellEntry: synTemplateFn(
+        'isSynBdBoTableCellEntry',
+        isSynBdBoTableCellEntry
+      ),
+      isSynHdrBdBoDividerRightEntry: synTemplateFn(
+        'isSynHdrBdBoDividerRightEntry',
+        isSynHdrBdBoDividerRightEntry
+      ),
+      isSynHdrBdBoDividerLeftEntry: synTemplateFn(
+        'isSynHdrBdBoDividerLeftEntry',
+        isSynHdrBdBoDividerLeftEntry
+      ),
+      isSynHdrBdBoDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrBdBoDividerRightEdgeEntry',
+        isSynHdrBdBoDividerRightEdgeEntry
+      ),
+      isSynCiCyTableCellEntry: synTemplateFn(
+        'isSynCiCyTableCellEntry',
+        isSynCiCyTableCellEntry
+      ),
+      isSynHdrCiCyDividerRightEntry: synTemplateFn(
+        'isSynHdrCiCyDividerRightEntry',
+        isSynHdrCiCyDividerRightEntry
+      ),
+      isSynHdrCiCyDividerLeftEntry: synTemplateFn(
+        'isSynHdrCiCyDividerLeftEntry',
+        isSynHdrCiCyDividerLeftEntry
+      ),
+      isSynHdrCiCyDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrCiCyDividerRightEdgeEntry',
+        isSynHdrCiCyDividerRightEdgeEntry
+      ),
+      isSynDaDpTableCellEntry: synTemplateFn(
+        'isSynDaDpTableCellEntry',
+        isSynDaDpTableCellEntry
+      ),
+      isSynHdrDaDpDividerRightEntry: synTemplateFn(
+        'isSynHdrDaDpDividerRightEntry',
+        isSynHdrDaDpDividerRightEntry
+      ),
+      isSynHdrDaDpDividerLeftEntry: synTemplateFn(
+        'isSynHdrDaDpDividerLeftEntry',
+        isSynHdrDaDpDividerLeftEntry
+      ),
+      isSynHdrDaDpDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrDaDpDividerRightEdgeEntry',
+        isSynHdrDaDpDividerRightEdgeEntry
+      ),
+      isSynDrEdTableCellEntry: synTemplateFn(
+        'isSynDrEdTableCellEntry',
+        isSynDrEdTableCellEntry
+      ),
+      isSynHdrDrEdDividerRightEntry: synTemplateFn(
+        'isSynHdrDrEdDividerRightEntry',
+        isSynHdrDrEdDividerRightEntry
+      ),
+      isSynHdrDrEdDividerLeftEntry: synTemplateFn(
+        'isSynHdrDrEdDividerLeftEntry',
+        isSynHdrDrEdDividerLeftEntry
+      ),
+      isSynHdrDrEdDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrDrEdDividerRightEdgeEntry',
+        isSynHdrDrEdDividerRightEdgeEntry
+      ),
+      isSynEfEqTableCellEntry: synTemplateFn(
+        'isSynEfEqTableCellEntry',
+        isSynEfEqTableCellEntry
+      ),
+      isSynHdrEfEqDividerRightEntry: synTemplateFn(
+        'isSynHdrEfEqDividerRightEntry',
+        isSynHdrEfEqDividerRightEntry
+      ),
+      isSynHdrEfEqDividerLeftEntry: synTemplateFn(
+        'isSynHdrEfEqDividerLeftEntry',
+        isSynHdrEfEqDividerLeftEntry
+      ),
+      isSynHdrEfEqDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrEfEqDividerRightEdgeEntry',
+        isSynHdrEfEqDividerRightEdgeEntry
+      ),
+      isSynEsFeTableCellEntry: synTemplateFn(
+        'isSynEsFeTableCellEntry',
+        isSynEsFeTableCellEntry
+      ),
+      isSynHdrEsFeDividerRightEntry: synTemplateFn(
+        'isSynHdrEsFeDividerRightEntry',
+        isSynHdrEsFeDividerRightEntry
+      ),
+      isSynHdrEsFeDividerLeftEntry: synTemplateFn(
+        'isSynHdrEsFeDividerLeftEntry',
+        isSynHdrEsFeDividerLeftEntry
+      ),
+      isSynHdrEsFeDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrEsFeDividerRightEdgeEntry',
+        isSynHdrEsFeDividerRightEdgeEntry
+      ),
+      isSynFjFzTableCellEntry: synTemplateFn(
+        'isSynFjFzTableCellEntry',
+        isSynFjFzTableCellEntry
+      ),
+      isSynHdrFjFzDividerRightEntry: synTemplateFn(
+        'isSynHdrFjFzDividerRightEntry',
+        isSynHdrFjFzDividerRightEntry
+      ),
+      isSynHdrFjFzDividerLeftEntry: synTemplateFn(
+        'isSynHdrFjFzDividerLeftEntry',
+        isSynHdrFjFzDividerLeftEntry
+      ),
+      isSynHdrFjFzDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrFjFzDividerRightEdgeEntry',
+        isSynHdrFjFzDividerRightEdgeEntry
+      ),
       isSynProjHeaderGreenCol,
+      isSynTargetTextGreenCell,
       synProjHeaderGreenStyle,
       isSynProjHeaderRedCol,
       synProjHeaderRedStyle,
@@ -964,6 +1221,7 @@ export default {
       onScroll: scrollSync.onScroll,
       isCellActive,
       cellShowValue,
+      cellDisplayHtml,
       onCellMouseDown,
       onCellSpanMouseDown,
       onCellFocus,
@@ -1081,7 +1339,8 @@ export default {
                   v-else
                   class="grid-cell-display"
                   @mousedown="onCellSpanMouseDown(entry.excelRow, p.col, $event)"
-                >{{ cellShowValue(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col)) }}</span>
+                  v-html="cellDisplayHtml(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col))"
+                ></span>
               </td>
               <td v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></td>
               <td
@@ -1110,7 +1369,11 @@ export default {
                       isGapEntry(entry) && isGapGreenPillarCol(colEntry.col),
                     'syn-proj-hdr-green':
                       !isGapEntry(entry) &&
-                      isSynProjHeaderGreenCol(entry.excelRow, colEntry.col),
+                      (isSynProjHeaderGreenCol(entry.excelRow, colEntry.col) ||
+                        isSynTargetTextGreenCell(
+                          colEntry.col,
+                          cellDisplay(entry.excelRow, colEntry.col)
+                        )),
                     'syn-proj-hdr-red':
                       !isGapEntry(entry) &&
                       isSynProjHeaderRedCol(entry.excelRow, colEntry.col),
@@ -1295,7 +1558,8 @@ export default {
                   v-else
                   class="grid-cell-display"
                   @mousedown="onCellSpanMouseDown(entry.excelRow, colEntry.col, $event)"
-                >{{ cellShowValue(entry.excelRow, colEntry.col, cellDisplay(entry.excelRow, colEntry.col)) }}</span>
+                  v-html="cellDisplayHtml(entry.excelRow, colEntry.col, cellDisplay(entry.excelRow, colEntry.col))"
+                ></span>
               </td>
               <td v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></td>
             </tr>
