@@ -81,6 +81,14 @@ import {
   isSynHdrApBbDividerRightEntry,
   isSynHdrApBbDividerLeftEntry,
   isSynHdrApBbDividerRightEdgeEntry,
+  isSynBsCeTableCellEntry,
+  isSynHdrBsCeDividerRightEntry,
+  isSynHdrBsCeDividerLeftEntry,
+  isSynHdrBsCeDividerRightEdgeEntry,
+  isSynBdBoTableCellEntry,
+  isSynHdrBdBoDividerRightEntry,
+  isSynHdrBdBoDividerLeftEntry,
+  isSynHdrBdBoDividerRightEdgeEntry,
   SYN_HEADER_PANEL_LAST_ROW,
   isSynSpacerDisplayExcelCol,
   isSynForceWhiteExcelCol,
@@ -90,7 +98,7 @@ import {
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
-} from './synStore.js?v=syn-apbb2';
+} from './synStore.js?v=syn-bsce1';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -522,13 +530,19 @@ export default {
         list.push('syn-header-block', 'syn-proj-table-frame', 'syn-hdr-panel-grid');
         list.push('syn-ac-an-table-frame');
         list.push('syn-ap-bb-table-frame');
+        list.push('syn-bs-ce-table-frame');
+        list.push('syn-bd-bo-table-frame');
         if (row === SYN_GRID_FIRST_ROW) {
           list.push('syn-ac-an-edge-top');
           list.push('syn-ap-bb-edge-top');
+          list.push('syn-bs-ce-edge-top');
+          list.push('syn-bd-bo-edge-top');
         }
         if (row === SYN_HEADER_PANEL_LAST_ROW) {
           list.push('syn-ac-an-edge-bottom');
           list.push('syn-ap-bb-edge-bottom');
+          list.push('syn-bs-ce-edge-bottom');
+          list.push('syn-bd-bo-edge-bottom');
         }
       }
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
@@ -767,6 +781,14 @@ export default {
       isSynHdrApBbDividerRightEntry,
       isSynHdrApBbDividerLeftEntry,
       isSynHdrApBbDividerRightEdgeEntry,
+      isSynBsCeTableCellEntry,
+      isSynHdrBsCeDividerRightEntry,
+      isSynHdrBsCeDividerLeftEntry,
+      isSynHdrBsCeDividerRightEdgeEntry,
+      isSynBdBoTableCellEntry,
+      isSynHdrBdBoDividerRightEntry,
+      isSynHdrBdBoDividerLeftEntry,
+      isSynHdrBdBoDividerRightEdgeEntry,
       isSynProjHeaderGreenCol,
       synProjHeaderGreenStyle,
     };
@@ -999,6 +1021,32 @@ export default {
                       colEntry.col
                     ),
                     'syn-hdr-edge-bb-right': isSynHdrApBbDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-bs-ce-cell': isSynBsCeTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-bsce-right': isSynHdrBsCeDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-bs-left': isSynHdrBsCeDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-ce-right': isSynHdrBsCeDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-bd-bo-cell': isSynBdBoTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-bdbo-right': isSynHdrBdBoDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-bd-left': isSynHdrBdBoDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-bo-right': isSynHdrBdBoDividerRightEdgeEntry(
                       entry,
                       colEntry.col
                     ),
