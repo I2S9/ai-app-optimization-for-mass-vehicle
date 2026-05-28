@@ -631,11 +631,11 @@ export function applySynRows27To41PresetCells(cells = []) {
   return applySynRowsCjPresetCells(cells);
 }
 
-/** Rows 25–41 (grid display 26–42) — display M…AA presets; null = empty grey spacer. */
+/** Rows 25–75 (grid display 26–76) — display M…AA presets; null = empty grey spacer. */
 export const SYN_ADAPT_MAA_PRESET_FIRST_ROW = 25;
-export const SYN_ADAPT_MAA_PRESET_LAST_ROW = 41;
-/** Excel rows that must stay blank in M…AA (grid display 27, 35, 38, 41). */
-export const SYN_MAA_GREY_SPACER_EXCEL_ROWS = new Set([26, 34, 37, 40]);
+export const SYN_ADAPT_MAA_PRESET_LAST_ROW = 75;
+/** Excel rows blank in M…AA (grid display 27, 35, 38, 41, 50, 51). */
+export const SYN_MAA_GREY_SPACER_EXCEL_ROWS = new Set([26, 34, 37, 40, 49, 50]);
 const SYN_MAA_PRESET_DISPLAY_COLS = [
   'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA',
 ];
@@ -660,6 +660,69 @@ const SYN_MAA_PRESET_NULL_ROW = synMaaPresetRowMap(
 const SYN_MAA_PRESET_ZERO_ROW = synMaaPresetRowMap(
   SYN_MAA_PRESET_DISPLAY_COLS.map(() => 0)
 );
+
+/** Five triplet groups (M-O, P-R, S-U, V-X, Y-AA) — each value ×3. */
+function synMaaPresetFiveGroups(g1, g2, g3, g4, g5) {
+  const t = (v) => [v, v, v];
+  return [...t(g1), ...t(g2), ...t(g3), ...t(g4), ...t(g5)];
+}
+
+/** Rows 54, 55, 57 — third triplet (S-U) uses three distinct values. */
+function synMaaPresetSplitThirdTriplet(a, b, s, t, u, vA, vB) {
+  return [...synMaaPresetFiveGroups(a, b, s, vA, vB).slice(0, 6), s, t, u, ...synMaaPresetFiveGroups(a, b, s, vA, vB).slice(9)];
+}
+
+function synMaaPresetAll(v) {
+  return synMaaPresetRowMap(SYN_MAA_PRESET_DISPLAY_COLS.map(() => v));
+}
+
+function synMaaPresetEntries42To75() {
+  const Z = SYN_MAA_PRESET_ZERO_ROW;
+  const N = SYN_MAA_PRESET_NULL_ROW;
+  const G = synMaaPresetFiveGroups;
+  const all = synMaaPresetAll;
+  return [
+    [42, synMaaPresetRowMap(G(2.8, 2.8, 2.8, 3.0, 3.0))],
+    [
+      43,
+      synMaaPresetRowMap([
+        7.0, 7.5, 7.5, 7.0, 7.5, 7.5, 7.5, 7.5, 7.5, 7.0, 7.0, 7.0, 7.0, 7.0, 7.0,
+      ]),
+    ],
+    [44, synMaaPresetRowMap(G(7.0, 7.0, 7.0, 5.6, 7.1))],
+    [45, Z],
+    [46, all(4.4)],
+    [47, all(4.4)],
+    [48, Z],
+    [49, N],
+    [50, N],
+    [51, synMaaPresetRowMap(G(0, 0, 0, 8.6, 0))],
+    [52, synMaaPresetRowMap(G(0, 0, 0, 8.6, 0))],
+    [53, synMaaPresetRowMap(synMaaPresetSplitThirdTriplet(59.3, 59.7, 59.7, 60.5, 60.5, 59.3, 59.7))],
+    [54, synMaaPresetRowMap(synMaaPresetSplitThirdTriplet(27.2, 27.6, 27.6, 28.0, 28.0, 27.2, 27.6))],
+    [55, Z],
+    [56, synMaaPresetRowMap(synMaaPresetSplitThirdTriplet(32.1, 32.1, 32.1, 32.5, 32.5, 32.1, 32.5))],
+    [57, Z],
+    [58, Z],
+    [59, Z],
+    [60, synMaaPresetRowMap(G(23.0, 23.0, 23.0, 12.0, 12.0))],
+    [61, synMaaPresetRowMap(G(23.0, 23.0, 23.0, 12.0, 12.0))],
+    [62, synMaaPresetRowMap(G(414.0, 419.6, 420.6, 14.4, 50.7))],
+    [63, synMaaPresetRowMap(G(414.0, 419.6, 420.6, 12.0, 47.4))],
+    [64, synMaaPresetRowMap(G(0, 0, 0, 2.4, 3.3))],
+    [65, Z],
+    [66, Z],
+    [67, Z],
+    [68, Z],
+    [69, Z],
+    [70, all(10.1)],
+    [71, all(10.1)],
+    [72, all(15.8)],
+    [73, all(15.8)],
+    [74, Z],
+    [75, synMaaPresetRowMap(G(0, 0, 0, 106.0, 117.0))],
+  ];
+}
 
 const SYN_ROWS_MAA_PRESETS = new Map([
   [
@@ -733,6 +796,7 @@ const SYN_ROWS_MAA_PRESETS = new Map([
       17.1, 17.1, 17.1,
     ]),
   ],
+  ...synMaaPresetEntries42To75(),
 ]);
 
 export function synRowMaaPresetRaw(row, col) {
@@ -745,7 +809,7 @@ export function synRowMaaPresetRaw(row, col) {
   return rowMap.get(d);
 }
 
-/** Rows 25–41 — force display M…AA presets (overrides legacy export). */
+/** Rows 25–75 — force display M…AA presets (overrides legacy export). */
 export function applySynRowsMaaPresetCells(cells = []) {
   for (const [row, rowMap] of SYN_ROWS_MAA_PRESETS) {
     for (const [display, value] of rowMap) {

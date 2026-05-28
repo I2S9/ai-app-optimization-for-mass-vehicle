@@ -81,7 +81,7 @@ import {
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
-} from './synStore.js?v=syn-pillar-cg2';
+} from './synStore.js?v=syn-maa89';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -769,6 +769,7 @@ export default {
       headerLabelEdgeRight,
       pillarLetterOverlays,
       usesPillarLetterOverlay,
+      synExcelColTraceClass,
       onScroll: scrollSync.onScroll,
       isCellActive,
       cellShowValue,
