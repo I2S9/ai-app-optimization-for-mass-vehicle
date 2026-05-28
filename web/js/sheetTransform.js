@@ -370,12 +370,14 @@ import {
   buildSynPillarColumns,
   computeSynEffectiveLastRow,
   SYN_MAX_EXCEL_ROW,
+  SYN_BUILTIN_PILLAR_META,
 } from './synStore.js';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 import {
   applySynRow25PresetCells,
   applySynRow26ZeroCells,
   applySynRowsCjPresetCells,
+  applySynRowsMaaPresetCells,
 } from './synStore.js';
 
 /** Fix legacy exports that stored shared-string indices as plain numbers. */
@@ -422,20 +424,24 @@ export function transformSynthesisSheet(sheet) {
     if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
     else if (raw) headers[col] = translateValue(String(raw));
   }
-  const cells = applySynRowsCjPresetCells(
-    applySynRow26ZeroCells(
-      applySynRow25PresetCells(
-        (sheet.cells || [])
-          .filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
-          .map((c) => ({ ...c }))
+  const cells = applySynRowsMaaPresetCells(
+    applySynRowsCjPresetCells(
+      applySynRow26ZeroCells(
+        applySynRow25PresetCells(
+          (sheet.cells || [])
+            .filter((c) => c.r <= SYN_MAX_EXCEL_ROW)
+            .map((c) => ({ ...c }))
+        )
       )
     )
   );
   const headerRows = sheet.headerRows || {};
   const cellMap = buildCellMap(cells, headerRows);
-  const pillarColumns = Object.fromEntries(
-    buildSynPillarColumns(sheet, cellMap)
-  );
+  const pillarMap = buildSynPillarColumns(sheet, cellMap);
+  for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {
+    pillarMap.set(col, { ...meta, ...pillarMap.get(col) });
+  }
+  const pillarColumns = Object.fromEntries(pillarMap);
   const effectiveLastRow = Math.min(
     computeSynEffectiveLastRow({ ...sheet, cells }, cellMap),
     SYN_MAX_EXCEL_ROW

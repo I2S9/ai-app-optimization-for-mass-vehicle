@@ -15,11 +15,17 @@ import {
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
+  isSynSp2RestartDisplayExcelCol,
+  isSynBuiltinPillarExcelCol,
+  synPillarAccentClass,
 } from './synthesisPerf.js';
 
 export {
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
+  isSynSp2RestartDisplayExcelCol,
+  isSynBuiltinPillarExcelCol,
+  synPillarAccentClass,
 } from './synthesisPerf.js';
 
 export const SYN_FILTER_ROWS = new Set([3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
@@ -40,7 +46,6 @@ export const SYN_FORCE_WHITE_DISPLAY_COLS = [
   'BP',
   'BR',
   'CF',
-  'CG',
   'CH',
   'CZ',
   'DQ',
@@ -64,7 +69,7 @@ export const SYN_HDR_PANEL_BOLD_LAST_ROW = 19;
 export const SYN_HDR_METRIC_ROW_BG = '#ebf1de';
 export const SYN_HDR_METRIC_BG_ROWS = new Set([18, 19]);
 export const SYN_HDR_PANEL_GAP_COUNT = 2;
-/** Blank rows before Date (display 1–2); pillars B/K keep pillar fill. */
+/** Blank rows before Date (display 1–2); pillars B/K/CG keep pillar fill. */
 export const SYN_HDR_PANEL_TOP_GAP_COUNT = 2;
 
 /** Filter band labels (Excel F); export sometimes omits shared-string cells. */
@@ -89,8 +94,19 @@ export const SYN_METRIC_ROWS = new Set([15, 16, 17, 18, 19, 20, 21, 22]);
 export const SYN_METRIC_CJ_WHITE_ROWS = new Set([15, 16, 17, 20, 21, 22]);
 /** Metric rows whose vehicle-column numbers are shown with a kg suffix. */
 export const SYN_METRIC_KG_ROWS = new Set([16, 18, 19, 20]);
-/** SP1 / SP2 pillars — vertical title rendered in a grid overlay (Excel G & P). */
-export const SYN_PILLAR_OVERLAY_COLS = new Set(['G', 'P']);
+/** SP1 / SP2 pillars — vertical title rendered in a grid overlay (Excel G, P & CL). */
+export const SYN_PILLAR_OVERLAY_COLS = new Set(['G', 'P', 'CL']);
+
+/** Always-on pillar metadata (display B / K / CG) — not dependent on export merges. */
+export const SYN_BUILTIN_PILLAR_META = {
+  G: { title: 'SP1 TARGET', startRow: 3, endRow: 421 },
+  P: { title: 'SP2 TARGET', startRow: 3, endRow: 421 },
+  CL: { title: 'SP2 RESTART', startRow: 3, endRow: 421 },
+};
+
+export function getSynPillarMeta(col, pillarColumns) {
+  return pillarColumns?.get(col) ?? SYN_BUILTIN_PILLAR_META[col] ?? null;
+}
 export const SYN_METRIC_ROW_LABELS = {
   15: '',
   16: 'Curb mass:',
@@ -139,6 +155,8 @@ export const SYN_VAL_P1X_BG = '#c0504d';
 /** Display column K (Excel P) + rows 3–4 project header (display M…AA). */
 export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
+/** Display column CG (Excel CL) — SP2 RESTART pillar. */
+export const SYN_SP2_RESTART_BG = '#c4d79b';
 /** Spot highlights — same blue as Database sub-section bands. */
 export const SYN_SPOT_BLUE_BG = '#00b0f0';
 export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4, 13]);
@@ -153,7 +171,7 @@ export const SYN_ROW25_MAA_GREEN_BG = '#92d050';
 /** Display-row based green lines (same as rows 3–4: #92d050). */
 export const SYN_DISPLAY_GREEN_BG = SYN_SP2_TARGET_BG;
 export const SYN_DISPLAY_GREEN_ROWS = new Set([
-  42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 84, 90, 93, 97, 99, 165, 178, 181,
+  26, 42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 84, 90, 93, 97, 99, 165, 178, 181,
   205, 261, 276, 279, 288, 291, 296, 298, 307, 315, 319, 344, 353, 361, 368,
   372, 280, 289, 394, 398, 403, 407, 411, 415, 417, 422,
 ]);
@@ -162,7 +180,7 @@ export const SYN_DISPLAY_GREEN_ROWS = new Set([
 export const SYN_DISPLAY_GREY_MAA_BG = '#a6a6a6';
 export const SYN_DISPLAY_GREY_MAA_ROWS = (() => {
   const s = new Set([
-    287, 35, 41, 50, 51, 77, 79, 86, 87, 108, 109, 110, 112, 179, 180, 189,
+    27, 35, 38, 41, 287, 50, 51, 77, 79, 86, 87, 108, 109, 110, 112, 179, 180, 189,
     196, 199, 202, 204, 210, 221, 222, 224, 230, 239, 270, 272, 274, 275, 278,
     320, 321, 341, 342, 362, 373, 375, 378, 379, 410,
   ]);
@@ -274,6 +292,11 @@ export function getSynAdaptBandNumeric(getCell, row, col) {
   if (preset !== undefined) {
     if (preset == null || preset === '') return 0;
     return Number(preset);
+  }
+  const maaPreset = synRowMaaPresetRaw(row, col);
+  if (maaPreset !== undefined) {
+    if (maaPreset == null || maaPreset === '') return 0;
+    return Number(maaPreset);
   }
   const raw = cell ? displayValue(cell) : '';
   if (raw && isSynNumericRaw(raw)) {
@@ -608,6 +631,147 @@ export function applySynRows27To41PresetCells(cells = []) {
   return applySynRowsCjPresetCells(cells);
 }
 
+/** Rows 25–41 (grid display 26–42) — display M…AA presets; null = empty grey spacer. */
+export const SYN_ADAPT_MAA_PRESET_FIRST_ROW = 25;
+export const SYN_ADAPT_MAA_PRESET_LAST_ROW = 41;
+/** Excel rows that must stay blank in M…AA (grid display 27, 35, 38, 41). */
+export const SYN_MAA_GREY_SPACER_EXCEL_ROWS = new Set([26, 34, 37, 40]);
+const SYN_MAA_PRESET_DISPLAY_COLS = [
+  'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA',
+];
+
+function synMaaPresetRowMap(values) {
+  const m = new Map();
+  SYN_MAA_PRESET_DISPLAY_COLS.forEach((d, i) => m.set(d, values[i]));
+  return m;
+}
+
+function isSynMaaPresetExcelCol(col) {
+  return isSynProjHeaderGreenExcelCol(col);
+}
+
+export function isSynMaaGreySpacerExcelRow(row) {
+  return SYN_MAA_GREY_SPACER_EXCEL_ROWS.has(Number(row));
+}
+
+const SYN_MAA_PRESET_NULL_ROW = synMaaPresetRowMap(
+  SYN_MAA_PRESET_DISPLAY_COLS.map(() => null)
+);
+const SYN_MAA_PRESET_ZERO_ROW = synMaaPresetRowMap(
+  SYN_MAA_PRESET_DISPLAY_COLS.map(() => 0)
+);
+
+const SYN_ROWS_MAA_PRESETS = new Map([
+  [
+    25,
+    synMaaPresetRowMap([
+      39.6, 44.7, 44.7, 39.6, 44.7, 44.7, 52.2, 52.2, 52.2, 108.7, 108.7, 108.7,
+      81.5, 81.5, 81.5,
+    ]),
+  ],
+  [26, SYN_MAA_PRESET_NULL_ROW],
+  [
+    27,
+    synMaaPresetRowMap([
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 33.8, 33.8, 33.8, 0, 0, 0,
+    ]),
+  ],
+  [
+    28,
+    synMaaPresetRowMap([
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 6.8, 6.8, 6.8, 6.8, 6.8, 6.8,
+    ]),
+  ],
+  [
+    29,
+    synMaaPresetRowMap([
+      22.1, 26.6, 26.6, 22.1, 26.6, 26.6, 31.9, 31.9, 31.9, 20.0, 20.0, 20.0,
+      21.0, 21.0, 21.0,
+    ]),
+  ],
+  [
+    30,
+    synMaaPresetRowMap([
+      0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 0.4, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3,
+    ]),
+  ],
+  [
+    31,
+    synMaaPresetRowMap([
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 21.1, 21.1, 21.1, 20.6, 20.6, 20.6,
+    ]),
+  ],
+  [32, SYN_MAA_PRESET_ZERO_ROW],
+  [
+    33,
+    synMaaPresetRowMap([
+      5.4, 6.0, 6.0, 5.4, 6.0, 6.0, 6.0, 6.0, 6.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0,
+    ]),
+  ],
+  [34, SYN_MAA_PRESET_NULL_ROW],
+  [35, SYN_MAA_PRESET_ZERO_ROW],
+  [36, synMaaPresetRowMap(SYN_MAA_PRESET_DISPLAY_COLS.map(() => 1.8))],
+  [37, SYN_MAA_PRESET_NULL_ROW],
+  [
+    38,
+    synMaaPresetRowMap([
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 9.0, 9.0, 9.0, 15.0, 15.0, 15.0,
+    ]),
+  ],
+  [
+    39,
+    synMaaPresetRowMap([
+      9.9, 9.9, 9.9, 9.9, 9.9, 9.9, 12.1, 12.1, 12.1, 9.9, 9.9, 9.9, 9.9, 9.9,
+      9.9,
+    ]),
+  ],
+  [40, SYN_MAA_PRESET_NULL_ROW],
+  [
+    41,
+    synMaaPresetRowMap([
+      16.8, 17.3, 17.3, 16.8, 17.3, 17.3, 17.3, 17.3, 17.3, 15.6, 15.6, 15.6,
+      17.1, 17.1, 17.1,
+    ]),
+  ],
+]);
+
+export function synRowMaaPresetRaw(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return undefined;
+  const rowMap = SYN_ROWS_MAA_PRESETS.get(r);
+  if (!rowMap || !isSynMaaPresetExcelCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!rowMap.has(d)) return undefined;
+  return rowMap.get(d);
+}
+
+/** Rows 25–41 — force display M…AA presets (overrides legacy export). */
+export function applySynRowsMaaPresetCells(cells = []) {
+  for (const [row, rowMap] of SYN_ROWS_MAA_PRESETS) {
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const cell = cells.find((c) => c.r === row && c.c === col);
+      if (cell?.userEdited) continue;
+      if (value == null) {
+        if (cell) {
+          cell.v = '';
+          delete cell.f;
+        } else {
+          cells.push({ r: row, c: col, v: '' });
+        }
+        continue;
+      }
+      if (!cell) {
+        cells.push({ r: row, c: col, v: String(value) });
+      } else {
+        cell.v = String(value);
+        delete cell.f;
+      }
+    }
+  }
+  return cells;
+}
+
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
   const last = sheet?.lastRow || SYN_MAX_EXCEL_ROW;
@@ -639,14 +803,16 @@ export function findSynEchappementRow(map, sheet) {
   return 31;
 }
 
-/** "SP1 Target" → "SP1 TARGET" (space between SPn and TARGET). */
+/** "SP1 Target" → "SP1 TARGET"; "SP2 Restart" → "SP2 RESTART". */
 export function normalizeSynPillarTitle(raw) {
   const t = String(raw ?? '')
     .trim()
     .toUpperCase()
     .replace(/\s+/g, ' ');
-  const m = t.match(/^(SP\d+)\s*TARGET$/i);
-  if (m) return `${m[1]} TARGET`;
+  const target = t.match(/^(SP\d+)\s*TARGET$/i);
+  if (target) return `${target[1]} TARGET`;
+  const restart = t.match(/^(SP\d+)\s*RESTART$/i);
+  if (restart) return `${restart[1]} RESTART`;
   return t;
 }
 
@@ -657,7 +823,7 @@ export function synPillarLettersFromTitle(title) {
 
 /** One letter every SYN_PILLAR_LETTER_ROW_STEP rows from Échappement downward. */
 export function synPillarLetterForRow(row, col, pillarColumns, map, sheet) {
-  const p = pillarColumns?.get(col);
+  const p = getSynPillarMeta(col, pillarColumns);
   if (!p) return '';
   const start = findSynEchappementRow(map, sheet);
   const letters = synPillarLettersFromTitle(p.title);
@@ -855,11 +1021,14 @@ export function synMetricCellClass(row, col, display) {
 /** Vertical SP1 TARGET / SP2 TARGET pillars (merged Excel columns). */
 export function buildSynPillarColumns(sheet, cellMap) {
   const pillars = new Map();
+  for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {
+    pillars.set(col, { ...meta });
+  }
   for (const m of sheet?.merges || []) {
     if (m.colspan !== 1 || m.endRow - m.startRow < 50) continue;
     const cell = getCell(cellMap, m.startRow, m.startCol);
     const raw = String(cell?.v ?? '').trim();
-    if (!raw || !/target/i.test(raw)) continue;
+    if (!raw || !/target|restart/i.test(raw)) continue;
     pillars.set(m.startCol, {
       title: normalizeSynPillarTitle(raw),
       startRow: m.startRow,
@@ -870,6 +1039,7 @@ export function buildSynPillarColumns(sheet, cellMap) {
 }
 
 export function isSynPillarCol(col, pillarColumns) {
+  if (isSynBuiltinPillarExcelCol(col)) return true;
   return pillarColumns?.has(col) ?? false;
 }
 
@@ -1209,8 +1379,15 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     Object.assign(style, spacerStyle);
     return style;
   }
-  if (isSynPillarColAtRow(col, row, pillarColumns)) {
-    const bg = isSynSp2DisplayExcelCol(col) ? SYN_SP2_TARGET_BG : SYN_PILLAR_BG;
+  if (
+    isSynPillarColAtRow(col, row, pillarColumns) ||
+    (row >= SYN_PILLAR_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col))
+  ) {
+    const bg = isSynSp2DisplayExcelCol(col)
+      ? SYN_SP2_TARGET_BG
+      : isSynSp2RestartDisplayExcelCol(col)
+        ? SYN_SP2_RESTART_BG
+        : SYN_PILLAR_BG;
     style.background = bg;
     style.backgroundColor = bg;
     style.color = '#000';
@@ -1489,7 +1666,10 @@ export function isSynNumericEntryCell(row, col, pillarColumns) {
 }
 
 export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
-  if (isSynPillarColAtRow(col, row, pillarColumns)) {
+  if (
+    isSynPillarColAtRow(col, row, pillarColumns) ||
+    (row >= SYN_PILLAR_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col))
+  ) {
     const raw = cell ? displayValue(cell) : '';
     if (raw && String(raw).trim()) return String(raw).trim();
     return synPillarLetterForRow(row, col, pillarColumns, map, sheet);
@@ -1511,6 +1691,14 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     }
     if (isSynRow26ZeroCol(row, col)) {
       return '0,00';
+    }
+    if (isSynMaaPresetExcelCol(col)) {
+      const maaPreset = synRowMaaPresetRaw(row, col);
+      if (maaPreset !== undefined) {
+        if (maaPreset == null || maaPreset === '') return '';
+        return synTranslateText(formatSynNumericDisplay(String(maaPreset)), col);
+      }
+      if (isSynMaaGreySpacerExcelRow(row)) return '';
     }
     if (row === SYN_ZERO_FILL_FIRST_ROW) {
       const raw25 = cell ? displayValue(cell) : '';

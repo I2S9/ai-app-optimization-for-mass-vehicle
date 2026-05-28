@@ -6,8 +6,15 @@ export const SYN_LABEL_COL_MIN_W = 240;
 /** SP1 / SP2 TARGET pillar — minimum width; Excel width wins when wider. */
 export const SYN_PILLAR_COL_WIDTH = 72;
 
+/** Excel columns that are always pillar bands (display B, K, CG). */
+export const SYN_BUILTIN_PILLAR_EXCEL_COLS = new Set(['G', 'P', 'CL']);
+
+export function isSynBuiltinPillarExcelCol(excelCol) {
+  return SYN_BUILTIN_PILLAR_EXCEL_COLS.has(excelCol);
+}
+
 export function synPillarColWidth(col, sheet, pillarColumns) {
-  if (!pillarColumns?.has(col)) return null;
+  if (!pillarColumns?.has(col) && !isSynBuiltinPillarExcelCol(col)) return null;
   const fromSheet = sheet?.colWidths?.find((w) => w.col === col)?.width;
   return Math.max(fromSheet || 0, SYN_PILLAR_COL_WIDTH);
 }
@@ -47,6 +54,8 @@ export function displayToExcelCol(displayCol) {
 
 /** SP2 TARGET pillar — display column K (Excel P). */
 export const SYN_SP2_PILLAR_DISPLAY_COL = 'K';
+/** SP2 RESTART pillar — display column CG (Excel CL). */
+export const SYN_SP2_RESTART_PILLAR_DISPLAY_COL = 'CG';
 /** White gutter between SP2 and project columns — display L (Excel Q). */
 export const SYN_SPACER_DISPLAY_COL = 'L';
 /** Rows 3–4 project header band — display columns M…AA (Excel R…AF). */
@@ -167,6 +176,18 @@ export function isSynSpacerDisplayExcelCol(excelCol) {
 /** Entire display column K (Excel P) — SP2 TARGET band colour. */
 export function isSynSp2DisplayExcelCol(excelCol) {
   return excelCol === displayToExcelCol(SYN_SP2_PILLAR_DISPLAY_COL);
+}
+
+/** Entire display column CG (Excel CL) — SP2 RESTART band colour. */
+export function isSynSp2RestartDisplayExcelCol(excelCol) {
+  return excelCol === displayToExcelCol(SYN_SP2_RESTART_PILLAR_DISPLAY_COL);
+}
+
+/** CSS class for coloured pillar columns (SP1 grey has no extra class). */
+export function synPillarAccentClass(excelCol) {
+  if (isSynSp2DisplayExcelCol(excelCol)) return 'syn-pillar-k';
+  if (isSynSp2RestartDisplayExcelCol(excelCol)) return 'syn-pillar-cg';
+  return '';
 }
 
 export function filterSynDisplayColumns(columns = []) {

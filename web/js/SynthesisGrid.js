@@ -14,7 +14,6 @@ import {
 import { getCell, buildCellMap } from './bdStore.js?v=input-fix3';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import { isSynAdaptationSumCell } from './synthesisCalc.js?v=adapt-sum1';
-import { isSynNumericEntryCell } from './synStore.js?v=input-fix1';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
@@ -45,6 +44,7 @@ import {
   isSynHeaderPanelBoldCol,
   isSynAdaptCjValueBold,
   isSynSp2DisplayExcelCol,
+  synPillarAccentClass,
   isSynProjHeaderGreenCol,
   synProjHeaderGreenStyle,
   isSynProjHeaderYellowCol,
@@ -77,13 +77,16 @@ import {
   isSynForceWhiteExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf87';
+  isSynNumericEntryCell,
+  SYN_BUILTIN_PILLAR_META,
+} from './synStore.js?v=syn-pillar-cg2';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
   synStickyColWidth,
   synPillarColWidth,
-} from './synthesisPerf.js?v=syn-perf38';
+  isSynBuiltinPillarExcelCol,
+} from './synthesisPerf.js?v=syn-pillar-cg2';
 import {
   ROW_H,
   colOverscanPx,
@@ -129,11 +132,11 @@ export default {
     );
 
     const pillarColumns = computed(() => {
-      const raw = props.sheet?.pillarColumns;
-      if (raw && Object.keys(raw).length) {
-        return new Map(Object.entries(raw).map(([col, meta]) => [col, meta]));
+      const map = buildSynPillarColumns(props.sheet, cellMap.value);
+      for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {
+        map.set(col, { ...meta, ...map.get(col) });
       }
-      return buildSynPillarColumns(props.sheet, cellMap.value);
+      return map;
     });
 
     const displayColumns = computed(() => props.sheet.columns || []);
@@ -277,7 +280,14 @@ export default {
     }
 
     function usesPillarLetterOverlay(col) {
-      return SYN_PILLAR_OVERLAY_COLS.has(col) && pillarColumns.value.has(col);
+      return (
+        SYN_PILLAR_OVERLAY_COLS.has(col) &&
+        (pillarColumns.value.has(col) || isSynBuiltinPillarExcelCol(col))
+      );
+    }
+
+    function synExcelColTraceClass(col) {
+      return col === 'CL' ? 'syn-col-cl' : '';
     }
 
     const pillarLetterOverlays = computed(() => {
@@ -285,8 +295,16 @@ export default {
       const overlays = [];
       for (const layout of columnLayout.value) {
         if (!SYN_PILLAR_OVERLAY_COLS.has(layout.col)) continue;
-        if (!pillarColumns.value.has(layout.col)) continue;
-        const title = pillarColumns.value.get(layout.col)?.title ?? '';
+        if (
+          !pillarColumns.value.has(layout.col) &&
+          !isSynBuiltinPillarExcelCol(layout.col)
+        ) {
+          continue;
+        }
+        const title =
+          pillarColumns.value.get(layout.col)?.title ??
+          SYN_BUILTIN_PILLAR_META[layout.col]?.title ??
+          '';
         const letters = synPillarLettersFromTitle(title);
         const chars = [];
         for (let i = 0; i < letters.length; i++) {
@@ -515,13 +533,15 @@ export default {
 
     function isPillarColForEntry(entry, col) {
       if (isGapEntry(entry)) return false;
-      return isSynPillarColAtRow(col, entry.excelRow, pillarColumns.value);
+      const row = entry.excelRow;
+      if (row >= SYN_GRID_FIRST_ROW && isSynBuiltinPillarExcelCol(col)) return true;
+      return isSynPillarColAtRow(col, row, pillarColumns.value);
     }
 
-    /** Gap rows 21–22: display B (SP1 grey) & K (SP2 green) keep pillar fill. */
+    /** Gap rows 21–22: display B/K/CG pillars keep pillar fill. */
     function isGapGreenPillarCol(col) {
       const letter = excelToDisplayCol(col);
-      return letter === 'B' || letter === 'K';
+      return letter === 'B' || letter === 'K' || letter === 'CG';
     }
 
     function pillarTitle(col) {
@@ -715,6 +735,7 @@ export default {
       isSynPillarColAtRow: (col, row) =>
         isSynPillarColAtRow(col, row, pillarColumns.value),
       isSynSp2DisplayExcelCol,
+      synPillarAccentClass,
       isSynSpacerDisplayExcelCol,
       isSynForceWhiteExcelCol,
       synSpacerColClass,
@@ -762,7 +783,7 @@ export default {
             v-for="pillar in pillarLetterOverlays"
             :key="'pillar-overlay-' + pillar.col"
             class="syn-pillar-overlay-col"
-            :class="{ 'syn-pillar-k': isSynSp2DisplayExcelCol(pillar.col) }"
+            :class="synPillarAccentClass(pillar.col)"
             :style="{
               left: pillar.left + 'px',
               width: pillar.width + 'px',
@@ -871,6 +892,8 @@ export default {
                         colEntry.col,
                         cellDisplay(entry.excelRow, colEntry.col)
                       ),
+                  synPillarAccentClass(colEntry.col),
+                  synExcelColTraceClass(colEntry.col),
                   {
                     'syn-pillar-col': isGapEntry(entry)
                       ? isGapGreenPillarCol(colEntry.col)
@@ -880,7 +903,6 @@ export default {
                       usesPillarLetterOverlay(colEntry.col),
                     'syn-panel-gap-pillar':
                       isGapEntry(entry) && isGapGreenPillarCol(colEntry.col),
-                    'syn-pillar-k': isSynSp2DisplayExcelCol(colEntry.col),
                     'syn-proj-hdr-green':
                       !isGapEntry(entry) &&
                       isSynProjHeaderGreenCol(entry.excelRow, colEntry.col),
