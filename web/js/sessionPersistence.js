@@ -29,7 +29,7 @@ function openDb() {
   return dbPromise;
 }
 
-const PERSIST_VERSION = 2;
+const PERSIST_VERSION = 3;
 
 /** Cells the user changed — small enough for localStorage + IndexedDB. */
 export function extractSheetEdits(raw) {
@@ -70,29 +70,69 @@ export function applySheetEdits(raw, edits) {
   }
 }
 
-export function buildPersistRecord({ bd, syn, revision }) {
+/**
+ * @param {{ bd?: object, syn?: object, revision?: number, structureRevision?: number }} payload
+ */
+export function buildPersistRecord({
+  bd,
+  syn,
+  revision,
+  structureRevision = 0,
+}) {
+  const hasStructure = structureRevision > 0;
   const bdEdits = extractSheetEdits(bd);
   const synEdits = extractSheetEdits(syn);
-  const hasBd = bdEdits.cells.length || Object.keys(bdEdits.headerRows).length;
-  const hasSyn = synEdits.cells.length || Object.keys(synEdits.headerRows).length;
-  if (!hasBd && !hasSyn) return null;
-  return {
+  const hasBdEdits =
+    bdEdits.cells.length || Object.keys(bdEdits.headerRows).length;
+  const hasSynEdits =
+    synEdits.cells.length || Object.keys(synEdits.headerRows).length;
+
+  if (!hasStructure && !hasBdEdits && !hasSynEdits) return null;
+
+  const record = {
     version: PERSIST_VERSION,
     revision: revision ?? 0,
+    structureRevision: structureRevision ?? 0,
     savedAt: new Date().toISOString(),
-    bdEdits: hasBd ? bdEdits : null,
-    synEdits: hasSyn ? synEdits : null,
   };
+
+  if (hasStructure) {
+    if (bd) record.bdFull = bd;
+    if (syn) record.synFull = syn;
+  } else {
+    if (hasBdEdits) record.bdEdits = bdEdits;
+    if (hasSynEdits) record.synEdits = synEdits;
+  }
+
+  return record;
 }
 
 /** @returns {boolean} true if legacy full snapshot was applied */
 export function applyPersistRecord(bdRaw, synRaw, record) {
   if (!record) return false;
+
   if (record.version === PERSIST_VERSION) {
+    if (record.bdFull) {
+      Object.assign(bdRaw, record.bdFull);
+    } else if (record.bdEdits) {
+      applySheetEdits(bdRaw, record.bdEdits);
+    }
+    if (synRaw) {
+      if (record.synFull) {
+        Object.assign(synRaw, record.synFull);
+      } else if (record.synEdits) {
+        applySheetEdits(synRaw, record.synEdits);
+      }
+    }
+    return Boolean(record.bdFull || record.synFull);
+  }
+
+  if (record.version === 2) {
     if (record.bdEdits) applySheetEdits(bdRaw, record.bdEdits);
     if (record.synEdits && synRaw) applySheetEdits(synRaw, record.synEdits);
     return false;
   }
+
   if (record.bd) {
     Object.assign(bdRaw, record.bd);
   }

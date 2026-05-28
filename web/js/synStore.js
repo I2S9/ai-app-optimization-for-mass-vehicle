@@ -11,6 +11,7 @@ import {
   isSynAdaptFluoIjOnlyCell,
   isSynSpotBlueCell,
   isSynProjHeaderGreenExcelCol,
+  isSynProjHeaderBandExcelCol,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
   SYN_AC_AN_TABLE_DISPLAY_START,
@@ -25,6 +26,14 @@ import {
   SYN_CI_CY_TABLE_DISPLAY_END,
   SYN_DA_DP_TABLE_DISPLAY_START,
   SYN_DA_DP_TABLE_DISPLAY_END,
+  SYN_DR_ED_TABLE_DISPLAY_START,
+  SYN_DR_ED_TABLE_DISPLAY_END,
+  SYN_EF_EQ_TABLE_DISPLAY_START,
+  SYN_EF_EQ_TABLE_DISPLAY_END,
+  SYN_ES_FE_TABLE_DISPLAY_START,
+  SYN_ES_FE_TABLE_DISPLAY_END,
+  SYN_FJ_FZ_TABLE_DISPLAY_START,
+  SYN_FJ_FZ_TABLE_DISPLAY_END,
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
@@ -176,6 +185,7 @@ export const SYN_PROJ_HDR_YELLOW_BG = '#ffff99';
 export const SYN_PROJ_HDR_YELLOW_ROWS = new Set([5]);
 export const SYN_PROJ_HDR_GREY_BG = '#bfbfbf';
 export const SYN_PROJ_HDR_GREY_ROWS = new Set([11]);
+export const SYN_PROJ_HDR_RED_BG = '#ffc7ce';
 export const SYN_ROW19_MO_GREEN_BG = '#c6efce';
 export const SYN_ROW19_PAA_RED_BG = '#ffc7ce';
 export const SYN_ROW16_FLUO_BG = '#ffff00';
@@ -643,8 +653,8 @@ export function applySynRows27To41PresetCells(cells = []) {
   return applySynRowsCjPresetCells(cells);
 }
 
-/** Rows 25–117 (grid display 26–118) — display M…AA presets; null = empty grey spacer. */
-export const SYN_ADAPT_MAA_PRESET_FIRST_ROW = 25;
+/** Rows 3–117 (grid display 3–23 header + 26–118 body) — display M…AA presets. */
+export const SYN_ADAPT_MAA_PRESET_FIRST_ROW = 3;
 export const SYN_ADAPT_MAA_PRESET_LAST_ROW = 117;
 /** Excel rows blank in M…AA (grid grey spacers in display 27, 35, 38, 41, 50, 51, 79–81, 84–85, 106–108, 110). */
 export const SYN_MAA_GREY_SPACER_EXCEL_ROWS = new Set([
@@ -688,6 +698,120 @@ function synMaaPresetSplitThirdTriplet(a, b, s, t, u, vA, vB) {
 
 function synMaaPresetAll(v) {
   return synMaaPresetRowMap(SYN_MAA_PRESET_DISPLAY_COLS.map(() => v));
+}
+
+function synMaaPresetTextRow(text) {
+  return synMaaPresetAll(text);
+}
+
+function synMaaPresetSparse(pairs) {
+  const m = new Map(SYN_MAA_PRESET_NULL_ROW);
+  for (const [display, value] of pairs) m.set(display, value);
+  return m;
+}
+
+/** Header panel rows 3–22 (grid display 3–18, gap 19, display 20–23). */
+function synMaaPresetEntries3To22() {
+  const N = SYN_MAA_PRESET_NULL_ROW;
+  const txt = synMaaPresetTextRow;
+  return [
+    [3, txt('STLA/S')],
+    [4, txt('SP2')],
+    [5, txt('O3H')],
+    [
+      6,
+      synMaaPresetRowMap([
+        'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV',
+        'MHEVP2', 'MHEVP2', 'MHEVP2', 'HEV', 'HEV', 'HEV',
+      ]),
+    ],
+    [7, txt('EMEA')],
+    [8, N],
+    [
+      9,
+      synMaaPresetRowMap([
+        'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'AWD', 'AWD', 'AWD',
+        'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD',
+      ]),
+    ],
+    [
+      10,
+      synMaaPresetRowMap([
+        'HR', 'HR', 'HR', 'XR', 'XR', 'XR', 'XR', 'XR', 'XR',
+        'TT', 'TT', 'TT', 'TT', 'TT', 'TT',
+      ]),
+    ],
+    [
+      11,
+      synMaaPresetRowMap([
+        'HIGH_Range', 'HIGH_Range', 'HIGH_Range',
+        'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range',
+        null, null, null, null, null, null,
+      ]),
+    ],
+    [12, N],
+    [13, txt('TARGET')],
+    [
+      14,
+      synMaaPresetRowMap([
+        'S', 'M', 'L', 'S', 'M', 'L', 'M', 'L', 'GSE', 'S', 'M', 'L', 'S', 'M', 'L',
+      ]),
+    ],
+    [15, N],
+    [
+      16,
+      synMaaPresetRowMap([
+        1787, 1802, 1828, 1800, 1816, 1841, 1985, 2010, 2013, 1486, 1498, 1524,
+        1496, 1509, 1535,
+      ]),
+    ],
+    [
+      17,
+      synMaaPresetSparse([
+        ['M', 1785],
+        ['P', 1790],
+        ['S', 1978],
+        ['V', 1415],
+        ['Y', 1425],
+      ]),
+    ],
+    [
+      18,
+      synMaaPresetRowMap([
+        1790, 1806, 1831, 1795, 1811, 1836, 1978, 2003, 2011, 1432, 1446, 1471,
+        1467, 1480, 1506,
+      ]),
+    ],
+    [
+      19,
+      synMaaPresetRowMap([
+        -3.2, -3.2, -3.2, 5.0, 5.0, 5.0, 6.8, 6.8, 2.0, 53.4, 52.4, 52.4, 29.7,
+        28.7, 28.7,
+      ]),
+    ],
+    [
+      20,
+      synMaaPresetSparse([
+        ['M', 1.6],
+        ['P', 9.7],
+        ['S', 6.6],
+        ['V', 70.6],
+        ['Y', 71.4],
+      ]),
+    ],
+    [
+      21,
+      synMaaPresetSparse([
+        ['V', 'Step 3'],
+        ['W', 'Step 3'],
+        ['X', 'Step 3'],
+        ['Y', 'Step 3'],
+        ['Z', 'Step 3'],
+        ['AA', 'Step 3'],
+      ]),
+    ],
+    [22, N],
+  ];
 }
 
 const SYN_MAA_ROW_135_PATTERN = [
@@ -795,6 +919,7 @@ function synMaaPresetEntries42To75() {
 }
 
 const SYN_ROWS_MAA_PRESETS = new Map([
+  ...synMaaPresetEntries3To22(),
   [
     25,
     synMaaPresetRowMap([
@@ -880,7 +1005,7 @@ export function synRowMaaPresetRaw(row, col) {
   return rowMap.get(d);
 }
 
-/** Rows 25–117 — force display M…AA presets (overrides legacy export). */
+/** Rows 3–117 — force display M…AA presets (overrides legacy export). */
 export function applySynRowsMaaPresetCells(cells = []) {
   for (const [row, rowMap] of SYN_ROWS_MAA_PRESETS) {
     for (const [display, value] of rowMap) {
@@ -1098,6 +1223,26 @@ export function formatSynNumericDisplay(raw) {
   return (neg ? '-' : '') + String(i) + ',' + fracStr;
 }
 
+/** Header panel M…AA — mass rows with kg; control/portfolio with 1 decimal, no kg. */
+function formatSynHdrMaaMetricDisplay(row, raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return s;
+  if (!isSynNumericRaw(s)) return s;
+  const n = parseFloat(s.replace(',', '.'));
+  if (!Number.isFinite(n)) return s;
+  if (row === 16 || row === 17 || row === 18) {
+    return `${formatSynNumericDisplay(n)} kg`;
+  }
+  if (row === 19 || row === 20) {
+    const rounded = Math.round(n * 10) / 10;
+    const neg = rounded < 0;
+    const abs = Math.abs(rounded);
+    const body = abs.toFixed(1).replace('.', ',');
+    return (neg ? '-' : '') + body;
+  }
+  return formatSynNumericDisplay(n);
+}
+
 /** Excel serial date → display (PM pre-target row). */
 export function formatSynMetricValue(row, col, raw) {
   const s = String(raw ?? '').trim();
@@ -1195,7 +1340,7 @@ export function isSynSp2PillarCol(col, pillarColumns) {
   return /^SP2\b/i.test(title);
 }
 
-/** Rows 3–4, display columns M through AA (Excel R…AF). */
+/** Rows 3–4 & 13, display columns M through AA (Excel R…AF). */
 export function isSynProjHeaderGreenCol(row, col) {
   const r = Number(row);
   if (!Number.isFinite(r) || !SYN_PROJ_HDR_GREEN_ROWS.has(r)) return false;
@@ -1240,6 +1385,25 @@ export function synProjHeaderGreyStyle() {
   };
 }
 
+/** Row 20 — extended summary tables only (DR…ED, EF…EQ, ES…FE, FJ…FZ). */
+export function isSynProjHeaderRedCol(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || r !== 20) return false;
+  if (!isSynProjHeaderBandExcelCol(col)) return false;
+  const n = colToNum(col);
+  const mStart = colToNum(displayToExcelCol('M'));
+  const aaEnd = colToNum(displayToExcelCol('AA'));
+  return n < mStart || n > aaEnd;
+}
+
+export function synProjHeaderRedStyle() {
+  return {
+    background: SYN_PROJ_HDR_RED_BG,
+    backgroundColor: SYN_PROJ_HDR_RED_BG,
+    color: '#9c0006',
+  };
+}
+
 /** Row 19: display M–O green, P–AA red. */
 export function isSynRow19MoGreenCol(row, col) {
   if (Number(row) !== 19) return false;
@@ -1273,6 +1437,72 @@ export function synRow19PaaRedStyle() {
   };
 }
 
+/** Row 20: display M–P green (#92d050, same as row 13). */
+export function isSynRow20MopGreenCol(row, col) {
+  if (Number(row) !== 20) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('P'));
+  return n >= start && n <= end;
+}
+
+/** Row 20: display P–AA red (P stays green when both apply). */
+export function isSynRow20PaaRedCol(row, col) {
+  if (Number(row) !== 20) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('P'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
+}
+
+export function synRow20MopGreenStyle() {
+  return {
+    background: SYN_SP2_TARGET_BG,
+    backgroundColor: SYN_SP2_TARGET_BG,
+    color: '#000',
+  };
+}
+
+export function synRow20PaaRedStyle() {
+  return {
+    background: SYN_PROJ_HDR_RED_BG,
+    backgroundColor: SYN_PROJ_HDR_RED_BG,
+    color: '#9c0006',
+  };
+}
+
+/** Row 21: display M, P, S, V, Y red. */
+export function isSynRow21MpsvyRedCol(row, col) {
+  if (Number(row) !== 21) return false;
+  return isSynMaaEvery3FromMCol(col);
+}
+
+/** Row 21: display M–AA white except M, P, S, V, Y. */
+export function isSynRow21MaaWhiteCol(row, col) {
+  if (Number(row) !== 21) return false;
+  if (isSynRow21MpsvyRedCol(row, col)) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
+}
+
+export function synRow21MpsvyRedStyle() {
+  return {
+    background: SYN_PROJ_HDR_RED_BG,
+    backgroundColor: SYN_PROJ_HDR_RED_BG,
+    color: '#9c0006',
+  };
+}
+
+export function synRow21MaaWhiteStyle() {
+  return {
+    background: '#fff',
+    backgroundColor: '#fff',
+    color: '#000',
+  };
+}
+
 /** Row 25: display M–AA green. */
 export function isSynRow25MaGreenCol(row, col) {
   if (Number(row) !== 25) return false;
@@ -1292,16 +1522,29 @@ export function synRow25MaGreenStyle() {
 }
 
 /**
- * Row 16: every 3 columns fluo starting at display M.
- * Pattern: M, P, S, V, Y (within M…AA).
+ * Display M…AA — every 3 columns from M (M, P, S, V, Y).
  */
-export function isSynRow16FluoEvery3FromMCol(row, col) {
-  if (Number(row) !== 16) return false;
+function isSynMaaEvery3FromMCol(col) {
   const n = colToNum(col);
   const start = colToNum(displayToExcelCol('M'));
   const end = colToNum(displayToExcelCol('AA'));
   if (n < start || n > end) return false;
   return (n - start) % 3 === 0;
+}
+
+/**
+ * Row 16: every 3 columns fluo starting at display M.
+ * Pattern: M, P, S, V, Y (within M…AA).
+ */
+export function isSynRow16FluoEvery3FromMCol(row, col) {
+  if (Number(row) !== 16) return false;
+  return isSynMaaEvery3FromMCol(col);
+}
+
+/** Row 17: display M, P, S, V, Y — fluorescent yellow. */
+export function isSynRow17FluoEvery3FromMCol(row, col) {
+  if (Number(row) !== 17) return false;
+  return isSynMaaEvery3FromMCol(col);
 }
 
 export function synRow16FluoStyle() {
@@ -1380,30 +1623,47 @@ export function isSynHdrAaDividerRightCol(row, col) {
   return col === displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END);
 }
 
-/** M / AA frame — Excel rows 3–22 only (not top gap rows). */
+/** Display-row gap between Excel 18–19 — keep table grid borders on a white band. */
+export function isSynHeaderTableGapBetweenEntry(entry) {
+  return Boolean(entry?.gapBetween);
+}
+
+/** Excel row for table-frame helpers — gap row uses a panel row so col checks apply. */
+export function resolveSynHeaderTableEntryRow(entry) {
+  if (!entry) return null;
+  if (entry.gapBetween) return SYN_GRID_FIRST_ROW;
+  return entry.excelRow ?? null;
+}
+
+/** M / AA frame — Excel rows 3–22 + display gap row 19. */
 export function isSynHdrLmDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrLmDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrLmDividerLeftCol(row, col);
 }
 
 export function isSynHdrAaDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrAaDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrAaDividerRightCol(row, col);
 }
 
 export function isSynHdrCjDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrCjDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrCjDividerRightCol(row, col);
 }
 
 export function isSynHdrMaDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrMaDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrMaDividerRightCol(row, col);
 }
 
 export function isSynHdrLmDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrLmDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrLmDividerRightCol(row, col);
 }
 
 /** @deprecated use isSynHdrLmDividerRightCol */
@@ -1449,23 +1709,27 @@ export function isSynHdrAcAnDividerRightEdgeCol(row, col) {
 }
 
 export function isSynAcAnTableCellEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynAcAnTableCell(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynAcAnTableCell(row, col);
 }
 
 export function isSynHdrAcAnDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrAcAnDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrAcAnDividerRightCol(row, col);
 }
 
 export function isSynHdrAcAnDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrAcAnDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrAcAnDividerLeftCol(row, col);
 }
 
 export function isSynHdrAcAnDividerRightEdgeEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrAcAnDividerRightEdgeCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrAcAnDividerRightEdgeCol(row, col);
 }
 
 /** Excel rows 3–22 — AP…BB summary table (display row 23 = Excel 22). */
@@ -1506,23 +1770,27 @@ export function isSynHdrApBbDividerRightEdgeCol(row, col) {
 }
 
 export function isSynApBbTableCellEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynApBbTableCell(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynApBbTableCell(row, col);
 }
 
 export function isSynHdrApBbDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrApBbDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrApBbDividerRightCol(row, col);
 }
 
 export function isSynHdrApBbDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrApBbDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrApBbDividerLeftCol(row, col);
 }
 
 export function isSynHdrApBbDividerRightEdgeEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrApBbDividerRightEdgeCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrApBbDividerRightEdgeCol(row, col);
 }
 
 /** Excel rows 3–22 — BS…CE summary table (display row 23 = Excel 22). */
@@ -1560,23 +1828,27 @@ export function isSynHdrBsCeDividerRightEdgeCol(row, col) {
 }
 
 export function isSynBsCeTableCellEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynBsCeTableCell(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynBsCeTableCell(row, col);
 }
 
 export function isSynHdrBsCeDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrBsCeDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrBsCeDividerRightCol(row, col);
 }
 
 export function isSynHdrBsCeDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrBsCeDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrBsCeDividerLeftCol(row, col);
 }
 
 export function isSynHdrBsCeDividerRightEdgeEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrBsCeDividerRightEdgeCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrBsCeDividerRightEdgeCol(row, col);
 }
 
 /** Excel rows 3–22 — BD…BO summary table (display row 23 = Excel 22). */
@@ -1614,23 +1886,27 @@ export function isSynHdrBdBoDividerRightEdgeCol(row, col) {
 }
 
 export function isSynBdBoTableCellEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynBdBoTableCell(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynBdBoTableCell(row, col);
 }
 
 export function isSynHdrBdBoDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrBdBoDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrBdBoDividerRightCol(row, col);
 }
 
 export function isSynHdrBdBoDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrBdBoDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrBdBoDividerLeftCol(row, col);
 }
 
 export function isSynHdrBdBoDividerRightEdgeEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrBdBoDividerRightEdgeCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrBdBoDividerRightEdgeCol(row, col);
 }
 
 /** Excel rows 3–22 — CI…CY summary table (display row 23 = Excel 22). */
@@ -1668,23 +1944,27 @@ export function isSynHdrCiCyDividerRightEdgeCol(row, col) {
 }
 
 export function isSynCiCyTableCellEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynCiCyTableCell(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynCiCyTableCell(row, col);
 }
 
 export function isSynHdrCiCyDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrCiCyDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrCiCyDividerRightCol(row, col);
 }
 
 export function isSynHdrCiCyDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrCiCyDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrCiCyDividerLeftCol(row, col);
 }
 
 export function isSynHdrCiCyDividerRightEdgeEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrCiCyDividerRightEdgeCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrCiCyDividerRightEdgeCol(row, col);
 }
 
 /** Excel rows 3–22 — DA…DP summary table (display row 23 = Excel 22). */
@@ -1722,24 +2002,153 @@ export function isSynHdrDaDpDividerRightEdgeCol(row, col) {
 }
 
 export function isSynDaDpTableCellEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynDaDpTableCell(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynDaDpTableCell(row, col);
 }
 
 export function isSynHdrDaDpDividerRightEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrDaDpDividerRightCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrDaDpDividerRightCol(row, col);
 }
 
 export function isSynHdrDaDpDividerLeftEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrDaDpDividerLeftCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrDaDpDividerLeftCol(row, col);
 }
 
 export function isSynHdrDaDpDividerRightEdgeEntry(entry, col) {
-  if (!entry || entry.excelRow == null) return false;
-  return isSynHdrDaDpDividerRightEdgeCol(entry.excelRow, col);
+  const row = resolveSynHeaderTableEntryRow(entry);
+  if (row == null) return false;
+  return isSynHdrDaDpDividerRightEdgeCol(row, col);
 }
+
+function createSynSummaryTableApi(displayStart, displayEnd) {
+  const excelStart = () => displayToExcelCol(displayStart);
+  const excelEnd = () => displayToExcelCol(displayEnd);
+
+  function isTableRow(row) {
+    return isSynHeaderPanelRow(row);
+  }
+  function isTableCol(col) {
+    const n = colToNum(col);
+    const start = colToNum(excelStart());
+    const end = colToNum(excelEnd());
+    return n >= start && n <= end;
+  }
+  function isTableCell(row, col) {
+    return isTableRow(row) && isTableCol(col);
+  }
+  function isDividerRightCol(row, col) {
+    if (!isTableRow(row)) return false;
+    const n = colToNum(col);
+    const start = colToNum(excelStart());
+    const end = colToNum(excelEnd());
+    return n >= start && n < end;
+  }
+  function isDividerLeftCol(row, col) {
+    if (!isTableRow(row)) return false;
+    return col === excelStart();
+  }
+  function isDividerRightEdgeCol(row, col) {
+    if (!isTableRow(row)) return false;
+    return col === excelEnd();
+  }
+  function isTableCellEntry(entry, col) {
+    const row = resolveSynHeaderTableEntryRow(entry);
+    if (row == null) return false;
+    return isTableCell(row, col);
+  }
+  function isDividerRightEntry(entry, col) {
+    const row = resolveSynHeaderTableEntryRow(entry);
+    if (row == null) return false;
+    return isDividerRightCol(row, col);
+  }
+  function isDividerLeftEntry(entry, col) {
+    const row = resolveSynHeaderTableEntryRow(entry);
+    if (row == null) return false;
+    return isDividerLeftCol(row, col);
+  }
+  function isDividerRightEdgeEntry(entry, col) {
+    const row = resolveSynHeaderTableEntryRow(entry);
+    if (row == null) return false;
+    return isDividerRightEdgeCol(row, col);
+  }
+  return {
+    isTableRow,
+    isTableCol,
+    isTableCell,
+    isDividerRightCol,
+    isDividerLeftCol,
+    isDividerRightEdgeCol,
+    isTableCellEntry,
+    isDividerRightEntry,
+    isDividerLeftEntry,
+    isDividerRightEdgeEntry,
+  };
+}
+
+const _synDrEdTable = createSynSummaryTableApi(
+  SYN_DR_ED_TABLE_DISPLAY_START,
+  SYN_DR_ED_TABLE_DISPLAY_END
+);
+export const isSynDrEdTableRow = _synDrEdTable.isTableRow;
+export const isSynDrEdTableCol = _synDrEdTable.isTableCol;
+export const isSynDrEdTableCell = _synDrEdTable.isTableCell;
+export const isSynHdrDrEdDividerRightCol = _synDrEdTable.isDividerRightCol;
+export const isSynHdrDrEdDividerLeftCol = _synDrEdTable.isDividerLeftCol;
+export const isSynHdrDrEdDividerRightEdgeCol = _synDrEdTable.isDividerRightEdgeCol;
+export const isSynDrEdTableCellEntry = _synDrEdTable.isTableCellEntry;
+export const isSynHdrDrEdDividerRightEntry = _synDrEdTable.isDividerRightEntry;
+export const isSynHdrDrEdDividerLeftEntry = _synDrEdTable.isDividerLeftEntry;
+export const isSynHdrDrEdDividerRightEdgeEntry = _synDrEdTable.isDividerRightEdgeEntry;
+
+const _synEfEqTable = createSynSummaryTableApi(
+  SYN_EF_EQ_TABLE_DISPLAY_START,
+  SYN_EF_EQ_TABLE_DISPLAY_END
+);
+export const isSynEfEqTableRow = _synEfEqTable.isTableRow;
+export const isSynEfEqTableCol = _synEfEqTable.isTableCol;
+export const isSynEfEqTableCell = _synEfEqTable.isTableCell;
+export const isSynHdrEfEqDividerRightCol = _synEfEqTable.isDividerRightCol;
+export const isSynHdrEfEqDividerLeftCol = _synEfEqTable.isDividerLeftCol;
+export const isSynHdrEfEqDividerRightEdgeCol = _synEfEqTable.isDividerRightEdgeCol;
+export const isSynEfEqTableCellEntry = _synEfEqTable.isTableCellEntry;
+export const isSynHdrEfEqDividerRightEntry = _synEfEqTable.isDividerRightEntry;
+export const isSynHdrEfEqDividerLeftEntry = _synEfEqTable.isDividerLeftEntry;
+export const isSynHdrEfEqDividerRightEdgeEntry = _synEfEqTable.isDividerRightEdgeEntry;
+
+const _synEsFeTable = createSynSummaryTableApi(
+  SYN_ES_FE_TABLE_DISPLAY_START,
+  SYN_ES_FE_TABLE_DISPLAY_END
+);
+export const isSynEsFeTableRow = _synEsFeTable.isTableRow;
+export const isSynEsFeTableCol = _synEsFeTable.isTableCol;
+export const isSynEsFeTableCell = _synEsFeTable.isTableCell;
+export const isSynHdrEsFeDividerRightCol = _synEsFeTable.isDividerRightCol;
+export const isSynHdrEsFeDividerLeftCol = _synEsFeTable.isDividerLeftCol;
+export const isSynHdrEsFeDividerRightEdgeCol = _synEsFeTable.isDividerRightEdgeCol;
+export const isSynEsFeTableCellEntry = _synEsFeTable.isTableCellEntry;
+export const isSynHdrEsFeDividerRightEntry = _synEsFeTable.isDividerRightEntry;
+export const isSynHdrEsFeDividerLeftEntry = _synEsFeTable.isDividerLeftEntry;
+export const isSynHdrEsFeDividerRightEdgeEntry = _synEsFeTable.isDividerRightEdgeEntry;
+
+const _synFjFzTable = createSynSummaryTableApi(
+  SYN_FJ_FZ_TABLE_DISPLAY_START,
+  SYN_FJ_FZ_TABLE_DISPLAY_END
+);
+export const isSynFjFzTableRow = _synFjFzTable.isTableRow;
+export const isSynFjFzTableCol = _synFjFzTable.isTableCol;
+export const isSynFjFzTableCell = _synFjFzTable.isTableCell;
+export const isSynHdrFjFzDividerRightCol = _synFjFzTable.isDividerRightCol;
+export const isSynHdrFjFzDividerLeftCol = _synFjFzTable.isDividerLeftCol;
+export const isSynHdrFjFzDividerRightEdgeCol = _synFjFzTable.isDividerRightEdgeCol;
+export const isSynFjFzTableCellEntry = _synFjFzTable.isTableCellEntry;
+export const isSynHdrFjFzDividerRightEntry = _synFjFzTable.isDividerRightEntry;
+export const isSynHdrFjFzDividerLeftEntry = _synFjFzTable.isDividerLeftEntry;
+export const isSynHdrFjFzDividerRightEdgeEntry = _synFjFzTable.isDividerRightEdgeEntry;
 
 /** Display column L (Excel Q) — white gutter, all body rows. */
 export function synSpacerColClass(col) {
@@ -1859,6 +2268,13 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.border = 'none';
     return style;
   }
+  const disp = synDisplayValue(cell, map, row, col, sheet, pillarColumns);
+  const energyStyle = synHdrEnergyValueStyle(disp);
+  if (energyStyle) {
+    Object.assign(style, energyStyle);
+    Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
+    return style;
+  }
   const spotBlueStyle = synSpotBlueColStyle(row, col);
   if (spotBlueStyle) {
     Object.assign(style, spotBlueStyle);
@@ -1898,6 +2314,12 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     style.color = '#000';
     return style;
   }
+  if (isSynProjHeaderRedCol(row, col)) {
+    style.background = SYN_PROJ_HDR_RED_BG;
+    style.backgroundColor = SYN_PROJ_HDR_RED_BG;
+    style.color = '#9c0006';
+    return style;
+  }
   const raw = cell ? displayValue(cell) : '';
   const accentStyle = synCellAccentStyle(raw);
   if (accentStyle) {
@@ -1919,7 +2341,6 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     return style;
   }
   if (cell?.b) style.fontWeight = '700';
-  const disp = synDisplayValue(cell, map, row, col, sheet, pillarColumns);
   Object.assign(style, synAdaptCjBoldFontStyle(row, col, disp, sheet) || {});
   return style;
 }
@@ -1943,7 +2364,11 @@ export function isSynHeaderPanelBoldCol(row, col) {
       isSynBsCeTableCol(col) ||
       isSynBdBoTableCol(col) ||
       isSynCiCyTableCol(col) ||
-      isSynDaDpTableCol(col))
+      isSynDaDpTableCol(col) ||
+      isSynDrEdTableCol(col) ||
+      isSynEfEqTableCol(col) ||
+      isSynEsFeTableCol(col) ||
+      isSynFjFzTableCol(col))
   ) {
     return true;
   }
@@ -2000,6 +2425,26 @@ export function synCellAccentStyle(displayText) {
   }
   if (cls === 'syn-val-avenger-like') {
     return { backgroundColor: SYN_VAL_AVENGER_BG, color: '#000' };
+  }
+  return null;
+}
+
+/** Any Synthesis cell whose displayed value contains MHEVP2 or HEV. */
+export function synHdrEnergyValueClass(displayText) {
+  const v = String(displayText ?? '').trim().toUpperCase();
+  if (!v) return '';
+  if (v.includes('MHEVP2')) return 'syn-hdr-val-mhevp2';
+  if (v.includes('HEV')) return 'syn-hdr-val-hev';
+  return '';
+}
+
+export function synHdrEnergyValueStyle(displayText) {
+  const cls = synHdrEnergyValueClass(displayText);
+  if (cls === 'syn-hdr-val-mhevp2') {
+    return { background: '#ffff00', backgroundColor: '#ffff00', color: '#000' };
+  }
+  if (cls === 'syn-hdr-val-hev') {
+    return { background: '#ff0000', backgroundColor: '#ff0000', color: '#fff' };
   }
   return null;
 }
@@ -2081,12 +2526,12 @@ export function synHeaderPanelVehicleClass(row, col, displayText) {
   if (!isSynHeaderPanelRow(row) || !isSynHeaderPanelVehicleCol(col)) return '';
   const accent = synCellAccentClass(displayText);
   if (accent) return accent;
+  const energyCls = synHdrEnergyValueClass(displayText);
+  if (energyCls) return energyCls;
   const v = String(displayText ?? '')
     .trim()
     .toUpperCase();
-  if (v.includes('MHEVP2')) return 'syn-hdr-val-mhevp2';
   if (v.includes('P1H')) return 'syn-hdr-val-p1h';
-  if (v.includes('HEV')) return 'syn-hdr-val-hev';
   if ((row === 18 || row === 19) && !isSynFilterGreyExcelCol(col)) {
     return 'syn-hdr-row-metric-bg';
   }
@@ -2105,7 +2550,9 @@ export function synProjectCellClass(displayText, col) {
   if (v === 'TARGET') return 'cell-proj-target';
   if (v === 'STATUS') return 'cell-proj-status';
   if (v === 'SPC') return 'cell-proj-spc';
-  if (['BEV', 'HEV', 'MHEVP2', 'PHEV', 'ICE', 'MHEV', 'PHEV2'].includes(v)) {
+  const energyCls = synHdrEnergyValueClass(v);
+  if (energyCls) return energyCls;
+  if (['BEV', 'PHEV', 'ICE', 'MHEV', 'PHEV2'].includes(v)) {
     return 'cell-proj-energy';
   }
   if (v === 'FWD' || v === 'AWD' || v === 'RWD') return 'cell-proj-drivetrain';
@@ -2155,6 +2602,26 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       return synTranslateText(String(raw).trim(), SYN_LABEL_COL);
     }
     return synHeaderPanelLabel(map, row);
+  }
+  if (isSynHeaderPanelRow(row) && isSynMaaPresetExcelCol(col)) {
+    if (cell?.userEdited) {
+      const rawEdited = displayValue(cell);
+      if (isSynNumericRaw(rawEdited)) {
+        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited), col);
+      }
+      return synTranslateText(rawEdited, col);
+    }
+    const hdrMaaPreset = synRowMaaPresetRaw(row, col);
+    if (hdrMaaPreset !== undefined) {
+      if (hdrMaaPreset == null || hdrMaaPreset === '') return '';
+      if (typeof hdrMaaPreset === 'number' || isSynNumericRaw(String(hdrMaaPreset))) {
+        return synTranslateText(
+          formatSynHdrMaaMetricDisplay(row, String(hdrMaaPreset)),
+          col
+        );
+      }
+      return synTranslateText(String(hdrMaaPreset), col);
+    }
   }
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {
     if (cell?.userEdited) {

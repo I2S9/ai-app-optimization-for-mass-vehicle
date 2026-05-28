@@ -179,34 +179,22 @@ export function findSubsection(model, subId) {
   return null;
 }
 
-/** Preserve data rows (STLA/S, project lines…) in place when reordering structure. */
+/**
+ * Move each L1 section as one contiguous band (header → endRow), in matrix column order.
+ * Avoids dropping rows between sub-sections or between sections when reordering.
+ */
 function bdBlocksFromStructure(model) {
   const blocks = [];
   for (const sec of model.sections) {
+    const start = sec.headerRow;
+    if (start == null) continue;
+    const end = sec.endRow ?? start;
+    if (end < start) continue;
     blocks.push({
-      type: 'section',
-      rows: [sec.headerRow],
+      type: 'section-band',
+      rows: rowRange(start, end),
       meta: sec,
     });
-    const subs = [...sec.subsections].sort((a, b) => a.startRow - b.startRow);
-    let cursor = sec.headerRow + 1;
-    const end = sec.endRow ?? sec.headerRow;
-    for (const sub of subs) {
-      if (sub.isNew) continue;
-      while (cursor < sub.startRow) {
-        blocks.push({ type: 'passthrough', rows: [cursor++] });
-      }
-      const rows = rowRange(sub.startRow, sub.endRow);
-      blocks.push({
-        type: 'subsection',
-        rows,
-        meta: { section: sec, subsection: sub },
-      });
-      cursor = sub.endRow + 1;
-    }
-    while (cursor <= end) {
-      blocks.push({ type: 'passthrough', rows: [cursor++] });
-    }
   }
   return blocks;
 }
@@ -297,10 +285,14 @@ function applyBdLabels(sheet, model) {
 function setCell(sheet, row, col, value) {
   const idx = sheet.cells.findIndex((c) => c.r === row && c.c === col);
   if (idx >= 0) {
-    sheet.cells[idx] = { ...sheet.cells[idx], v: value };
+    sheet.cells[idx] = {
+      ...sheet.cells[idx],
+      v: value,
+      userEdited: true,
+    };
     delete sheet.cells[idx].f;
   } else {
-    sheet.cells.push({ r: row, c: col, v: value });
+    sheet.cells.push({ r: row, c: col, v: value, userEdited: true });
   }
 }
 
@@ -314,15 +306,18 @@ function buildBdRowMap(raw, model) {
     for (const oldR of block.rows) {
       oldToNew.set(oldR, next++);
     }
-    if (block.type === 'section') block.meta.headerRow = oldToNew.get(block.rows[0]);
-    if (block.type === 'subsection') {
-      block.meta.subsection.startRow = oldToNew.get(block.rows[0]);
-      block.meta.subsection.endRow = oldToNew.get(block.rows[block.rows.length - 1]);
+    if (block.type === 'section-band') {
+      const sec = block.meta;
+      sec.headerRow = oldToNew.get(block.rows[0]);
+      sec.endRow = oldToNew.get(block.rows[block.rows.length - 1]);
+      for (const sub of sec.subsections) {
+        if (sub.isNew) continue;
+        const nrStart = oldToNew.get(sub.startRow);
+        const nrEnd = oldToNew.get(sub.endRow);
+        if (nrStart != null) sub.startRow = nrStart;
+        if (nrEnd != null) sub.endRow = nrEnd;
+      }
     }
-  }
-  for (const sec of model.sections) {
-    const lastSub = sec.subsections[sec.subsections.length - 1];
-    sec.endRow = lastSub?.endRow ?? sec.headerRow;
   }
   let insertAt = next;
   for (const sec of model.sections) {
@@ -530,9 +525,14 @@ export function alignSynModelToBd(synModel, bdModel) {
   return { ...synModel, sections };
 }
 
-function attachBdStructureMeta(sheet) {
-  const { rows, canonicalByLabel } = computeSectionHeaderRows(sheet);
-  sheet.sectionHeaderRows = rows;
+function attachBdStructureMeta(sheet, model) {
+  const rows = new Set([5, 139]);
+  for (const sec of model?.sections || []) {
+    if (sec.headerRow != null) rows.add(sec.headerRow);
+  }
+  const { rows: computedRows, canonicalByLabel } = computeSectionHeaderRows(sheet);
+  for (const r of computedRows) rows.add(r);
+  sheet.sectionHeaderRows = [...rows].sort((a, b) => a - b);
   sheet.canonicalSectionByLabel = Object.fromEntries(canonicalByLabel);
   sheet.outlineRows = computeOutlineRows(sheet).filter(
     (r) => r <= sheet.lastRow
@@ -547,7 +547,7 @@ export function applyStructureToBdRaw(bdRaw, model) {
   insertNewBdRows(sheet, m);
   sheet.matrixColors = collectMatrixColors(m);
   sheet = applyBdLabels(sheet, m);
-  sheet = attachBdStructureMeta(sheet);
+  sheet = attachBdStructureMeta(sheet, m);
   return { sheet, model: m };
 }
 

@@ -3,7 +3,7 @@ import {
   cloneStructure,
   findSection,
   findSubsection,
-} from './structureModel.js?v=matrix10';
+} from './structureModel.js?v=matrix13';
 
 const DEFAULT_SECTION_COLOR = '#ffff00';
 const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
@@ -93,7 +93,7 @@ export default {
     state: { type: Object, default: null },
     saving: { type: Boolean, default: false },
   },
-  emits: ['close', 'save'],
+  emits: ['close', 'change'],
   setup(props, { emit }) {
     const model = ref(null);
     const selectedIds = ref([]);
@@ -109,22 +109,57 @@ export default {
     const confirmDelete = ref(null);
     const colorPick = ref(null);
 
+    function syncModelRowCoords(local, incoming) {
+      if (!local?.sections?.length || !incoming?.sections?.length) return false;
+      if (local.sections.length !== incoming.sections.length) return false;
+      for (let i = 0; i < local.sections.length; i++) {
+        if (local.sections[i].id !== incoming.sections[i].id) return false;
+      }
+      for (let i = 0; i < local.sections.length; i++) {
+        const loc = local.sections[i];
+        const inc = incoming.sections[i];
+        loc.headerRow = inc.headerRow;
+        loc.endRow = inc.endRow;
+        if (inc.subsections.length !== loc.subsections.length) continue;
+        for (let j = 0; j < loc.subsections.length; j++) {
+          if (loc.subsections[j].id !== inc.subsections[j].id) continue;
+          loc.subsections[j].startRow = inc.subsections[j].startRow;
+          loc.subsections[j].endRow = inc.subsections[j].endRow;
+        }
+      }
+      return true;
+    }
+
+    function resetMatrixUiState() {
+      selectedIds.value = [];
+      selectedSubIds.value = [];
+      subAnchorId.value = null;
+      editing.value = null;
+      itemEditor.value = null;
+      confirmDelete.value = null;
+      dropTarget.value = null;
+      dragSecId.value = null;
+      secDropIndex.value = null;
+      dragSubId.value = null;
+      dragSubIds.value = [];
+    }
+
     watch(
       () => props.state,
       (s) => {
-        if (s?.bd) model.value = cloneStructure(s.bd);
-        else model.value = null;
-        selectedIds.value = [];
-        selectedSubIds.value = [];
-        subAnchorId.value = null;
-        editing.value = null;
-        itemEditor.value = null;
-        confirmDelete.value = null;
-        dropTarget.value = null;
-        dragSecId.value = null;
-        secDropIndex.value = null;
-        dragSubId.value = null;
-        dragSubIds.value = [];
+        if (!s?.bd) {
+          model.value = null;
+          resetMatrixUiState();
+          return;
+        }
+        if (!model.value?.sections?.length) {
+          model.value = cloneStructure(s.bd);
+          resetMatrixUiState();
+          return;
+        }
+        if (syncModelRowCoords(model.value, s.bd)) return;
+        model.value = cloneStructure(s.bd);
+        resetMatrixUiState();
       },
       { immediate: true }
     );
@@ -175,6 +210,11 @@ export default {
       secDropIndex.value = null;
     }
 
+    function notifyChange() {
+      if (!model.value || model.value.sections.length < 2) return;
+      emit('change', { bd: cloneStructure(model.value) });
+    }
+
     function onDropSection(insertIndex) {
       const id = dragSecId.value;
       if (!id || !model.value) return;
@@ -187,6 +227,7 @@ export default {
       sections.splice(idx, 0, item);
       dragSecId.value = null;
       secDropIndex.value = null;
+      notifyChange();
     }
 
     function isEditing(kind, sectionId, subId = null) {
@@ -240,6 +281,7 @@ export default {
         const hit = findSubsection(model.value, e.subId);
         if (hit) hit.subsection.label = formatSubLabel(val) || val;
       }
+      notifyChange();
     }
 
     function cancelEdit() {
@@ -406,6 +448,7 @@ export default {
       dragSubId.value = null;
       dragSubIds.value = [];
       dropTarget.value = null;
+      notifyChange();
     }
 
     function askDeleteSection(sec) {
@@ -452,6 +495,7 @@ export default {
         );
       }
       confirmDelete.value = null;
+      notifyChange();
     }
 
     function pickColor(type, sectionId, subId, ev) {
@@ -510,6 +554,7 @@ export default {
         }
       }
       closeColorPick();
+      notifyChange();
     }
 
     function openAddSubsection(sec) {
@@ -549,6 +594,7 @@ export default {
         subAnchorId.value = id;
         closeItemEditor();
         scrollToSub(id);
+        notifyChange();
       }
     }
 
@@ -568,18 +614,20 @@ export default {
     }
 
     function close() {
+      notifyChange();
       emit('close');
     }
 
-    function save() {
+    function done() {
       if (!model.value) return;
       if (model.value.sections.length < 2) {
         window.alert(
-          'Save cancelled: at least two sections must remain in the structure.'
+          'At least two sections must remain in the structure.'
         );
         return;
       }
-      emit('save', { bd: cloneStructure(model.value) });
+      notifyChange();
+      emit('close');
     }
 
     return {
@@ -628,7 +676,8 @@ export default {
       sectionStyle,
       subStyle,
       close,
-      save,
+      done,
+      notifyChange,
     };
   },
   template: `
@@ -640,13 +689,14 @@ export default {
               <button type="button" class="matrix-close" aria-label="Close" @click="close">×</button>
               <div class="matrix-title-block">
                 <h2 class="matrix-title">Bookmark Matrix</h2>
+                <p class="matrix-subtitle">Sections jaunes et sous-sections bleues — communes à Database et Synthesis, mises à jour en direct.</p>
               </div>
               <button
                 type="button"
                 class="matrix-save"
                 :disabled="saving"
-                @click="save"
-              >{{ saving ? 'Saving…' : 'Save' }}</button>
+                @click="done"
+              >{{ saving ? 'Applying…' : 'Done' }}</button>
             </header>
             <div class="matrix-body">
               <aside

@@ -1,21 +1,26 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-nav4';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-cidp1';
-import { createEditHistory } from './editHistory.js?v=undo1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-bands3';
+import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MatrixModal from './MatrixModal.js?v=matrix11';
+import MatrixModal from './MatrixModal.js?v=matrix12';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-pillar-cg2';
 import { createWorkbookSession } from './workbookSession.js?v=adapt-sum1';
-import { buildMatrixState, applyMatrixSave } from './structureModel.js?v=matrix10';
+import {
+  buildMatrixState,
+  applyMatrixSave,
+  alignSynModelToBd,
+  cloneStructure,
+} from './structureModel.js?v=matrix13';
 import {
   upsertRawCell,
   loadLocalSnapshot,
   clearLocalSnapshot,
   createAutoSave,
   applySheetEdits,
-} from './sessionPersistence.js?v=persist-v2';
+} from './sessionPersistence.js?v=persist-v3';
 
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal, KeepAlive },
@@ -41,10 +46,18 @@ const App = {
     const editHistory = createEditHistory();
     const historyTick = ref(0);
     const externalEditTick = ref(0);
+    /** >0 after Bookmark Matrix save — triggers full-sheet local persistence. */
+    const structureRevision = ref(0);
     let applyingHistory = false;
     let engineStarted = false;
     let synthesisLoadPromise = null;
     let synthesisPreparePromise = null;
+    let matrixApplyTimer = null;
+    let matrixPendingModel = null;
+    let matrixSessionBefore = null;
+    let matrixSessionDirty = false;
+    let matrixApplyQueued = false;
+    const MATRIX_APPLY_MS = 200;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
     let preservedSynRaw = null;
     /** Skip re-running transformBdSheet / transformSynthesisSheet when raw unchanged. */
@@ -58,6 +71,7 @@ const App = {
         bd: bdRaw.value,
         syn: synRaw.value ?? preservedSynRaw,
         revision: dirty.value,
+        structureRevision: structureRevision.value,
       }),
       {
         debounceMs: 400,
@@ -223,7 +237,26 @@ const App = {
 
       try {
         const snapshot = await loadLocalSnapshot({ timeoutMs: 15000 });
-        if (snapshot?.version === 2) {
+        if (snapshot?.version === 3) {
+          if (snapshot.bdFull) {
+            bdRaw.value = snapshot.bdFull;
+          } else {
+            await fetchBdFromServer();
+            if (snapshot.bdEdits) {
+              applySheetEdits(bdRaw.value, snapshot.bdEdits);
+            }
+          }
+          if (snapshot.synFull) {
+            synRaw.value = snapshot.synFull;
+            preservedSynRaw = snapshot.synFull;
+          } else if (snapshot.synEdits) {
+            await fetchSynFromServer();
+            applySheetEdits(synRaw.value, snapshot.synEdits);
+          }
+          structureRevision.value = snapshot.structureRevision ?? 0;
+          loadedFromLocal.value = true;
+          saveStatus.value = 'saved';
+        } else if (snapshot?.version === 2) {
           await fetchBdFromServer();
           if (snapshot.bdEdits) {
             applySheetEdits(bdRaw.value, snapshot.bdEdits);
@@ -303,6 +336,33 @@ const App = {
       }
     }
 
+    function cloneRawSheet(sheet) {
+      if (!sheet) return null;
+      return JSON.parse(JSON.stringify(sheet));
+    }
+
+    async function applyMatrixSnapshot(bd, syn) {
+      if (!bd) return;
+      bdRaw.value = cloneRawSheet(bd);
+      bumpBdSheetRevision();
+      applyBdFromRaw(true);
+      if (syn) {
+        synRaw.value = cloneRawSheet(syn);
+        preservedSynRaw = synRaw.value;
+        bumpSynSheetRevision();
+        applySynFromRaw(true);
+      }
+      externalEditTick.value += 1;
+      if (engineStarted && bdSheet.value) {
+        await session.loadSheets([
+          { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
+        ]);
+      }
+      dirty.value += 1;
+      autoSave.schedule();
+      void autoSave.saveNow();
+    }
+
     function applyHistoryCell({ sheet, row, col, value }) {
       const raw =
         sheet === 'SYNTHESIS'
@@ -328,24 +388,32 @@ const App = {
       void autoSave.saveNow();
     }
 
-    function performUndo() {
+    async function performUndo() {
       const entry = editHistory.undo();
       if (!entry) return;
       applyingHistory = true;
       try {
-        applyHistoryCell({ ...entry, value: entry.oldValue });
+        if (entry.type === 'matrix') {
+          await applyMatrixSnapshot(entry.bdBefore, entry.synBefore);
+        } else {
+          applyHistoryCell({ ...entry, value: entry.oldValue });
+        }
       } finally {
         applyingHistory = false;
         historyTick.value = editHistory.revision;
       }
     }
 
-    function performRedo() {
+    async function performRedo() {
       const entry = editHistory.redo();
       if (!entry) return;
       applyingHistory = true;
       try {
-        applyHistoryCell({ ...entry, value: entry.newValue });
+        if (entry.type === 'matrix') {
+          await applyMatrixSnapshot(entry.bdAfter, entry.synAfter);
+        } else {
+          applyHistoryCell({ ...entry, value: entry.newValue });
+        }
       } finally {
         applyingHistory = false;
         historyTick.value = editHistory.revision;
@@ -410,6 +478,7 @@ const App = {
       await clearLocalSnapshot();
       editHistory.clear();
       historyTick.value = editHistory.revision;
+      structureRevision.value = 0;
       loadedFromLocal.value = false;
       engineStarted = false;
       synthesisLoadPromise = null;
@@ -459,22 +528,54 @@ const App = {
       if (!bdSheet.value) return;
       await loadSynthesis();
       matrixState.value = buildMatrixState(bdSheet.value, synRaw.value);
+      matrixSessionBefore = {
+        bd: cloneRawSheet(bdRaw.value),
+        syn: synRaw.value ? cloneRawSheet(synRaw.value) : null,
+      };
+      matrixSessionDirty = false;
+      matrixPendingModel = null;
       matrixOpen.value = true;
     }
 
-    function closeMatrix() {
-      matrixOpen.value = false;
+    function commitMatrixSessionHistory() {
+      if (!matrixSessionBefore || applyingHistory || !matrixSessionDirty) {
+        matrixSessionBefore = null;
+        matrixSessionDirty = false;
+        return;
+      }
+      editHistory.push({
+        type: 'matrix',
+        bdBefore: matrixSessionBefore.bd,
+        synBefore: matrixSessionBefore.syn,
+        bdAfter: cloneRawSheet(bdRaw.value),
+        synAfter: synRaw.value ? cloneRawSheet(synRaw.value) : null,
+      });
+      historyTick.value = editHistory.revision;
+      matrixSessionBefore = null;
+      matrixSessionDirty = false;
     }
 
-    async function onMatrixSave({ bd: bdModel }) {
-      if (!bdRaw.value || matrixSaving.value) return;
+    async function applyMatrixFromModel(bdModel) {
+      if (!bdRaw.value || !bdModel?.sections?.length) return;
+      if (bdModel.sections.length < 2) return;
+      if (matrixSaving.value) {
+        matrixApplyQueued = true;
+        matrixPendingModel = bdModel;
+        return;
+      }
       matrixSaving.value = true;
       try {
+        await loadSynthesis();
+        const synBase = matrixState.value?.syn ?? null;
+        const synModel = synBase
+          ? alignSynModelToBd(cloneStructure(synBase), bdModel)
+          : null;
+        const bdModelClone = cloneStructure(bdModel);
         const result = applyMatrixSave(
           bdRaw.value,
           synRaw.value,
-          bdModel,
-          matrixState.value?.syn ?? null
+          bdModelClone,
+          synModel
         );
         bdRaw.value = result.bdRaw;
         bumpBdSheetRevision();
@@ -485,22 +586,57 @@ const App = {
           bumpSynSheetRevision();
           applySynFromRaw(true);
         }
-        if (engineStarted) {
+        externalEditTick.value += 1;
+        if (engineStarted && bdSheet.value) {
           await session.loadSheets([
-          { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
-        ]);
+            { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
+          ]);
         }
-        matrixOpen.value = false;
-        editHistory.clear();
-        historyTick.value = editHistory.revision;
+        matrixState.value = {
+          bd: cloneStructure(result.bdModel),
+          syn: result.synModel
+            ? cloneStructure(result.synModel)
+            : matrixState.value?.syn ?? null,
+        };
+        matrixSessionDirty = true;
+        structureRevision.value = Math.max(structureRevision.value, 1);
         dirty.value += 1;
-        await autoSave.saveNow();
+        autoSave.schedule();
+        void autoSave.saveNow();
       } catch (e) {
         error.value = e?.message || String(e);
-        console.error('Matrix save failed:', e);
+        console.error('Matrix apply failed:', e);
       } finally {
         matrixSaving.value = false;
+        if (matrixApplyQueued && matrixPendingModel) {
+          matrixApplyQueued = false;
+          const next = matrixPendingModel;
+          void applyMatrixFromModel(next);
+        }
       }
+    }
+
+    function onMatrixChange({ bd }) {
+      if (!matrixOpen.value || !bd) return;
+      matrixPendingModel = bd;
+      if (matrixApplyTimer) clearTimeout(matrixApplyTimer);
+      matrixApplyTimer = setTimeout(() => {
+        matrixApplyTimer = null;
+        void applyMatrixFromModel(matrixPendingModel);
+      }, MATRIX_APPLY_MS);
+    }
+
+    async function closeMatrix() {
+      if (matrixApplyTimer) {
+        clearTimeout(matrixApplyTimer);
+        matrixApplyTimer = null;
+      }
+      if (matrixPendingModel) {
+        await applyMatrixFromModel(matrixPendingModel);
+        matrixPendingModel = null;
+      }
+      commitMatrixSessionHistory();
+      matrixOpen.value = false;
     }
 
     return {
@@ -533,7 +669,7 @@ const App = {
       matrixSaving,
       openMatrix,
       closeMatrix,
-      onMatrixSave,
+      onMatrixChange,
       canUndo,
       canRedo,
       performUndo,
@@ -706,7 +842,7 @@ const App = {
         :state="matrixState"
         :saving="matrixSaving"
         @close="closeMatrix"
-        @save="onMatrixSave"
+        @change="onMatrixChange"
       />
     </div>
   `,

@@ -84,6 +84,27 @@ export const SYN_CI_CY_TABLE_DISPLAY_END = 'CY';
 /** Summary table frame — display columns DA…DP, Excel rows 3–22 (display rows 3–23). */
 export const SYN_DA_DP_TABLE_DISPLAY_START = 'DA';
 export const SYN_DA_DP_TABLE_DISPLAY_END = 'DP';
+/** Summary table frame — display columns DR…ED, Excel rows 3–22 (display rows 3–23). */
+export const SYN_DR_ED_TABLE_DISPLAY_START = 'DR';
+export const SYN_DR_ED_TABLE_DISPLAY_END = 'ED';
+/** Summary table frame — display columns EF…EQ, Excel rows 3–22 (display rows 3–23). */
+export const SYN_EF_EQ_TABLE_DISPLAY_START = 'EF';
+export const SYN_EF_EQ_TABLE_DISPLAY_END = 'EQ';
+/** Summary table frame — display columns ES…FE, Excel rows 3–22 (display rows 3–23). */
+export const SYN_ES_FE_TABLE_DISPLAY_START = 'ES';
+export const SYN_ES_FE_TABLE_DISPLAY_END = 'FE';
+/** Summary table frame — display columns FJ…FZ, Excel rows 3–22 (display rows 3–23). */
+export const SYN_FJ_FZ_TABLE_DISPLAY_START = 'FJ';
+export const SYN_FJ_FZ_TABLE_DISPLAY_END = 'FZ';
+
+/** Coloured project-header bands (display columns) — same row rules as M…AA. */
+export const SYN_PROJ_HDR_BAND_DISPLAY_RANGES = [
+  { start: SYN_PROJ_HDR_GREEN_DISPLAY_START, end: SYN_PROJ_HDR_GREEN_DISPLAY_END },
+  { start: SYN_DR_ED_TABLE_DISPLAY_START, end: SYN_DR_ED_TABLE_DISPLAY_END },
+  { start: SYN_EF_EQ_TABLE_DISPLAY_START, end: SYN_EF_EQ_TABLE_DISPLAY_END },
+  { start: SYN_ES_FE_TABLE_DISPLAY_START, end: SYN_ES_FE_TABLE_DISPLAY_END },
+  { start: SYN_FJ_FZ_TABLE_DISPLAY_START, end: SYN_FJ_FZ_TABLE_DISPLAY_END },
+];
 
 /** Filter band rows 3–14: fixed grey cells in display columns C and H. */
 export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
@@ -180,11 +201,18 @@ export function isSynAdaptFluoIjOnlyCell(row, excelCol) {
   return SYN_ADAPT_FLUO_IJ_ONLY_ROWS.has(r) && isSynAdaptFluoIjOnlyExcelCol(excelCol);
 }
 
-export function isSynProjHeaderGreenExcelCol(excelCol) {
+export function isSynProjHeaderBandExcelCol(excelCol) {
   const n = colToNum(excelCol);
-  const lo = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_START));
-  const hi = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END));
-  return n >= lo && n <= hi;
+  for (const { start, end } of SYN_PROJ_HDR_BAND_DISPLAY_RANGES) {
+    const lo = colToNum(displayToExcelCol(start));
+    const hi = colToNum(displayToExcelCol(end));
+    if (n >= lo && n <= hi) return true;
+  }
+  return false;
+}
+
+export function isSynProjHeaderGreenExcelCol(excelCol) {
+  return isSynProjHeaderBandExcelCol(excelCol);
 }
 
 export function isSynSpacerDisplayExcelCol(excelCol) {

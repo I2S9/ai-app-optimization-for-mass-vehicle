@@ -26,6 +26,8 @@ import {
   synMetricCellClass,
   synHeaderPanelVehicleClass,
   synCellAccentClass,
+  synHdrEnergyValueClass,
+  synHdrEnergyValueStyle,
   synFilterGreyColClass,
   synAdaptBandColClass,
   synSpotBlueColClass,
@@ -51,13 +53,24 @@ import {
   synProjHeaderYellowStyle,
   isSynProjHeaderGreyCol,
   synProjHeaderGreyStyle,
+  isSynProjHeaderRedCol,
+  synProjHeaderRedStyle,
   isSynRow19MoGreenCol,
   isSynRow19PaaRedCol,
   synRow19MoGreenStyle,
   synRow19PaaRedStyle,
+  isSynRow20MopGreenCol,
+  isSynRow20PaaRedCol,
+  synRow20MopGreenStyle,
+  synRow20PaaRedStyle,
+  isSynRow21MpsvyRedCol,
+  isSynRow21MaaWhiteCol,
+  synRow21MpsvyRedStyle,
+  synRow21MaaWhiteStyle,
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3FromMCol,
+  isSynRow17FluoEvery3FromMCol,
   synRow16FluoStyle,
   SYN_DISPLAY_GREEN_ROWS,
   SYN_DISPLAY_GREEN_BG,
@@ -97,6 +110,22 @@ import {
   isSynHdrDaDpDividerRightEntry,
   isSynHdrDaDpDividerLeftEntry,
   isSynHdrDaDpDividerRightEdgeEntry,
+  isSynDrEdTableCellEntry,
+  isSynHdrDrEdDividerRightEntry,
+  isSynHdrDrEdDividerLeftEntry,
+  isSynHdrDrEdDividerRightEdgeEntry,
+  isSynEfEqTableCellEntry,
+  isSynHdrEfEqDividerRightEntry,
+  isSynHdrEfEqDividerLeftEntry,
+  isSynHdrEfEqDividerRightEdgeEntry,
+  isSynEsFeTableCellEntry,
+  isSynHdrEsFeDividerRightEntry,
+  isSynHdrEsFeDividerLeftEntry,
+  isSynHdrEsFeDividerRightEdgeEntry,
+  isSynFjFzTableCellEntry,
+  isSynHdrFjFzDividerRightEntry,
+  isSynHdrFjFzDividerLeftEntry,
+  isSynHdrFjFzDividerRightEdgeEntry,
   SYN_HEADER_PANEL_LAST_ROW,
   isSynSpacerDisplayExcelCol,
   isSynForceWhiteExcelCol,
@@ -106,7 +135,7 @@ import {
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
-} from './synStore.js?v=syn-cidp1';
+} from './synStore.js?v=syn-bands3';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -522,10 +551,31 @@ export default {
       return isSynHeaderPanelRow(row) && visibleScrollCols.value.length === 0;
     }
 
+    function synHeaderTableFrameRowClasses() {
+      return [
+        'syn-header-block',
+        'syn-proj-table-frame',
+        'syn-hdr-panel-grid',
+        'syn-ac-an-table-frame',
+        'syn-ap-bb-table-frame',
+        'syn-bs-ce-table-frame',
+        'syn-bd-bo-table-frame',
+        'syn-ci-cy-table-frame',
+        'syn-da-dp-table-frame',
+        'syn-dr-ed-table-frame',
+        'syn-ef-eq-table-frame',
+        'syn-es-fe-table-frame',
+        'syn-fj-fz-table-frame',
+      ];
+    }
+
     function entryRowClasses(entry) {
       if (isSynPanelGapEntry(entry)) {
         const gap = ['syn-panel-gap-row', 'syn-panel-gap'];
-        if (entry.gapBetween) gap.push('syn-header-spacer-row', 'syn-header-spacer-white');
+        if (entry.gapBetween) {
+          gap.push('syn-header-spacer-row', 'syn-header-spacer-white', 'syn-header-table-gap-row');
+          gap.push(...synHeaderTableFrameRowClasses());
+        }
         if (entry.gapBeforePanel) gap.push('syn-panel-gap-top');
         if (entry.gapAfterPanel && entry.gapIndex === 1) gap.push('syn-panel-gap-first');
         if (entry.gapAfterPanel && entry.gapIndex === 2) gap.push('syn-panel-gap-last');
@@ -535,13 +585,7 @@ export default {
       const cls = synRowStyleClass(cellMap.value, row, props.sheet);
       const list = [cls];
       if (isSynHeaderPanelRow(row)) {
-        list.push('syn-header-block', 'syn-proj-table-frame', 'syn-hdr-panel-grid');
-        list.push('syn-ac-an-table-frame');
-        list.push('syn-ap-bb-table-frame');
-        list.push('syn-bs-ce-table-frame');
-        list.push('syn-bd-bo-table-frame');
-        list.push('syn-ci-cy-table-frame');
-        list.push('syn-da-dp-table-frame');
+        list.push(...synHeaderTableFrameRowClasses());
         if (row === SYN_GRID_FIRST_ROW) {
           list.push('syn-ac-an-edge-top');
           list.push('syn-ap-bb-edge-top');
@@ -549,6 +593,10 @@ export default {
           list.push('syn-bd-bo-edge-top');
           list.push('syn-ci-cy-edge-top');
           list.push('syn-da-dp-edge-top');
+          list.push('syn-dr-ed-edge-top');
+          list.push('syn-ef-eq-edge-top');
+          list.push('syn-es-fe-edge-top');
+          list.push('syn-fj-fz-edge-top');
         }
         if (row === SYN_HEADER_PANEL_LAST_ROW) {
           list.push('syn-ac-an-edge-bottom');
@@ -557,6 +605,10 @@ export default {
           list.push('syn-bd-bo-edge-bottom');
           list.push('syn-ci-cy-edge-bottom');
           list.push('syn-da-dp-edge-bottom');
+          list.push('syn-dr-ed-edge-bottom');
+          list.push('syn-ef-eq-edge-bottom');
+          list.push('syn-es-fe-edge-bottom');
+          list.push('syn-fj-fz-edge-bottom');
         }
       }
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
@@ -613,6 +665,13 @@ export default {
       const base = colStyle(col, width);
       if (isGapEntry(entry)) return base;
       const row = entry.excelRow;
+      if (isSynForceWhiteExcelCol(col)) return base;
+      if (isSynSpacerDisplayExcelCol(col)) return base;
+      const display = cellDisplay(row, col);
+      const energyStyle = synHdrEnergyValueStyle(display);
+      if (energyStyle) {
+        return { ...base, ...energyStyle };
+      }
       if (row >= SYN_GRID_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col)) {
         return {
           ...base,
@@ -630,16 +689,34 @@ export default {
       if (isSynProjHeaderGreyCol(row, col)) {
         return { ...base, ...synProjHeaderGreyStyle() };
       }
+      if (isSynProjHeaderRedCol(row, col)) {
+        return { ...base, ...synProjHeaderRedStyle() };
+      }
       if (isSynRow19MoGreenCol(row, col)) {
         return { ...base, ...synRow19MoGreenStyle() };
       }
       if (isSynRow19PaaRedCol(row, col)) {
         return { ...base, ...synRow19PaaRedStyle() };
       }
+      if (isSynRow20MopGreenCol(row, col)) {
+        return { ...base, ...synRow20MopGreenStyle() };
+      }
+      if (isSynRow20PaaRedCol(row, col)) {
+        return { ...base, ...synRow20PaaRedStyle() };
+      }
+      if (isSynRow21MpsvyRedCol(row, col)) {
+        return { ...base, ...synRow21MpsvyRedStyle() };
+      }
+      if (isSynRow21MaaWhiteCol(row, col)) {
+        return { ...base, ...synRow21MaaWhiteStyle() };
+      }
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
       if (isSynRow16FluoEvery3FromMCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
+      if (isSynRow17FluoEvery3FromMCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
       if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
@@ -670,6 +747,8 @@ export default {
       if (isSynForceWhiteExcelCol(col)) return 'syn-force-white-col';
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return spacerCol;
+      const energyCls = synHdrEnergyValueClass(display);
+      if (energyCls) return withHdrPanelBold(row, col, energyCls, display);
       // Display-row based styling (after spacer/pillar checks).
       const displayRow = bodyRows.value.find((e) => e.excelRow === row)?.displayRow;
       if (isSynDisplayRowGreyMaaCol(displayRow, col)) {
@@ -688,11 +767,6 @@ export default {
       if (metricWhiteCol) return withHdrPanelBold(row, col, metricWhiteCol, display);
       const accent = synCellAccentClass(display);
       if (accent) return withHdrPanelBold(row, col, accent, display);
-      if (isSynHeaderPanelRow(row)) {
-        const hdrCls = synHeaderPanelVehicleClass(row, col, display);
-        const combined = withHdrPanelBold(row, col, hdrCls, display);
-        if (combined) return combined;
-      }
       if (isSynProjHeaderGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-green', display);
       }
@@ -702,17 +776,40 @@ export default {
       if (isSynProjHeaderGreyCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-grey', display);
       }
+      if (isSynProjHeaderRedCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-proj-hdr-red', display);
+      }
+      if (isSynHeaderPanelRow(row)) {
+        const hdrCls = synHeaderPanelVehicleClass(row, col, display);
+        const combined = withHdrPanelBold(row, col, hdrCls, display);
+        if (combined) return combined;
+      }
       if (isSynRow19MoGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row19-mo-green', display);
       }
       if (isSynRow19PaaRedCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row19-paa-red', display);
       }
+      if (isSynRow20MopGreenCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row20-mop-green', display);
+      }
+      if (isSynRow20PaaRedCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row20-paa-red', display);
+      }
+      if (isSynRow21MpsvyRedCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row21-mpsvy-red', display);
+      }
+      if (isSynRow21MaaWhiteCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row21-maa-white', display);
+      }
       if (isSynRow25MaGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row25-ma-green', display);
       }
       if (isSynRow16FluoEvery3FromMCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynRow17FluoEvery3FromMCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row17-fluo-every3', display);
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (
@@ -811,8 +908,26 @@ export default {
       isSynHdrDaDpDividerRightEntry,
       isSynHdrDaDpDividerLeftEntry,
       isSynHdrDaDpDividerRightEdgeEntry,
+      isSynDrEdTableCellEntry,
+      isSynHdrDrEdDividerRightEntry,
+      isSynHdrDrEdDividerLeftEntry,
+      isSynHdrDrEdDividerRightEdgeEntry,
+      isSynEfEqTableCellEntry,
+      isSynHdrEfEqDividerRightEntry,
+      isSynHdrEfEqDividerLeftEntry,
+      isSynHdrEfEqDividerRightEdgeEntry,
+      isSynEsFeTableCellEntry,
+      isSynHdrEsFeDividerRightEntry,
+      isSynHdrEsFeDividerLeftEntry,
+      isSynHdrEsFeDividerRightEdgeEntry,
+      isSynFjFzTableCellEntry,
+      isSynHdrFjFzDividerRightEntry,
+      isSynHdrFjFzDividerLeftEntry,
+      isSynHdrFjFzDividerRightEdgeEntry,
       isSynProjHeaderGreenCol,
       synProjHeaderGreenStyle,
+      isSynProjHeaderRedCol,
+      synProjHeaderRedStyle,
     };
 
     return {
@@ -996,6 +1111,9 @@ export default {
                     'syn-proj-hdr-green':
                       !isGapEntry(entry) &&
                       isSynProjHeaderGreenCol(entry.excelRow, colEntry.col),
+                    'syn-proj-hdr-red':
+                      !isGapEntry(entry) &&
+                      isSynProjHeaderRedCol(entry.excelRow, colEntry.col),
                     'syn-header-edge-right':
                       !isGapEntry(entry) &&
                       headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
@@ -1095,6 +1213,58 @@ export default {
                       colEntry.col
                     ),
                     'syn-hdr-edge-dp-right': isSynHdrDaDpDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-dr-ed-cell': isSynDrEdTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-dred-right': isSynHdrDrEdDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-dr-left': isSynHdrDrEdDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-ed-right': isSynHdrDrEdDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-ef-eq-cell': isSynEfEqTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-efeq-right': isSynHdrEfEqDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-ef-left': isSynHdrEfEqDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-eq-right': isSynHdrEfEqDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-es-fe-cell': isSynEsFeTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-esfe-right': isSynHdrEsFeDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-es-left': isSynHdrEsFeDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-fe-right': isSynHdrEsFeDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-fj-fz-cell': isSynFjFzTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-fjfz-right': isSynHdrFjFzDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-fj-left': isSynHdrFjFzDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-fz-right': isSynHdrFjFzDividerRightEdgeEntry(
                       entry,
                       colEntry.col
                     ),
