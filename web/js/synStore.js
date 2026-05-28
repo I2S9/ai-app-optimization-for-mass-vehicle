@@ -21,6 +21,10 @@ import {
   SYN_BS_CE_TABLE_DISPLAY_END,
   SYN_BD_BO_TABLE_DISPLAY_START,
   SYN_BD_BO_TABLE_DISPLAY_END,
+  SYN_CI_CY_TABLE_DISPLAY_START,
+  SYN_CI_CY_TABLE_DISPLAY_END,
+  SYN_DA_DP_TABLE_DISPLAY_START,
+  SYN_DA_DP_TABLE_DISPLAY_END,
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
@@ -1629,6 +1633,114 @@ export function isSynHdrBdBoDividerRightEdgeEntry(entry, col) {
   return isSynHdrBdBoDividerRightEdgeCol(entry.excelRow, col);
 }
 
+/** Excel rows 3–22 — CI…CY summary table (display row 23 = Excel 22). */
+export function isSynCiCyTableRow(row) {
+  return isSynHeaderPanelRow(row);
+}
+
+export function isSynCiCyTableCol(col) {
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_CI_CY_TABLE_DISPLAY_START));
+  const end = colToNum(displayToExcelCol(SYN_CI_CY_TABLE_DISPLAY_END));
+  return n >= start && n <= end;
+}
+
+export function isSynCiCyTableCell(row, col) {
+  return isSynCiCyTableRow(row) && isSynCiCyTableCol(col);
+}
+
+export function isSynHdrCiCyDividerRightCol(row, col) {
+  if (!isSynCiCyTableRow(row)) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_CI_CY_TABLE_DISPLAY_START));
+  const endCy = colToNum(displayToExcelCol(SYN_CI_CY_TABLE_DISPLAY_END));
+  return n >= start && n < endCy;
+}
+
+export function isSynHdrCiCyDividerLeftCol(row, col) {
+  if (!isSynCiCyTableRow(row)) return false;
+  return col === displayToExcelCol(SYN_CI_CY_TABLE_DISPLAY_START);
+}
+
+export function isSynHdrCiCyDividerRightEdgeCol(row, col) {
+  if (!isSynCiCyTableRow(row)) return false;
+  return col === displayToExcelCol(SYN_CI_CY_TABLE_DISPLAY_END);
+}
+
+export function isSynCiCyTableCellEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynCiCyTableCell(entry.excelRow, col);
+}
+
+export function isSynHdrCiCyDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrCiCyDividerRightCol(entry.excelRow, col);
+}
+
+export function isSynHdrCiCyDividerLeftEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrCiCyDividerLeftCol(entry.excelRow, col);
+}
+
+export function isSynHdrCiCyDividerRightEdgeEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrCiCyDividerRightEdgeCol(entry.excelRow, col);
+}
+
+/** Excel rows 3–22 — DA…DP summary table (display row 23 = Excel 22). */
+export function isSynDaDpTableRow(row) {
+  return isSynHeaderPanelRow(row);
+}
+
+export function isSynDaDpTableCol(col) {
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_DA_DP_TABLE_DISPLAY_START));
+  const end = colToNum(displayToExcelCol(SYN_DA_DP_TABLE_DISPLAY_END));
+  return n >= start && n <= end;
+}
+
+export function isSynDaDpTableCell(row, col) {
+  return isSynDaDpTableRow(row) && isSynDaDpTableCol(col);
+}
+
+export function isSynHdrDaDpDividerRightCol(row, col) {
+  if (!isSynDaDpTableRow(row)) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_DA_DP_TABLE_DISPLAY_START));
+  const endDp = colToNum(displayToExcelCol(SYN_DA_DP_TABLE_DISPLAY_END));
+  return n >= start && n < endDp;
+}
+
+export function isSynHdrDaDpDividerLeftCol(row, col) {
+  if (!isSynDaDpTableRow(row)) return false;
+  return col === displayToExcelCol(SYN_DA_DP_TABLE_DISPLAY_START);
+}
+
+export function isSynHdrDaDpDividerRightEdgeCol(row, col) {
+  if (!isSynDaDpTableRow(row)) return false;
+  return col === displayToExcelCol(SYN_DA_DP_TABLE_DISPLAY_END);
+}
+
+export function isSynDaDpTableCellEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynDaDpTableCell(entry.excelRow, col);
+}
+
+export function isSynHdrDaDpDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrDaDpDividerRightCol(entry.excelRow, col);
+}
+
+export function isSynHdrDaDpDividerLeftEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrDaDpDividerLeftCol(entry.excelRow, col);
+}
+
+export function isSynHdrDaDpDividerRightEdgeEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrDaDpDividerRightEdgeCol(entry.excelRow, col);
+}
+
 /** Display column L (Excel Q) — white gutter, all body rows. */
 export function synSpacerColClass(col) {
   return isSynSpacerDisplayExcelCol(col) ? 'syn-spacer-col-l' : '';
@@ -1819,7 +1931,7 @@ function isSynHeaderPanelVehicleCol(col) {
   );
 }
 
-/** Rows 3–19, display columns C–J (Excel H–O); M…AA; AC…AN; AP…BB; BS…CE; BD…BO. */
+/** Rows 3–19, display columns C–J; M…AA; AC…AN; AP…BB; BS…CE; BD…BO; CI…CY; DA…DP. */
 export function isSynHeaderPanelBoldCol(row, col) {
   const r = Number(row);
   if (!Number.isFinite(r) || r < SYN_GRID_FIRST_ROW) return false;
@@ -1829,7 +1941,9 @@ export function isSynHeaderPanelBoldCol(row, col) {
     (isSynAcAnTableCol(col) ||
       isSynApBbTableCol(col) ||
       isSynBsCeTableCol(col) ||
-      isSynBdBoTableCol(col))
+      isSynBdBoTableCol(col) ||
+      isSynCiCyTableCol(col) ||
+      isSynDaDpTableCol(col))
   ) {
     return true;
   }

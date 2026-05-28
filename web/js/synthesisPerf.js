@@ -78,6 +78,12 @@ export const SYN_BS_CE_TABLE_DISPLAY_END = 'CE';
 /** Summary table frame — display columns BD…BO, Excel rows 3–22 (display rows 3–23). */
 export const SYN_BD_BO_TABLE_DISPLAY_START = 'BD';
 export const SYN_BD_BO_TABLE_DISPLAY_END = 'BO';
+/** Summary table frame — display columns CI…CY, Excel rows 3–22 (display rows 3–23). */
+export const SYN_CI_CY_TABLE_DISPLAY_START = 'CI';
+export const SYN_CI_CY_TABLE_DISPLAY_END = 'CY';
+/** Summary table frame — display columns DA…DP, Excel rows 3–22 (display rows 3–23). */
+export const SYN_DA_DP_TABLE_DISPLAY_START = 'DA';
+export const SYN_DA_DP_TABLE_DISPLAY_END = 'DP';
 
 /** Filter band rows 3–14: fixed grey cells in display columns C and H. */
 export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];

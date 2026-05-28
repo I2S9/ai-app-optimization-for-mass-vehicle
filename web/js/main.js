@@ -1,6 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-nav4';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-bsce1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-cidp1';
 import { createEditHistory } from './editHistory.js?v=undo1';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
