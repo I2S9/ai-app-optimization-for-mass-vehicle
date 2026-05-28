@@ -396,3 +396,14 @@ export function translateSubsystemLabel(raw) {
   if (raw == null || raw === '') return raw;
   return translateValue(String(raw).trim());
 }
+
+/**
+ * Normalized key for SYN F ↔ BD L2 matching (Excel AS = AU on Database page).
+ * Applies translation twice (Syn French → EN, BD title case) then uppercases.
+ */
+export function canonicalL2MatchKey(raw) {
+  let s = translateSubsystemLabel(String(raw ?? '').trim());
+  if (!s) return '';
+  s = translateSubsystemLabel(s);
+  return s.toUpperCase();
+}

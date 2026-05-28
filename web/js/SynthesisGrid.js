@@ -18,7 +18,8 @@ import {
   isSynSumproductDataCell,
   isSynSectionSumDataCell,
   isSynAbDiffCell,
-} from './synthesisCalc.js?v=sumprod-ab1';
+  isSynCalculatedMassCell,
+} from './synthesisCalc.js?v=syn-apbb7';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
@@ -56,6 +57,7 @@ import {
   isSynSp2DisplayExcelCol,
   synPillarAccentClass,
   isSynProjHeaderGreenCol,
+  isSynStlaSlashGreenCell,
   isSynTargetTextGreenCell,
   synProjHeaderGreenStyle,
   isSynProjHeaderYellowCol,
@@ -73,16 +75,18 @@ import {
   synRow20PortfolioRedStyle,
   synRow20PortfolioYellowStyle,
   isSynRow21Step3Col,
-  isSynRow17MaaBlueCol,
+  isSynRow17BlueEvery3Col,
   synRow17MaaBlueStyle,
-  isSynRow17AcanBlueCol,
-  isSynRow18MaaGreyCol,
+  isSynRow18GreyCol,
   synRow18MaaGreyStyle,
-  isSynRow18AcanGreyCol,
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
-  isSynRow16FluoEvery3FromMCol,
-  isSynRow16FluoEvery3FromAcanCol,
+  isSynRow16FluoEvery3Col,
+  isSynApbbRow16FluoCol,
+  isSynApbbRow17BlueCol,
+  isSynApbbRow18GreyCol,
+  isSynApbbP3sBlackCol,
+  synApbbP3sBlackStyle,
   isSynRow17FluoEvery3FromMCol,
   synRow16FluoStyle,
   SYN_DISPLAY_GREEN_ROWS,
@@ -93,6 +97,8 @@ import {
   synDisplayRowGreenMaaStyle,
   isSynDisplayRowGreenAcanCol,
   synDisplayRowGreenAcanStyle,
+  isSynYellowFluoGreenFromMCol,
+  synYellowFluoGreenFromMStyle,
   isSynHdrLmDividerRightCol,
   isSynHdrLmDividerLeftCol,
   isSynHdrAaDividerRightCol,
@@ -151,7 +157,7 @@ import {
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
   synLabel,
-} from './synStore.js?v=syn-acan-green1';
+} from './synStore.js?v=syn-apbb7';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -182,7 +188,7 @@ export default {
     paneVisible: { type: Boolean, default: true },
     externalEditTick: { type: Number, default: 0 },
   },
-  emits: ['cell-change'],
+  emits: ['cell-change', 'cell-select'],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -436,6 +442,7 @@ export default {
     });
 
     const editEpoch = ref(0);
+    const selectedCell = ref(null);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
     const displayCache = new Map();
     let displayCacheKey = '';
@@ -447,6 +454,14 @@ export default {
 
     watch(
       () => props.externalEditTick,
+      () => {
+        editEpoch.value += 1;
+        invalidateDisplayCache();
+      }
+    );
+
+    watch(
+      () => [props.session?.revision?.value ?? 0, props.session?.ready?.value ?? false],
       () => {
         editEpoch.value += 1;
         invalidateDisplayCache();
@@ -490,8 +505,8 @@ export default {
       isCellActive,
       cellShowValue,
       onCellMouseDown,
-      onCellSpanMouseDown,
-      onCellFocus,
+      onCellSpanMouseDown: onCellSpanMouseDownBase,
+      onCellFocus: onCellFocusBase,
       onCellInput,
       onCellBlur,
       onCellKeydown: onCellKeydownBase,
@@ -500,6 +515,16 @@ export default {
       activateCell,
       setNavigationLock,
     } = cellEditor;
+
+    function onCellSpanMouseDown(row, col, event) {
+      onReadonlyCellSelect(row, col, event);
+      onCellSpanMouseDownBase(row, col, event);
+    }
+
+    function onCellFocus(row, col, event) {
+      selectCell(row, col);
+      onCellFocusBase(row, col, event);
+    }
 
     /** Formula-driven cells (SUMPRODUCT, adaptation totals) are not manually editable. */
     function cellReadonly(row, col) {
@@ -542,6 +567,30 @@ export default {
       setNavigationLock
     );
 
+    function selectCell(row, col) {
+      if (row == null || !col) return;
+      selectedCell.value = { row, col };
+      emit('cell-select', { row, col });
+    }
+
+    const formulaText = computed(() => {
+      void calcRevision.value;
+      const sel = selectedCell.value;
+      if (!sel) return '';
+      return props.session?.getSynFormula?.(sel.row, sel.col) ?? '';
+    });
+
+    const formulaCellRef = computed(() => {
+      const sel = selectedCell.value;
+      if (!sel) return '';
+      return `${excelToDisplayCol(sel.col)}${sel.row}`;
+    });
+
+    function onReadonlyCellSelect(row, col, event) {
+      if (event.button !== 0) return;
+      selectCell(row, col);
+    }
+
     function formatVal(v) {
       const formatted = formatSynNumericDisplay(v);
       return formatted === '' && v != null && String(v).trim() !== ''
@@ -574,6 +623,32 @@ export default {
         return pillar;
       }
       const cell = getCell(cellMap.value, row, col);
+      const label = synLabel(cellMap.value, row);
+      const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
+      const isLiveCalc =
+        isSynAdaptationSumCell(row, col) ||
+        isSynCalculatedMassCell(cell, row, col, props.sheet, label, rowClass);
+
+      if (isLiveCalc && props.session?.getDisplayValue) {
+        if (!props.session.ready?.value) {
+          displayCache.set(hitKey, '…');
+          return '…';
+        }
+        const fromSession = props.session.getDisplayValue(
+          'SYNTHESIS',
+          row,
+          col,
+          cell
+        );
+        if (fromSession != null && !cell?.userEdited) {
+          const out = isSynMetricRow(row)
+            ? fromSession
+            : formatVal(fromSession);
+          displayCache.set(hitKey, out);
+          return out;
+        }
+      }
+
       let displayCell = cell;
       if (isSynAdaptationSumCell(row, col)) {
         displayCell = null;
@@ -732,7 +807,7 @@ export default {
       if (bevStyle) {
         return { ...base, ...bevStyle };
       }
-      const energyStyle = synHdrEnergyValueStyle(display);
+      const energyStyle = synHdrEnergyValueStyle(row, col, display);
       if (energyStyle) {
         return { ...base, ...energyStyle };
       }
@@ -745,10 +820,14 @@ export default {
         };
       }
       if (
+        isSynStlaSlashGreenCell(row, col, display) ||
         isSynProjHeaderGreenCol(row, col) ||
         isSynTargetTextGreenCell(col, display)
       ) {
         return { ...base, ...synProjHeaderGreenStyle() };
+      }
+      if (isSynApbbP3sBlackCol(row, col)) {
+        return { ...base, ...synApbbP3sBlackStyle() };
       }
       if (isSynProjHeaderYellowCol(row, col)) {
         return { ...base, ...synProjHeaderYellowStyle() };
@@ -772,25 +851,28 @@ export default {
         }
         return style;
       }
-      if (isSynRow17MaaBlueCol(row, col)) {
+      if (isSynRow17BlueEvery3Col(row, col)) {
         return { ...base, ...synRow17MaaBlueStyle() };
       }
-      if (isSynRow17AcanBlueCol(row, col)) {
+      if (isSynApbbRow17BlueCol(row, col)) {
         return { ...base, ...synRow17MaaBlueStyle() };
       }
-      if (isSynRow18MaaGreyCol(row, col)) {
+      if (isSynRow18GreyCol(row, col)) {
         return { ...base, ...synRow18MaaGreyStyle() };
       }
-      if (isSynRow18AcanGreyCol(row, col)) {
+      if (isSynApbbRow18GreyCol(row, col)) {
         return { ...base, ...synRow18MaaGreyStyle() };
       }
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
-      if (isSynRow16FluoEvery3FromMCol(row, col)) {
+      if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
+        return { ...base, ...synYellowFluoGreenFromMStyle() };
+      }
+      if (isSynRow16FluoEvery3Col(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
-      if (isSynRow16FluoEvery3FromAcanCol(row, col)) {
+      if (isSynApbbRow16FluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
       if (isSynRow17FluoEvery3FromMCol(row, col)) {
@@ -829,7 +911,7 @@ export default {
       if (spacerCol) return spacerCol;
       const bevCls = synHdrBevTextClass(row, display);
       if (bevCls) return withHdrPanelBold(row, col, bevCls, display);
-      const energyCls = synHdrEnergyValueClass(display);
+      const energyCls = synHdrEnergyValueClass(row, col, display);
       if (energyCls) return withHdrPanelBold(row, col, energyCls, display);
       // Display-row based styling (after spacer/pillar checks).
       const displayRow = displayRowByExcel.value.get(row);
@@ -853,10 +935,14 @@ export default {
       const accent = synCellAccentClass(display);
       if (accent) return withHdrPanelBold(row, col, accent, display);
       if (
+        isSynStlaSlashGreenCell(row, col, display) ||
         isSynProjHeaderGreenCol(row, col) ||
         isSynTargetTextGreenCell(col, display)
       ) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-green', display);
+      }
+      if (isSynApbbP3sBlackCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-apbb-p3s-black', display);
       }
       if (isSynProjHeaderYellowCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-yellow', display);
@@ -887,25 +973,28 @@ export default {
       if (isSynRow21Step3Col(row, col, display)) {
         return withHdrPanelBold(row, col, 'syn-row21-step3', display);
       }
-      if (isSynRow17MaaBlueCol(row, col)) {
+      if (isSynRow17BlueEvery3Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
       }
-      if (isSynRow17AcanBlueCol(row, col)) {
+      if (isSynApbbRow17BlueCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
       }
-      if (isSynRow18MaaGreyCol(row, col)) {
+      if (isSynRow18GreyCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row18-maa-grey', display);
       }
-      if (isSynRow18AcanGreyCol(row, col)) {
+      if (isSynApbbRow18GreyCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row18-maa-grey', display);
       }
       if (isSynRow25MaGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row25-ma-green', display);
       }
-      if (isSynRow16FluoEvery3FromMCol(row, col)) {
+      if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
+        return withHdrPanelBold(row, col, 'syn-fluo-green-from-m', display);
+      }
+      if (isSynRow16FluoEvery3Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
-      if (isSynRow16FluoEvery3FromAcanCol(row, col)) {
+      if (isSynApbbRow16FluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynRow17FluoEvery3FromMCol(row, col)) {
@@ -963,13 +1052,19 @@ export default {
       { immediate: true }
     );
 
-    onMounted(() => {
-      props.session?.bindSynthesisGrid?.(
-        (row, col) => getCell(cellMap.value, row, col),
+    // Bind before first paint — cellDisplay calls session.getDisplayValue during render.
+    watchEffect(() => {
+      if (!props.sheet || !props.session?.bindSynthesisGrid) return;
+      const map = cellMap.value;
+      props.session.bindSynthesisGrid(
+        (row, col) => getCell(map, row, col),
         props.sheet,
-        (row) => synLabel(cellMap.value, row),
-        (row) => synRowStyleClass(cellMap.value, row, props.sheet)
+        (row) => synLabel(map, row),
+        (row) => synRowStyleClass(map, row, props.sheet)
       );
+    });
+
+    onMounted(() => {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
@@ -1230,10 +1325,18 @@ export default {
       onCellInput,
       onCellBlur,
       onCellKeydown,
+      selectedCell,
+      formulaText,
+      formulaCellRef,
+      onReadonlyCellSelect,
     };
   },
   template: `
     <div class="bd-grid-root synthesis-grid">
+      <div v-if="selectedCell" class="syn-formula-bar" role="status">
+        <span class="syn-formula-bar-ref">{{ formulaCellRef }}</span>
+        <span class="syn-formula-bar-text">{{ formulaText || '—' }}</span>
+      </div>
       <div class="bd-grid-scroll syn-scroll" ref="scrollEl" @scroll.passive="onScroll">
         <div
           class="syn-table-wrap"
@@ -1321,7 +1424,7 @@ export default {
                 ]"
               >
                 <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, p.col)">
-                  <span>{{ isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, p.col) }}</span>
+                  <span @mousedown="onReadonlyCellSelect(entry.excelRow, p.col, $event)">{{ isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, p.col) }}</span>
                 </template>
                 <input
                   v-else-if="isCellActive(entry.excelRow, p.col)"
@@ -1538,7 +1641,7 @@ export default {
                 :style="scrollDataCellStyle(entry, colEntry.col, colEntry.width)"
               >
                 <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, colEntry.col)">
-                  <span>{{
+                  <span @mousedown="onReadonlyCellSelect(entry.excelRow, colEntry.col, $event)">{{
                     isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, colEntry.col)
                   }}</span>
                 </template>

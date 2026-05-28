@@ -31,9 +31,11 @@ import {
   applySynRowsMaaPresetHeaderRows,
   applySynRowsAcanPresetCells,
   applySynRowsAcanPresetHeaderRows,
-} from './synStore.js?v=syn-cicy1';
+  applySynRowsApbbPresetCells,
+  applySynRowsApbbPresetHeaderRows,
+} from './synStore.js?v=syn-apbb7';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
-import { sanitizeSynAdaptationSumCells } from './synthesisCalc.js?v=syn-cicy1';
+import { sanitizeSynAdaptationSumCells, sanitizeSynLiveMassCells } from './synthesisCalc.js?v=syn-apbb7';
 
 const POSITION_INSERT_AFTER = 'AD';
 const POSITION_INSERT_COUNT = 2;
@@ -433,16 +435,20 @@ export function transformSynthesisSheet(sheet) {
   applySynRowsCjPresetCells(cells);
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
+  applySynRowsApbbPresetCells(cells);
   sanitizeSynAdaptationSumCells(cells);
-  const headerRows = applySynRowsAcanPresetHeaderRows(
-    applySynRowsMaaPresetHeaderRows(
-      Object.fromEntries(
-        Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
-          row,
-          Object.fromEntries(
-            Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
-          ),
-        ])
+  sanitizeSynLiveMassCells(cells);
+  const headerRows = applySynRowsApbbPresetHeaderRows(
+    applySynRowsAcanPresetHeaderRows(
+      applySynRowsMaaPresetHeaderRows(
+        Object.fromEntries(
+          Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
+            row,
+            Object.fromEntries(
+              Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
+            ),
+          ])
+        )
       )
     )
   );

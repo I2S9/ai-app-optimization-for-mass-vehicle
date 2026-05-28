@@ -3,11 +3,14 @@ import { WorkbookEngineClient } from './workbookEngineClient.js?v=hf-worker2';
 import {
   displayValue,
   formatMassDisplayValue,
+  buildCellMap,
+  displayCellValue,
+  bdSubsystemL1Col,
+  bdSubsystemL2Col,
 } from './bdStore.js';
 import { BD_MASS_COL } from './bdColumnConfig.js';
 import {
   buildBdColumnIndex,
-  buildBdL2Registry,
   buildSumproductL2Index,
   buildSynSectionRowList,
   buildVehColFilterIndex,
@@ -22,11 +25,17 @@ import {
   isSynCalculatedMassCell,
   isSynSectionSumDataCell,
   isSynSumproductDataCell,
+  isSynFilterEdit,
+  isSynAcanMassCol,
+  isSynApbbMassCol,
+  isSynVehicleMassCol,
+  isSynAbDiffExcelCol,
+  describeSynCellFormula,
+  synVehicleMassExcelCol,
   affectsAdaptationSum,
-  synCalcExcelCols,
-} from './synthesisCalc.js?v=sumprod-ab1';
-import { getSynAdaptBandNumeric, synRowMaaPresetRaw } from './synStore.js?v=syn-cicy1';
-import { isSynFilterEdit, isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
+} from './synthesisCalc.js?v=syn-apbb7';
+import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=syn-apbb7';
+import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
   const revision = ref(0);
@@ -35,8 +44,13 @@ export function createWorkbookSession() {
   const error = ref(null);
   const engine = new WorkbookEngineClient();
   let bdCols = null;
+  let bdSheetMeta = null;
+  let bdCellMap = null;
+  let bdL1Col = null;
+  let bdL2Col = null;
   let sumproductL2Index = null;
-  let vehColFilterIndex = null;
+  /** @type {Map<string, number[]>} lazy BD row filter per vehicle column */
+  let vehColFilterIndex = new Map();
   let synGridGetter = null;
   let synSheetMeta = null;
   let synLabelGetter = null;
@@ -44,12 +58,43 @@ export function createWorkbookSession() {
   let synSectionRows = [];
   const sumproductCache = new Map();
 
+  function rebuildBdDisplayContext(data) {
+    if (!data) {
+      bdSheetMeta = null;
+      bdCellMap = null;
+      bdL1Col = null;
+      bdL2Col = null;
+      return;
+    }
+    bdSheetMeta = data;
+    bdCellMap = buildCellMap(data.cells, data.headerRows);
+    bdL1Col = bdSubsystemL1Col(data);
+    bdL2Col = bdSubsystemL2Col(data);
+  }
+
   function getBdValue(r, c) {
+    const cell = bdCellMap?.get(`${r}:${c}`);
+    if (cell?.userEdited) {
+      return cell.v != null && cell.v !== '' ? String(cell.v) : '';
+    }
     if (ready.value && engine.hasFormula('BD', r, c)) {
       const v = engine.getCellValue('BD', r, c);
-      if (v !== '') return v;
+      if (v !== '' && v !== '#REF!') return v;
     }
-    return bdCols?.[c]?.[r] ?? '';
+    if (bdCellMap && bdSheetMeta) {
+      const displayed = displayCellValue(
+        bdCellMap,
+        r,
+        c,
+        bdSheetMeta.sectionHeaderRows,
+        bdSheetMeta.canonicalSectionByLabel,
+        bdL1Col,
+        bdL2Col
+      );
+      if (displayed !== '') return displayed;
+    }
+    const raw = bdCols?.[c]?.[r];
+    return raw != null && raw !== '' ? String(raw) : '';
   }
 
   function getSynLabel(row) {
@@ -78,17 +123,16 @@ export function createWorkbookSession() {
     sumproductL2Index = buildSumproductL2Index(bdCols, getBdValue);
   }
 
-  function rebuildVehColFilterIndex() {
-    vehColFilterIndex = null;
-    if (!bdCols || !synGridGetter) return;
-    const map = new Map();
-    for (const col of synCalcExcelCols(synSheetMeta)) {
-      map.set(
-        col,
-        buildVehColFilterIndex(bdCols, col, getSynCell, getBdValue)
+  function getVehColFilterRows(col) {
+    if (!bdCols || !synGridGetter) return null;
+    const excelCol = synVehicleMassExcelCol(col);
+    if (!vehColFilterIndex.has(excelCol)) {
+      vehColFilterIndex.set(
+        excelCol,
+        buildVehColFilterIndex(bdCols, excelCol, getSynCell, getBdValue)
       );
     }
-    vehColFilterIndex = map;
+    return vehColFilterIndex.get(excelCol);
   }
 
   function rebuildSynSectionRows() {
@@ -101,22 +145,27 @@ export function createWorkbookSession() {
     );
   }
 
-  function invalidateSumproductCaches() {
+  function invalidateSumproductCaches(vehCol = null) {
     sumproductCache.clear();
-    rebuildVehColFilterIndex();
+    if (vehCol) {
+      vehColFilterIndex.delete(synVehicleMassExcelCol(vehCol));
+    } else {
+      vehColFilterIndex.clear();
+    }
     rebuildSynSectionRows();
   }
 
   function getBlueMaaValue(row, col) {
-    const cacheKey = `b:${row}:${col}`;
+    const excelCol = synVehicleMassExcelCol(col);
+    const cacheKey = `b:${row}:${excelCol}`;
     if (sumproductCache.has(cacheKey)) {
       return parseFloat(sumproductCache.get(cacheKey)) || 0;
     }
-    const filterRows = vehColFilterIndex?.get(col) ?? null;
+    const filterRows = getVehColFilterRows(excelCol);
     const n = computeSumproduct(
       bdCols,
       row,
-      col,
+      excelCol,
       getSynCell,
       getBdValue,
       sumproductL2Index,
@@ -128,13 +177,14 @@ export function createWorkbookSession() {
   }
 
   function getSectionMaaValue(sectionRow, col) {
-    const cacheKey = `g:${sectionRow}:${col}`;
+    const excelCol = synVehicleMassExcelCol(col);
+    const cacheKey = `g:${sectionRow}:${excelCol}`;
     if (sumproductCache.has(cacheKey)) {
       return parseFloat(sumproductCache.get(cacheKey)) || 0;
     }
     const n = computeSynSectionSum(
       sectionRow,
-      col,
+      excelCol,
       synSectionRows,
       isBlueSubsectionRow,
       getBlueMaaValue
@@ -152,7 +202,7 @@ export function createWorkbookSession() {
   function resolveSynNumericAt(row, col) {
     const cell = synGridGetter?.(row, col) ?? null;
     if (isSynAdaptationSumCell(row, col)) {
-      return computeAdaptationRowSum(getSynNumeric, col);
+      return computeAdaptationRowSum(getAdaptationBlockNumeric, col);
     }
     if (cell?.userEdited) {
       return parseSynNum(displayValue(cell));
@@ -163,6 +213,26 @@ export function createWorkbookSession() {
       row <= 22
     ) {
       const preset = synRowMaaPresetRaw(row, col);
+      if (preset !== undefined) {
+        return parseSynNum(preset);
+      }
+    }
+    if (
+      isSynAcanMassCol(col) &&
+      row >= 3 &&
+      row <= 22
+    ) {
+      const preset = synRowAcanPresetRaw(row, col);
+      if (preset !== undefined) {
+        return parseSynNum(preset);
+      }
+    }
+    if (
+      isSynApbbMassCol(col) &&
+      row >= 3 &&
+      row <= 22
+    ) {
+      const preset = synRowApbbPresetRaw(row, col);
       if (preset !== undefined) {
         return parseSynNum(preset);
       }
@@ -198,21 +268,38 @@ export function createWorkbookSession() {
   async function loadSheets(sheets) {
     loading.value = true;
     error.value = null;
-    ready.value = false;
     try {
       const bdEntry = sheets.find((s) => s.name === 'BD');
       if (bdEntry) {
-        await engine.loadSheetData('BD', bdEntry.data);
+        // Live SOMMEPROD — index BD first; never block UI on HyperFormula worker load.
         bdCols = buildBdColumnIndex(bdEntry.data);
+        rebuildBdDisplayContext(bdEntry.data);
         rebuildSumproductIndex();
-        rebuildVehColFilterIndex();
+        vehColFilterIndex.clear();
+        invalidateSumproductCaches();
+        ready.value = true;
+        revision.value += 1;
+        loading.value = false;
+        void engine
+          .loadSheetData('BD', bdEntry.data)
+          .catch((engineErr) => {
+            console.warn(
+              'HyperFormula BD load failed — Synthesis mass uses BD index:',
+              engineErr
+            );
+          })
+          .finally(() => {
+            revision.value += 1;
+          });
+        return;
       }
-      ready.value = Boolean(bdEntry);
+      ready.value = false;
     } catch (e) {
       error.value = e?.message || String(e);
-      console.error('Workbook engine load failed:', e);
+      console.error('Workbook session load failed:', e);
     } finally {
       loading.value = false;
+      revision.value += 1;
     }
   }
 
@@ -222,22 +309,42 @@ export function createWorkbookSession() {
     synLabelGetter = getLabel;
     synRowClassGetter = getRowClass;
     invalidateSumproductCaches();
+    revision.value += 1;
   }
 
   function getSynCell(row, col) {
     if (!synGridGetter) return '';
+    if (col === 'F' && synLabelGetter) {
+      const label = synLabelGetter(row);
+      if (label != null && String(label).trim() !== '') {
+        return String(label).trim();
+      }
+    }
     const cell = synGridGetter(row, col);
     return cell?.v != null && cell.v !== '' ? String(cell.v) : '';
   }
 
-  function getSynNumeric(row, col) {
+  function getAdaptationBlockNumeric(row, col) {
+    if (isSynVehicleMassCol(col) || isSynAbDiffExcelCol(col)) {
+      return resolveSynNumericAt(row, col);
+    }
     if (!synGridGetter) return 0;
     return getSynAdaptBandNumeric(synGridGetter, row, col);
   }
 
-  function getBdL2Registry() {
-    if (!bdCols) return [];
-    return buildBdL2Registry(bdCols, getBdValue);
+  function getSynFormula(row, col) {
+    if (!synSheetMeta) return '';
+    const cell = synGridGetter?.(row, col) ?? null;
+    const label = getSynLabel(row);
+    const rowClass = getSynRowClass(row);
+    return describeSynCellFormula(
+      row,
+      col,
+      synSheetMeta,
+      label,
+      rowClass,
+      getSynCell
+    );
   }
 
   async function setCellValue(sheetName, row, col, value) {
@@ -245,6 +352,17 @@ export function createWorkbookSession() {
       if (bdCols) {
         if (!bdCols[col]) bdCols[col] = [];
         bdCols[col][row] = value;
+        if (bdCellMap) {
+          const key = `${row}:${col}`;
+          let cell = bdCellMap.get(key);
+          if (!cell) {
+            cell = { r: row, c: col };
+            bdCellMap.set(key, cell);
+          }
+          cell.v = value;
+          cell.userEdited = true;
+          delete cell.f;
+        }
         rebuildSumproductIndex();
       }
       invalidateSumproductCaches();
@@ -267,7 +385,7 @@ export function createWorkbookSession() {
         sumproductCache.clear();
       }
       if (isSynFilterEdit(row, col)) {
-        invalidateSumproductCaches();
+        invalidateSumproductCaches(col);
       } else if (
         col === 'F' &&
         row >= (synSheetMeta?.dataStartRow ?? 15)
@@ -280,7 +398,8 @@ export function createWorkbookSession() {
 
   function getDisplayValue(sheetName, row, col, cell) {
     if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
-      const n = computeAdaptationRowSum(getSynNumeric, col);
+      if (!synGridGetter) return '0';
+      const n = computeAdaptationRowSum(getAdaptationBlockNumeric, col);
       return String(n);
     }
     if (cell?.userEdited && !isSynAdaptationSumCell(row, col)) {
@@ -293,6 +412,30 @@ export function createWorkbookSession() {
       row <= 22
     ) {
       const preset = synRowMaaPresetRaw(row, col);
+      if (preset !== undefined) {
+        if (preset == null || preset === '') return '';
+        return String(preset);
+      }
+    }
+    if (
+      sheetName === 'SYNTHESIS' &&
+      isSynAcanMassCol(col) &&
+      row >= 3 &&
+      row <= 22
+    ) {
+      const preset = synRowAcanPresetRaw(row, col);
+      if (preset !== undefined) {
+        if (preset == null || preset === '') return '';
+        return String(preset);
+      }
+    }
+    if (
+      sheetName === 'SYNTHESIS' &&
+      isSynApbbMassCol(col) &&
+      row >= 3 &&
+      row <= 22
+    ) {
+      const preset = synRowApbbPresetRaw(row, col);
       if (preset !== undefined) {
         if (preset == null || preset === '') return '';
         return String(preset);
@@ -312,13 +455,31 @@ export function createWorkbookSession() {
     }
     if (
       sheetName === 'SYNTHESIS' &&
+      isSynSectionSumDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
+    ) {
+      return '0';
+    }
+    if (
+      sheetName === 'SYNTHESIS' &&
       bdCols &&
       isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
     ) {
       if (!String(synLabel).trim()) {
-        return displayValue(cell);
+        return '0';
       }
       return String(getBlueMaaValue(row, col));
+    }
+    if (
+      sheetName === 'SYNTHESIS' &&
+      isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
+    ) {
+      return '0';
+    }
+    if (
+      sheetName === 'SYNTHESIS' &&
+      isSynCalculatedMassCell(cell, row, col, synSheetMeta, synLabel, rowClass)
+    ) {
+      return '0';
     }
     if (sheetName === 'BD' && col === BD_MASS_COL && cell) {
       const cached =
@@ -362,8 +523,12 @@ export function createWorkbookSession() {
   function destroy() {
     engine.destroy();
     bdCols = null;
+    bdSheetMeta = null;
+    bdCellMap = null;
+    bdL1Col = null;
+    bdL2Col = null;
     sumproductL2Index = null;
-    vehColFilterIndex = null;
+    vehColFilterIndex.clear();
     synGridGetter = null;
     synSheetMeta = null;
     synLabelGetter = null;
@@ -384,7 +549,7 @@ export function createWorkbookSession() {
     getDisplayValue,
     isFormulaCell,
     isReadonlySynCell,
-    getBdL2Registry,
+    getSynFormula,
     destroy,
   };
 }

@@ -106,6 +106,42 @@ export const SYN_PROJ_HDR_BAND_DISPLAY_RANGES = [
   { start: SYN_FJ_FZ_TABLE_DISPLAY_START, end: SYN_FJ_FZ_TABLE_DISPLAY_END },
 ];
 
+/** Header panel rows 3–22 — all summary tables from display M (colour rules repeat per table). */
+export const SYN_HDR_PANEL_SUMMARY_TABLE_RANGES = [
+  { start: SYN_PROJ_HDR_GREEN_DISPLAY_START, end: SYN_PROJ_HDR_GREEN_DISPLAY_END },
+  { start: SYN_AC_AN_TABLE_DISPLAY_START, end: SYN_AC_AN_TABLE_DISPLAY_END },
+  { start: SYN_AP_BB_TABLE_DISPLAY_START, end: SYN_AP_BB_TABLE_DISPLAY_END },
+  { start: SYN_BS_CE_TABLE_DISPLAY_START, end: SYN_BS_CE_TABLE_DISPLAY_END },
+  { start: SYN_BD_BO_TABLE_DISPLAY_START, end: SYN_BD_BO_TABLE_DISPLAY_END },
+  { start: SYN_CI_CY_TABLE_DISPLAY_START, end: SYN_CI_CY_TABLE_DISPLAY_END },
+  { start: SYN_DA_DP_TABLE_DISPLAY_START, end: SYN_DA_DP_TABLE_DISPLAY_END },
+  { start: SYN_DR_ED_TABLE_DISPLAY_START, end: SYN_DR_ED_TABLE_DISPLAY_END },
+  { start: SYN_EF_EQ_TABLE_DISPLAY_START, end: SYN_EF_EQ_TABLE_DISPLAY_END },
+  { start: SYN_ES_FE_TABLE_DISPLAY_START, end: SYN_ES_FE_TABLE_DISPLAY_END },
+  { start: SYN_FJ_FZ_TABLE_DISPLAY_START, end: SYN_FJ_FZ_TABLE_DISPLAY_END },
+];
+
+export function isSynHdrSummaryTableCol(excelCol) {
+  const n = colToNum(excelCol);
+  for (const { start, end } of SYN_HDR_PANEL_SUMMARY_TABLE_RANGES) {
+    const lo = colToNum(displayToExcelCol(start));
+    const hi = colToNum(displayToExcelCol(end));
+    if (n >= lo && n <= hi) return true;
+  }
+  return false;
+}
+
+/** First column of each triplet within summary tables (M/P/S…, AC/AF/AI…, etc.). */
+export function isSynHdrSummaryEvery3Col(excelCol) {
+  const n = colToNum(excelCol);
+  for (const { start, end } of SYN_HDR_PANEL_SUMMARY_TABLE_RANGES) {
+    const lo = colToNum(displayToExcelCol(start));
+    const hi = colToNum(displayToExcelCol(end));
+    if (n >= lo && n <= hi) return (n - lo) % 3 === 0;
+  }
+  return false;
+}
+
 /** Filter band rows 3–14: fixed grey cells in display columns C and H. */
 export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];
 
@@ -238,10 +274,6 @@ export function synPillarAccentClass(excelCol) {
 
 export function filterSynDisplayColumns(columns = []) {
   return columns.filter((c) => !SYN_HIDDEN_COLS.has(c));
-}
-
-export function isSynFilterEdit(row, col) {
-  return row >= 3 && row <= 14;
 }
 
 /** Header panel vehicle band — display columns C…J (Excel H…O). */

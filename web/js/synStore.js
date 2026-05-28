@@ -12,6 +12,8 @@ import {
   isSynSpotBlueCell,
   isSynProjHeaderGreenExcelCol,
   isSynProjHeaderBandExcelCol,
+  isSynHdrSummaryTableCol,
+  isSynHdrSummaryEvery3Col,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
   SYN_AC_AN_TABLE_DISPLAY_START,
@@ -45,8 +47,14 @@ import {
   isSynSumproductDataCell,
   isSynSectionSumDataCell,
   isSynAbDiffCell,
+  isSynCalculatedMassCell,
   computeAdaptationRowSum,
-} from './synthesisCalc.js?v=sumprod-ab1';
+  describeSynCellFormula,
+  isSynVehicleMassCol,
+  SYN_CALC_FIRST_ROW,
+  SYN_ADAPTATION_SUM_ROW,
+  SYN_ADAPTATION_SUM_FROM_ROW,
+} from './synthesisCalc.js?v=syn-apbb7';
 
 export {
   isSynSpacerDisplayExcelCol,
@@ -211,7 +219,7 @@ export const SYN_DISPLAY_GREEN_ROWS = new Set([
   372, 280, 289, 394, 398, 403, 407, 411, 415, 417, 422,
 ]);
 
-/** Display-row based grey blocks for columns M…AA. */
+/** Display-row based grey blocks — all summary tables from display M (M…AA, AC…AN, AP…BB, …). */
 export const SYN_DISPLAY_GREY_MAA_BG = '#a6a6a6';
 export const SYN_DISPLAY_GREY_MAA_ROWS = (() => {
   const s = new Set([
@@ -310,6 +318,14 @@ export function getSynAdaptBandNumeric(getCell, row, col) {
   if (preset !== undefined) {
     if (preset == null || preset === '') return 0;
     return Number(preset);
+  }
+  // M…AA / AC…AN body rows — live SOMMEPROD from Database, never static Excel presets.
+  if (isSynVehicleMassCol(col) && row >= SYN_ADAPTATION_SUM_FROM_ROW) {
+    const raw = cell ? displayValue(cell) : '';
+    if (raw && isSynNumericRaw(raw)) {
+      return parseSynBandNum(raw);
+    }
+    return 0;
   }
   const maaPreset = synRowMaaPresetRaw(row, col);
   if (maaPreset !== undefined) {
@@ -1017,6 +1033,216 @@ export function applySynRowsAcanPresetHeaderRows(headerRows = {}) {
   return headerRows;
 }
 
+/** Header panel rows 3–22 — display AP…BB presets (mirrors the AP–BB summary table). */
+const SYN_APBB_PRESET_DISPLAY_COLS = [
+  'AP', 'AQ', 'AR', 'AS', 'AT', 'AU', 'AV', 'AW', 'AX', 'AY', 'AZ', 'BA', 'BB',
+];
+
+function synApbbPresetRowMap(values) {
+  const m = new Map();
+  SYN_APBB_PRESET_DISPLAY_COLS.forEach((d, i) => m.set(d, values[i]));
+  return m;
+}
+
+const SYN_APBB_PRESET_NULL_ROW = synApbbPresetRowMap(
+  SYN_APBB_PRESET_DISPLAY_COLS.map(() => null)
+);
+
+function synApbbPresetTextRow(text) {
+  return synApbbPresetRowMap(SYN_APBB_PRESET_DISPLAY_COLS.map(() => text));
+}
+
+function synApbbPresetSparse(pairs) {
+  const m = new Map(SYN_APBB_PRESET_NULL_ROW);
+  for (const [display, value] of pairs) m.set(display, value);
+  return m;
+}
+
+function isSynApbbPresetExcelCol(col) {
+  return isSynApBbTableCol(col);
+}
+
+function synApbbPresetEntries3To22() {
+  const N = SYN_APBB_PRESET_NULL_ROW;
+  const txt = synApbbPresetTextRow;
+  return [
+    [3, txt('STLA/S')],
+    [4, txt('SP2')],
+    [5, txt('P3S')],
+    [
+      6,
+      synApbbPresetRowMap([
+        'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV',
+        'MHEVP2', 'MHEVP2', 'HEV', 'HEV',
+      ]),
+    ],
+    [7, txt('EMEA')],
+    [
+      8,
+      synApbbPresetSparse([
+        ['AR', 'SBW'],
+        ['AT', 'SBW'],
+        ['AV', 'SBW'],
+        ['AW', 'SBW'],
+        ['AX', 'SBW'],
+      ]),
+    ],
+    [
+      9,
+      synApbbPresetRowMap([
+        'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'AWD',
+        'FWD', 'FWD', 'FWD', 'FWD',
+      ]),
+    ],
+    [
+      10,
+      synApbbPresetRowMap([
+        'HR', 'HR', 'HR', 'HR', 'HR', 'XR', 'XR', 'XR', 'XR',
+        'TT', 'TT', 'TT', 'TT',
+      ]),
+    ],
+    [
+      11,
+      synApbbPresetRowMap([
+        'HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'HIGH_Range',
+        'X_Range', 'X_Range', 'X_Range', 'X_Range',
+        null, null, null, null,
+      ]),
+    ],
+    [12, N],
+    [13, txt('TARGET')],
+    [
+      14,
+      synApbbPresetRowMap([
+        'L2', 'L3', 'L3', 'GT', 'GT', 'L3', 'L3', 'GT', 'GTI',
+        'L2', 'L3', 'L3', 'GT',
+      ]),
+    ],
+    [15, N],
+    [
+      16,
+      synApbbPresetRowMap([
+        1806, 1822, 1834, 1711, 1724, 1835, 1848, 1738, 1876, 1497, 1516, 1489,
+        1359,
+      ]),
+    ],
+    [
+      17,
+      synApbbPresetSparse([
+        ['AP', 1801],
+        ['AU', 1823],
+        ['AX', 2000],
+        ['AY', 1415],
+        ['BA', 1425],
+      ]),
+    ],
+    [
+      18,
+      synApbbPresetRowMap([
+        1809, 1825, 1837, 1839, 1851, 1830, 1843, 1857, 1989, 1444, 1463, 1485,
+        1504,
+      ]),
+    ],
+    [
+      19,
+      synApbbPresetRowMap([
+        -2.7, -3.3, -3.3, -127.2, -127.2, 4.9, 4.9, -119.0, -112.5, 53.9, 52.3,
+        4.4, -144.5,
+      ]),
+    ],
+    [
+      20,
+      synApbbPresetSparse([
+        ['AP', 4.9],
+        ['AU', 12.3],
+        ['AX', -123.8],
+        ['AY', 82.4],
+        ['BA', 63.9],
+      ]),
+    ],
+    [
+      21,
+      synApbbPresetSparse([
+        ['AY', 'Step 3'],
+        ['AZ', 'Step 3'],
+        ['BA', 'Step 3'],
+        ['BB', 'Step 3'],
+      ]),
+    ],
+    [22, N],
+  ];
+}
+
+const SYN_ROWS_APBB_PRESETS = new Map([...synApbbPresetEntries3To22()]);
+
+export function synRowApbbPresetRaw(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return undefined;
+  const rowMap = SYN_ROWS_APBB_PRESETS.get(r);
+  if (!rowMap || !isSynApbbPresetExcelCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!rowMap.has(d)) return undefined;
+  return rowMap.get(d);
+}
+
+/** Rows 3–22 — seed AP…BB presets (overrides legacy export unless userEdited). */
+export function applySynRowsApbbPresetCells(cells = []) {
+  const index = synPresetCellIndex(cells);
+  for (const [row, rowMap] of SYN_ROWS_APBB_PRESETS) {
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const key = `${row}:${col}`;
+      let cell = index.get(key);
+      if (cell?.userEdited) continue;
+      if (value == null) {
+        if (cell) {
+          cell.v = '';
+          delete cell.f;
+          delete cell.bg;
+        } else {
+          cell = { r: row, c: col, v: '' };
+          cells.push(cell);
+          index.set(key, cell);
+        }
+        continue;
+      }
+      if (!cell) {
+        cell = { r: row, c: col, v: String(value) };
+        cells.push(cell);
+        index.set(key, cell);
+      } else {
+        cell.v = String(value);
+        delete cell.f;
+        delete cell.bg;
+      }
+    }
+  }
+  return cells;
+}
+
+/** Header panel rows 3–22 — seed headerRows with AP…BB presets (keeps userEdited). */
+export function applySynRowsApbbPresetHeaderRows(headerRows = {}) {
+  for (const [row, rowMap] of SYN_ROWS_APBB_PRESETS) {
+    if (!isSynHeaderMaaPresetRow(row)) continue;
+    const rowKey = String(row);
+    if (!headerRows[rowKey]) headerRows[rowKey] = {};
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const existing = headerRows[rowKey][col];
+      if (existing?.userEdited) continue;
+      headerRows[rowKey][col] = {
+        ...(existing || {}),
+        v: value == null ? '' : String(value),
+        f: undefined,
+      };
+      if (headerRows[rowKey][col].f === undefined) {
+        delete headerRows[rowKey][col].f;
+      }
+    }
+  }
+  return headerRows;
+}
+
 const SYN_MAA_ROW_135_PATTERN = [
   0, 0, 13.5, 0, 0, 13.5, 0, 13.5, 13.5, 0, 0, 13.5, 0, 0, 13.5,
 ];
@@ -1217,6 +1443,9 @@ function isSynHeaderMaaPresetRow(row) {
 export function applySynRowsMaaPresetCells(cells = []) {
   const index = synPresetCellIndex(cells);
   for (const [row, rowMap] of SYN_ROWS_MAA_PRESETS) {
+    // Body rows 26+ — live engine from Database (never seed static Excel totals).
+    if (row >= SYN_ADAPTATION_SUM_ROW) continue;
+    if (row === SYN_CALC_FIRST_ROW) continue;
     for (const [display, value] of rowMap) {
       const col = displayToExcelCol(display);
       const key = `${row}:${col}`;
@@ -1460,13 +1689,36 @@ export function formatSynNumericDisplay(raw) {
   return (neg ? '-' : '') + String(i) + ',' + fracStr;
 }
 
-/** Header panel M…AA — mass rows with kg; control/portfolio with 1 decimal, no kg. */
-function formatSynHdrMaaMetricDisplay(row, raw) {
+/** AP…BB — curb mass rows 16–18; control/portfolio variance rows 19–20. */
+function formatSynHdrApbbMetricDisplay(row, raw) {
   const s = String(raw ?? '').trim();
   if (!s) return s;
   if (!isSynNumericRaw(s)) return s;
   const n = parseFloat(s.replace(',', '.'));
   if (!Number.isFinite(n)) return s;
+  if (row === 16 || row === 17 || row === 18) {
+    return `${formatSynNumericDisplay(n)} kg`;
+  }
+  if (row === 19 || row === 20) {
+    const rounded = Math.round(n * 10) / 10;
+    const neg = rounded < 0;
+    const abs = Math.abs(rounded);
+    const body = abs.toFixed(1).replace('.', ',');
+    return (neg ? '-' : '') + body;
+  }
+  return formatSynNumericDisplay(n);
+}
+
+/** Header panel M…AA — mass rows with kg; control/portfolio with 1 decimal, no kg. */
+function formatSynHdrMaaMetricDisplay(row, raw, col) {
+  const s = String(raw ?? '').trim();
+  if (!s) return s;
+  if (!isSynNumericRaw(s)) return s;
+  const n = parseFloat(s.replace(',', '.'));
+  if (!Number.isFinite(n)) return s;
+  if (col && isSynApBbTableCol(col)) {
+    return formatSynHdrApbbMetricDisplay(row, raw);
+  }
   if (row === 16 || row === 17 || row === 18) {
     return `${formatSynNumericDisplay(n)} kg`;
   }
@@ -1520,6 +1772,20 @@ export function synMetricCellClass(row, col, display) {
   if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START)) return '';
   const s = String(display ?? '').trim();
   if (!s) return '';
+  if (isSynApBbTableCol(col)) {
+    if (row === 19) {
+      const n = parseFloat(s.replace(',', '.'));
+      if (Number.isFinite(n)) {
+        if (n < 0) return 'syn-metric-control-ok';
+        if (n > 0) return 'syn-metric-control-warn';
+      }
+    }
+    if (row === 20) return 'syn-metric-portfolio';
+    if (row === 18) return 'syn-metric-stale syn-metric-mass';
+    if (row === 16) return 'syn-metric-mass';
+    if (row === 17) return 'syn-metric-pretarget';
+    return '';
+  }
   if (row === 19) {
     const n = parseFloat(s.replace(',', '.'));
     if (Number.isFinite(n)) {
@@ -1578,11 +1844,20 @@ export function isSynSp2PillarCol(col, pillarColumns) {
   return /^SP2\b/i.test(title);
 }
 
-/** Rows 3–4 & 13, display columns M through AA (Excel R…AF) and AC…AN. */
+/** Rows 3–4 & 13 — all summary tables from display M. */
 export function isSynProjHeaderGreenCol(row, col) {
   const r = Number(row);
   if (!Number.isFinite(r) || !SYN_PROJ_HDR_GREEN_ROWS.has(r)) return false;
-  return isSynProjHeaderGreenExcelCol(col) || isSynAcanExcelCol(col);
+  if (r === 13 && isSynApBbTableCol(col)) return false;
+  return isSynHdrSummaryTableCol(col);
+}
+
+/** Rows 3–22 — cell text is STLA/S (or STLA-S) in any summary table from M. */
+export function isSynStlaSlashGreenCell(row, col, display) {
+  if (row == null || !isSynHeaderPanelRow(row)) return false;
+  if (!isSynHdrSummaryTableCol(col)) return false;
+  const t = String(display ?? '').trim().toUpperCase();
+  return t === 'STLA/S' || t === 'STLA-S';
 }
 
 /** Display column M+ — cell text contains "TARGET". */
@@ -1590,7 +1865,7 @@ export function isSynTargetTextGreenCell(col, display) {
   if (display == null || display === '') return false;
   const text = String(display).trim().toUpperCase();
   if (!text.includes('TARGET')) return false;
-  return colToNum(col) >= colToNum(displayToExcelCol('M'));
+  return isSynHdrSummaryTableCol(col);
 }
 
 export function synProjHeaderGreenStyle() {
@@ -1601,11 +1876,12 @@ export function synProjHeaderGreenStyle() {
   };
 }
 
-/** Row 5, display columns M through AA (Excel R…AF) and AC…AN. */
+/** Row 5 — all summary tables from display M. */
 export function isSynProjHeaderYellowCol(row, col) {
   const r = Number(row);
   if (!Number.isFinite(r) || !SYN_PROJ_HDR_YELLOW_ROWS.has(r)) return false;
-  return isSynProjHeaderGreenExcelCol(col) || isSynAcanExcelCol(col);
+  if (r === 5 && isSynApBbTableCol(col)) return false;
+  return isSynHdrSummaryTableCol(col);
 }
 
 export function synProjHeaderYellowStyle() {
@@ -1616,11 +1892,12 @@ export function synProjHeaderYellowStyle() {
   };
 }
 
-/** Row 11, display columns M through AA (Excel R…AF) and AC…AN. */
+/** Row 11 — all summary tables from display M; AP…BB HIGH_Range/X_Range on row 11. */
 export function isSynProjHeaderGreyCol(row, col) {
   const r = Number(row);
+  if (Number(r) === 11 && isSynApBbTableCol(col)) return true;
   if (!Number.isFinite(r) || !SYN_PROJ_HDR_GREY_ROWS.has(r)) return false;
-  return isSynProjHeaderGreenExcelCol(col) || isSynAcanExcelCol(col);
+  return isSynHdrSummaryTableCol(col);
 }
 
 export function synProjHeaderGreyStyle() {
@@ -1653,6 +1930,7 @@ export function synProjHeaderRedStyle() {
 /** Row 19: display M–O green, P–AA red; AC–AE green, AF–AN red. */
 export function isSynRow19MoGreenCol(row, col) {
   if (Number(row) !== 19) return false;
+  if (isSynApBbTableCol(col)) return false;
   if (isSynAcanExcelCol(col)) {
     const n = colToNum(col);
     const start = colToNum(displayToExcelCol('AC'));
@@ -1667,6 +1945,7 @@ export function isSynRow19MoGreenCol(row, col) {
 
 export function isSynRow19PaaRedCol(row, col) {
   if (Number(row) !== 19) return false;
+  if (isSynApBbTableCol(col)) return false;
   if (isSynAcanExcelCol(col)) {
     const n = colToNum(col);
     const start = colToNum(displayToExcelCol('AF'));
@@ -1702,6 +1981,7 @@ const SYN_ROW_20_ACAN_PORTFOLIO_DISPLAY_COLS = new Set(['AC', 'AF', 'AI', 'AL'])
 
 export function isSynRow20PortfolioRedCol(row, col) {
   if (Number(row) !== 20) return false;
+  if (isSynApBbTableCol(col)) return false;
   const d = excelToDisplayCol(col);
   if (isSynAcanExcelCol(col)) {
     return SYN_ROW_20_ACAN_PORTFOLIO_DISPLAY_COLS.has(d);
@@ -1732,11 +2012,16 @@ export function synRow20PortfolioYellowStyle() {
   return { color: '#ffff00' };
 }
 
-/** Row 21: display V–AA or AI–AN with « Step 3 ». */
+/** Row 21/22: Step 3 on display V–AA, AI–AN, or AY–BB. */
 export function isSynRow21Step3Col(row, col, display) {
-  if (Number(row) !== 21) return false;
   if (!String(display ?? '').trim()) return false;
   const n = colToNum(col);
+  if (Number(row) === 21 && isSynApBbTableCol(col)) {
+    const start = colToNum(displayToExcelCol('AY'));
+    const end = colToNum(displayToExcelCol('BB'));
+    return n >= start && n <= end;
+  }
+  if (Number(row) !== 21) return false;
   if (isSynAcanExcelCol(col)) {
     const start = colToNum(displayToExcelCol('AI'));
     const end = colToNum(displayToExcelCol('AN'));
@@ -1753,34 +2038,6 @@ function isSynEvery3FromDisplayStartCol(col, displayStart, displayEnd) {
   const end = colToNum(displayToExcelCol(displayEnd));
   if (n < start || n > end) return false;
   return (n - start) % 3 === 0;
-}
-
-/** Row 17: display M, P, S, V, Y — blue text (PM pre-target). */
-export function isSynRow17MaaBlueCol(row, col) {
-  if (Number(row) !== 17) return false;
-  return isSynMaaEvery3FromMCol(col);
-}
-
-/** Row 17: display AC, AF, AI, AL — blue text (PM pre-target). */
-export function isSynRow17AcanBlueCol(row, col) {
-  if (Number(row) !== 17) return false;
-  return isSynEvery3FromDisplayStartCol(col, 'AC', 'AN');
-}
-
-export function synRow17MaaBlueStyle() {
-  return { color: '#0070c0' };
-}
-
-/** Row 18: display M…AA — grey reference mass text. */
-export function isSynRow18MaaGreyCol(row, col) {
-  if (Number(row) !== 18) return false;
-  return isSynProjHeaderGreenExcelCol(col);
-}
-
-/** Row 18: display AC…AN — grey reference mass text. */
-export function isSynRow18AcanGreyCol(row, col) {
-  if (Number(row) !== 18) return false;
-  return isSynAcanExcelCol(col);
 }
 
 export function synRow18MaaGreyStyle() {
@@ -1866,18 +2123,108 @@ function isSynMaaEvery3FromMCol(col) {
 }
 
 /**
- * Row 16: every 3 columns fluo starting at display M.
- * Pattern: M, P, S, V, Y (within M…AA).
+ * Row 16 (CURB MASS): fluo yellow on every column of each summary table —
+ * full triplets (M–O, P–R, S–U… within M…AA; AC–AE, AF–AH… within AC…AN; etc.)
+ * plus the first column of each table block (M, AC, AP, BS, …).
  */
-export function isSynRow16FluoEvery3FromMCol(row, col) {
+export function isSynRow16FluoEvery3Col(row, col) {
   if (Number(row) !== 16) return false;
-  return isSynMaaEvery3FromMCol(col);
+  if (isSynApBbTableCol(col)) return false;
+  return isSynHdrSummaryTableCol(col);
 }
 
-/** Row 16: every 3 columns fluo starting at display AC. */
-export function isSynRow16FluoEvery3FromAcanCol(row, col) {
+/** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
+export function isSynApbbP3sBlackCol(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynApBbTableCol(col);
+}
+
+export function synApbbP3sBlackStyle() {
+  return { backgroundColor: '#000000', color: '#ffffff' };
+}
+
+const SYN_APBB_ROW16_FLUO_DISPLAY_COLS = new Set(['AP', 'AU', 'AX', 'AY', 'BA']);
+
+/** Row 16 — AP…BB curb mass (fluo yellow on populated summary columns). */
+export function isSynApbbRow16FluoCol(row, col) {
   if (Number(row) !== 16) return false;
-  return isSynEvery3FromDisplayStartCol(col, 'AC', 'AN');
+  if (!isSynApBbTableCol(col)) return false;
+  return SYN_APBB_ROW16_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** @deprecated use isSynApbbRow16FluoCol */
+export function isSynApbbRow18FluoCol(row, col) {
+  return isSynApbbRow16FluoCol(row, col);
+}
+
+/** @deprecated use isSynRow16FluoEvery3Col */
+export function isSynRow16FluoEvery3FromMCol(row, col) {
+  return isSynRow16FluoEvery3Col(row, col);
+}
+
+/** @deprecated use isSynRow16FluoEvery3Col */
+export function isSynRow16FluoEvery3FromAcanCol(row, col) {
+  return isSynRow16FluoEvery3Col(row, col);
+}
+
+/** Row 17: first col of each triplet — blue PM pre-target text. */
+export function isSynRow17BlueEvery3Col(row, col) {
+  if (Number(row) !== 17) return false;
+  if (isSynApBbTableCol(col)) return false;
+  return isSynHdrSummaryEvery3Col(col);
+}
+
+/** Row 17 — AP…BB PM pre-target (blue text on populated cells). */
+export function isSynApbbRow17BlueCol(row, col) {
+  if (Number(row) !== 17) return false;
+  return isSynApBbTableCol(col);
+}
+
+/** @deprecated use isSynApbbRow17BlueCol */
+export function isSynApbbRow19BlueCol(row, col) {
+  return isSynApbbRow17BlueCol(row, col);
+}
+
+/** @deprecated use isSynRow17BlueEvery3Col */
+export function isSynRow17MaaBlueCol(row, col) {
+  return isSynRow17BlueEvery3Col(row, col);
+}
+
+/** @deprecated use isSynRow17BlueEvery3Col */
+export function isSynRow17AcanBlueCol(row, col) {
+  return isSynRow17BlueEvery3Col(row, col);
+}
+
+/** Row 18: all summary-table columns — grey reference mass text. */
+export function isSynRow18GreyCol(row, col) {
+  if (Number(row) !== 18) return false;
+  if (isSynApBbTableCol(col)) return false;
+  return isSynHdrSummaryTableCol(col);
+}
+
+/** Row 18 — AP…BB reference mass (grey text). */
+export function isSynApbbRow18GreyCol(row, col) {
+  if (Number(row) !== 18) return false;
+  return isSynApBbTableCol(col);
+}
+
+/** @deprecated use isSynApbbRow18GreyCol */
+export function isSynApbbRow20GreyCol(row, col) {
+  return isSynApbbRow18GreyCol(row, col);
+}
+
+/** @deprecated use isSynRow18GreyCol */
+export function isSynRow18MaaGreyCol(row, col) {
+  return isSynRow18GreyCol(row, col);
+}
+
+/** @deprecated use isSynRow18GreyCol */
+export function isSynRow18AcanGreyCol(row, col) {
+  return isSynRow18GreyCol(row, col);
+}
+
+export function synRow17MaaBlueStyle() {
+  return { color: '#0070c0' };
 }
 
 /** Row 17: display M, P, S, V, Y — blue PM pre-target text (not fluo). */
@@ -1895,10 +2242,7 @@ export function synRow16FluoStyle() {
 
 export function isSynDisplayRowGreyMaaCol(displayRow, col) {
   if (!SYN_DISPLAY_GREY_MAA_ROWS.has(Number(displayRow))) return false;
-  const n = colToNum(col);
-  const start = colToNum(displayToExcelCol('M'));
-  const end = colToNum(displayToExcelCol('AA'));
-  return n >= start && n <= end;
+  return isSynHdrSummaryTableCol(col);
 }
 
 export function synDisplayRowGreyMaaStyle() {
@@ -1934,6 +2278,26 @@ export function synDisplayRowGreenMaaStyle() {
 }
 
 export function synDisplayRowGreenAcanStyle() {
+  return synDisplayRowGreenMaaStyle();
+}
+
+/** Display column M and beyond (Excel R+). */
+export function isSynDisplayColFromM(col) {
+  return colToNum(col) >= colToNum(displayToExcelCol('M'));
+}
+
+/** Yellow fluo rows/bands → green from display M (sections L1, row 16 CURB MASS, row 18 AP…BB). */
+export function isSynYellowFluoGreenFromMCol(row, col, map, sheet) {
+  if (!isSynDisplayColFromM(col)) return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
+  if (isSynForceWhiteExcelCol(col)) return false;
+  if (synRowStyleClass(map, row, sheet) === 'syn-row-section') return true;
+  if (isSynRow16FluoEvery3Col(row, col)) return true;
+  if (isSynApbbRow16FluoCol(row, col)) return true;
+  return false;
+}
+
+export function synYellowFluoGreenFromMStyle() {
   return synDisplayRowGreenMaaStyle();
 }
 
@@ -2622,7 +2986,7 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
     return style;
   }
-  const energyStyle = synHdrEnergyValueStyle(disp);
+  const energyStyle = synHdrEnergyValueStyle(row, col, disp);
   if (energyStyle) {
     Object.assign(style, energyStyle);
     Object.assign(style, synHeaderPanelBoldFontStyle(row, col) || {});
@@ -2662,6 +3026,7 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     return style;
   }
   if (
+    isSynStlaSlashGreenCell(row, col, disp) ||
     isSynProjHeaderGreenCol(row, col) ||
     isSynTargetTextGreenCell(col, disp)
   ) {
@@ -2826,7 +3191,9 @@ export function synHdrBevDisplayHtml(row, displayText) {
   );
 }
 
-export function synHdrEnergyValueClass(displayText) {
+export function synHdrEnergyValueClass(row, col, displayText) {
+  if (row == null || !isSynHeaderPanelRow(row)) return '';
+  if (!isSynHdrSummaryTableCol(col)) return '';
   const v = String(displayText ?? '').trim().toUpperCase();
   if (!v) return '';
   if (v.includes('MHEVP2')) return 'syn-hdr-val-mhevp2';
@@ -2835,8 +3202,8 @@ export function synHdrEnergyValueClass(displayText) {
   return '';
 }
 
-export function synHdrEnergyValueStyle(displayText) {
-  const cls = synHdrEnergyValueClass(displayText);
+export function synHdrEnergyValueStyle(row, col, displayText) {
+  const cls = synHdrEnergyValueClass(row, col, displayText);
   if (cls === 'syn-hdr-val-mhevp2') {
     return { background: '#ffff00', backgroundColor: '#ffff00', color: '#000' };
   }
@@ -2844,7 +3211,11 @@ export function synHdrEnergyValueStyle(displayText) {
     return { background: '#ff0000', backgroundColor: '#ff0000', color: '#fff' };
   }
   if (cls === 'syn-hdr-val-awd') {
-    return { color: '#ffc000' };
+    return {
+      background: '#fff',
+      backgroundColor: '#fff',
+      color: '#ffc000',
+    };
   }
   return null;
 }
@@ -2928,7 +3299,7 @@ export function synHeaderPanelVehicleClass(row, col, displayText) {
   if (bevCls) return bevCls;
   const accent = synCellAccentClass(displayText);
   if (accent) return accent;
-  const energyCls = synHdrEnergyValueClass(displayText);
+  const energyCls = synHdrEnergyValueClass(row, col, displayText);
   if (energyCls) return energyCls;
   const v = String(displayText ?? '')
     .trim()
@@ -2955,8 +3326,6 @@ export function synProjectCellClass(displayText, col) {
   if (v === 'TARGET') return 'cell-proj-target';
   if (v === 'STATUS') return 'cell-proj-status';
   if (v === 'SPC') return 'cell-proj-spc';
-  const energyCls = synHdrEnergyValueClass(v);
-  if (energyCls) return energyCls;
   if (['BEV', 'PHEV', 'ICE', 'MHEV', 'PHEV2'].includes(v)) {
     return 'cell-proj-energy';
   }
@@ -3012,7 +3381,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     if (cell?.userEdited) {
       const rawEdited = displayValue(cell);
       if (isSynNumericRaw(rawEdited)) {
-        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited), col);
+        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
       }
       return synTranslateText(rawEdited, col);
     }
@@ -3021,7 +3390,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       if (hdrMaaPreset == null || hdrMaaPreset === '') return '';
       if (typeof hdrMaaPreset === 'number' || isSynNumericRaw(String(hdrMaaPreset))) {
         return synTranslateText(
-          formatSynHdrMaaMetricDisplay(row, String(hdrMaaPreset)),
+          formatSynHdrMaaMetricDisplay(row, String(hdrMaaPreset), col),
           col
         );
       }
@@ -3032,7 +3401,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     if (cell?.userEdited) {
       const rawEdited = displayValue(cell);
       if (isSynNumericRaw(rawEdited)) {
-        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited), col);
+        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
       }
       return synTranslateText(rawEdited, col);
     }
@@ -3041,14 +3410,59 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       if (hdrAcanPreset == null || hdrAcanPreset === '') return '';
       if (typeof hdrAcanPreset === 'number' || isSynNumericRaw(String(hdrAcanPreset))) {
         return synTranslateText(
-          formatSynHdrMaaMetricDisplay(row, String(hdrAcanPreset)),
+          formatSynHdrMaaMetricDisplay(row, String(hdrAcanPreset), col),
           col
         );
       }
       return synTranslateText(String(hdrAcanPreset), col);
     }
   }
+  if (isSynHeaderPanelRow(row) && isSynApbbPresetExcelCol(col)) {
+    if (cell?.userEdited) {
+      const rawEdited = displayValue(cell);
+      if (isSynNumericRaw(rawEdited)) {
+        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
+      }
+      return synTranslateText(rawEdited, col);
+    }
+    const hdrApbbPreset = synRowApbbPresetRaw(row, col);
+    if (hdrApbbPreset !== undefined) {
+      if (hdrApbbPreset == null || hdrApbbPreset === '') return '';
+      if (typeof hdrApbbPreset === 'number' || isSynNumericRaw(String(hdrApbbPreset))) {
+        return synTranslateText(
+          formatSynHdrMaaMetricDisplay(row, String(hdrApbbPreset), col),
+          col
+        );
+      }
+      return synTranslateText(String(hdrApbbPreset), col);
+    }
+  }
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {
+    const rowClass = synRowStyleClass(map, row, sheet);
+    const label = synLabel(map, row);
+    const liveMassCell = isSynCalculatedMassCell(
+      cell,
+      row,
+      col,
+      sheet,
+      label,
+      rowClass
+    );
+    // Body M…AA / AC…AN — only show session-merged values; never Excel export or M…AA presets.
+    if (liveMassCell && isSynVehicleMassCol(col)) {
+      if (cell?.userEdited) {
+        const rawEdited = displayValue(cell);
+        if (isSynNumericRaw(rawEdited)) {
+          return synTranslateText(formatSynNumericDisplay(rawEdited), col);
+        }
+        return synTranslateText(rawEdited, col);
+      }
+      const rawLive = cell ? displayValue(cell) : '';
+      if (rawLive !== '' && isSynNumericRaw(rawLive)) {
+        return synTranslateText(formatSynNumericDisplay(rawLive), col);
+      }
+      return '';
+    }
     if (isSynAdaptationSumCell(row, col)) {
       const getCellAt = (r, c) => getCell(map, r, c);
       const n = computeAdaptationRowSum(
@@ -3064,8 +3478,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       if (raw !== '' && isSynNumericRaw(raw)) {
         return synTranslateText(formatSynNumericDisplay(raw), col);
       }
-      if (raw !== '') return synTranslateText(raw, col);
-      return '0,00';
+      return synTranslateText(formatSynNumericDisplay('0'), col);
     }
     if (
       isSynSectionSumDataCell(
@@ -3077,12 +3490,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
         synRowStyleClass(map, row, sheet)
       )
     ) {
-      const raw = cell ? displayValue(cell) : '';
-      if (raw !== '' && isSynNumericRaw(raw)) {
-        return synTranslateText(formatSynNumericDisplay(raw), col);
-      }
-      if (raw !== '') return synTranslateText(raw, col);
-      return '0,00';
+      return synTranslateText(formatSynNumericDisplay('0'), col);
     }
     if (
       isSynSumproductDataCell(
@@ -3098,8 +3506,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       if (raw !== '' && isSynNumericRaw(raw)) {
         return synTranslateText(formatSynNumericDisplay(raw), col);
       }
-      if (raw !== '') return synTranslateText(raw, col);
-      return '0,00';
+      return synTranslateText(formatSynNumericDisplay('0'), col);
     }
     if (cell?.userEdited) {
       const rawEdited = displayValue(cell);
@@ -3108,7 +3515,19 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       }
       return synTranslateText(rawEdited, col);
     }
-    if (isSynMaaPresetExcelCol(col)) {
+    const liveSectionSum = isSynSectionSumDataCell(
+      row,
+      col,
+      sheet,
+      cell,
+      label,
+      rowClass
+    );
+    if (
+      isSynMaaPresetExcelCol(col) &&
+      !liveSectionSum &&
+      !(isSynVehicleMassCol(col) && row >= SYN_CALC_FIRST_ROW)
+    ) {
       const maaPreset = synRowMaaPresetRaw(row, col);
       if (maaPreset !== undefined) {
         if (maaPreset == null || maaPreset === '') return '';
@@ -3116,7 +3535,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       }
       if (isSynMaaGreySpacerExcelRow(row)) return '';
     }
-    if (row === SYN_ZERO_FILL_FIRST_ROW) {
+    if (row === SYN_ZERO_FILL_FIRST_ROW && !liveSectionSum) {
       const raw25 = cell ? displayValue(cell) : '';
       if (raw25 && String(raw25).trim() !== '') {
         if (isSynNumericRaw(raw25)) {
@@ -3125,6 +3544,9 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
         return synTranslateText(raw25, col);
       }
       return '0,00';
+    }
+    if (liveSectionSum) {
+      return synTranslateText(formatSynNumericDisplay('0'), col);
     }
     const cjPreset = synRowCjPresetRaw(row, col);
     if (cjPreset !== undefined) {
@@ -3236,7 +3658,7 @@ export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
     if (r > SYN_HEADER_PANEL_LAST_ROW && !synRowHasContent(map, r, sheet)) continue;
     if (outlineOnly && !isSynOutlineRow(map, r, sheet)) continue;
     rows.push({ excelRow: r, displayRow: displayRow++ });
-    // Insert an extra blank display row between Excel rows 18 and 19.
+    // Blank display row between Excel rows 18 and 19 (Curb mass update → Control).
     if (!outlineOnly && r === 18) {
       rows.push({
         gapBetween: true,

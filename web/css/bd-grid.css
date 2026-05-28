@@ -784,6 +784,22 @@
   background-color: #ffc000 !important;
   color: #000 !important;
 }
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col):not(.syn-proj-hdr-green),
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col):not(.syn-proj-hdr-green) {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #ffc000 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-hdr-val-awd:not(.syn-pillar-col) .grid-cell-display {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #ffc000 !important;
+  font-weight: 700;
+}
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-val-bev:not(.syn-pillar-col):not(.syn-proj-hdr-green),
@@ -1272,9 +1288,11 @@
   color: #000 !important;
 }
 
-/* Row 16: every 3 columns fluo starting at display M (M, P, S, V, Y) */
+/* Row 16 (CURB MASS): full triplets fluo per summary table (M–O, P–R…, AC–AE…, AP–AR…, etc.) */
 .synthesis-grid .bd-table tbody td.syn-row16-fluo-every3,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.syn-row17-fluo-every3,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row17-fluo-every3,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row17-fluo-every3:not(.syn-pillar-col),
@@ -1287,6 +1305,10 @@
 .synthesis-grid .bd-table tbody td.syn-row16-fluo-every3 span,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 input,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 span,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) span,
 .synthesis-grid .bd-table tbody td.syn-row17-fluo-every3 input,
 .synthesis-grid .bd-table tbody td.syn-row17-fluo-every3 span,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row17-fluo-every3 input,
@@ -2986,6 +3008,12 @@
 .synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 input,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 span,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-row16-fluo-every3:not(.syn-pillar-col) span,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row17-fluo-every3,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row17-fluo-every3 input,
 .synthesis-grid .bd-table tbody td.data-cell.syn-row17-fluo-every3 span {
@@ -2994,10 +3022,14 @@
   color: #000 !important;
 }
 
-/* Display-row grey blocks (M…AA only) */
-.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa,
-.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa input,
-.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa span {
+/* Display-row grey blocks — all summary tables from display M (M…AA, AC…AN, AP…BB, …) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) span {
   background: #a6a6a6 !important;
   background-color: #a6a6a6 !important;
   color: #000 !important;
@@ -3007,6 +3039,29 @@
 .synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa,
 .synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa input,
 .synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa span {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+
+/* Yellow fluo → green from display column M (section L1 rows, row 16 CURB MASS, row 18 AP…BB) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-fluo-green-from-m:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-fluo-green-from-m:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-metric-curb td.data-cell.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-tt.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-spc.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-energy.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-target.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-status.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-night.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-info.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-value.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-range.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-drivetrain.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.cell-proj-ptf.syn-fluo-green-from-m:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-fluo-green-from-m:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-fluo-green-from-m:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) span {
   background: #92d050 !important;
   background-color: #92d050 !important;
   color: #000 !important;

@@ -4,14 +4,21 @@
  */
 import { BD_SUBSYSTEM_L2_COL, BD_MASS_COL } from './bdColumnConfig.js';
 import { isSectionLabel } from './bdStore.js';
-import { translateSubsystemLabel } from './bdTranslate.js';
+import { translateSubsystemLabel, canonicalL2MatchKey } from './bdTranslate.js';
 import {
   colToNum,
   numToCol,
   displayToExcelCol,
+  excelToDisplayCol,
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
+  SYN_AC_AN_TABLE_DISPLAY_START,
+  SYN_AC_AN_TABLE_DISPLAY_END,
+  SYN_AP_BB_TABLE_DISPLAY_START,
+  SYN_AP_BB_TABLE_DISPLAY_END,
+  isSynHeaderPanelVehicleCol,
+  isSynBuiltinPillarExcelCol,
 } from './synthesisPerf.js';
 
 const BD_END_ROW = 3480;
@@ -46,12 +53,16 @@ export const SYN_FILTER_BD_LABELS = [
   { synRow: 14, bdCol: 'O', label: 'Finish' },
 ];
 
-/** First Excel row for live blue/green mass engine (adaptation band). */
-export const SYN_CALC_FIRST_ROW = 26;
+/** First Excel row for live blue/green mass engine (-ADAPTATION green total, row 26+ blues). */
+export const SYN_CALC_FIRST_ROW = 25;
 
 /** Display M…AA (Excel R…AF) — project header band (subset of calc cols). */
 export const SYN_MAA_DISPLAY_START = 'M';
 export const SYN_MAA_DISPLAY_END = 'AA';
+
+/** Display AC…AN (Excel AH…AS) — second project table (same SUMPRODUCT rules as M…AA). */
+export const SYN_ACAN_DISPLAY_START = SYN_AC_AN_TABLE_DISPLAY_START;
+export const SYN_ACAN_DISPLAY_END = SYN_AC_AN_TABLE_DISPLAY_END;
 
 /** Rows blank in M…AA — no live blue mass (grey spacers). */
 const SYN_SUMPRODUCT_SKIP_ROWS = new Set([
@@ -73,11 +84,86 @@ export function synMaaExcelCols() {
   return out;
 }
 
+/** Grid stores Excel letters (R…); UI labels use display letters (M…, AC…). */
+export function synMassDisplayCol(col) {
+  if (!col) return col;
+  const s = String(col);
+  const n = colToNum(s);
+  const maaExcelStart = colToNum(displayToExcelCol(SYN_MAA_DISPLAY_START));
+  if (n >= maaExcelStart) {
+    return excelToDisplayCol(s);
+  }
+  return s;
+}
+
 export function isSynMaaMassCol(col) {
-  const n = colToNum(col);
-  const lo = colToNum(displayToExcelCol(SYN_MAA_DISPLAY_START));
-  const hi = colToNum(displayToExcelCol(SYN_MAA_DISPLAY_END));
-  return n >= lo && n <= hi;
+  const d = synMassDisplayCol(col);
+  const n = colToNum(d);
+  return (
+    n >= colToNum(SYN_MAA_DISPLAY_START) && n <= colToNum(SYN_MAA_DISPLAY_END)
+  );
+}
+
+/** Excel columns for display AC…AN (vehicle filter axis AH…AS, rows 3–14). */
+export function synAcanExcelCols() {
+  const out = [];
+  for (
+    let d = colToNum(SYN_ACAN_DISPLAY_START);
+    d <= colToNum(SYN_ACAN_DISPLAY_END);
+    d++
+  ) {
+    out.push(displayToExcelCol(numToCol(d)));
+  }
+  return out;
+}
+
+export function isSynAcanMassCol(col) {
+  const d = synMassDisplayCol(col);
+  const n = colToNum(d);
+  return (
+    n >= colToNum(SYN_ACAN_DISPLAY_START) && n <= colToNum(SYN_ACAN_DISPLAY_END)
+  );
+}
+
+/** Display AP…BB (Excel AU…BG) — header panel rows 3–22. */
+export function isSynApbbMassCol(col) {
+  const d = synMassDisplayCol(col);
+  const n = colToNum(d);
+  return (
+    n >= colToNum(SYN_AP_BB_TABLE_DISPLAY_START) &&
+    n <= colToNum(SYN_AP_BB_TABLE_DISPLAY_END)
+  );
+}
+
+/** Excel column for cellMap lookups and BD filter axis (display AC → AH). */
+export function synVehicleMassExcelCol(col) {
+  const d = synMassDisplayCol(col);
+  const n = colToNum(d);
+  if (
+    n >= colToNum(SYN_ACAN_DISPLAY_START) &&
+    n <= colToNum(SYN_ACAN_DISPLAY_END)
+  ) {
+    return displayToExcelCol(d);
+  }
+  if (
+    n >= colToNum(SYN_MAA_DISPLAY_START) &&
+    n <= colToNum(SYN_MAA_DISPLAY_END)
+  ) {
+    return displayToExcelCol(d);
+  }
+  return String(col);
+}
+
+/** Live SOMMEPROD columns: display M…AA (Excel R…AF) + AC…AN (Excel AH…AS). */
+export function isSynVehicleMassCol(col) {
+  return isSynMaaMassCol(col) || isSynAcanMassCol(col);
+}
+
+/** Filter-row edit (rows 3–14) on a project vehicle column — invalidates that column's BD filter cache. */
+export function isSynFilterEdit(row, col) {
+  if (row < 3 || row > 14) return false;
+  if (isSynHeaderPanelVehicleCol(col)) return false;
+  return isSynVehicleMassCol(col);
 }
 
 /** Display AB = Excel AG — Δ(V − Y) on the same row (display V=AA, Y=AD). */
@@ -123,18 +209,9 @@ export function isSynMassCalcCol(col) {
   return colToNum(col) >= colToNum('G');
 }
 
-/** All Excel columns recalculated live (for filter-index cache). */
-export function synCalcExcelCols(sheet) {
-  const cols = sheet?.columns;
-  if (Array.isArray(cols) && cols.length) {
-    return cols.filter(isSynMassCalcCol);
-  }
-  const out = [];
-  for (let n = colToNum('G'); n <= colToNum('NI'); n++) {
-    const c = numToCol(n);
-    if (isSynMassCalcCol(c)) out.push(c);
-  }
-  return out;
+/** All Excel vehicle columns with live filter index (M…AA + AC…AN only). */
+export function synCalcExcelCols(_sheet) {
+  return [...new Set([...synMaaExcelCols(), ...synAcanExcelCols()])];
 }
 
 function isSynCalcRow(row, sheet) {
@@ -144,12 +221,12 @@ function isSynCalcRow(row, sheet) {
   return r <= last;
 }
 
-/** ADAPTATION total row — Excel SUM(H27:H41) … SUM(O27:O41) (display C–J, row 26). */
+/** ADAPTATION block — row 26 = SUM(rows 27:41) per column, from display C (Excel H) through last data col. */
 export const SYN_ADAPTATION_SUM_ROW = 26;
 export const SYN_ADAPTATION_SUM_FROM_ROW = 27;
 export const SYN_ADAPTATION_SUM_TO_ROW = 41;
-const ADAPT_SUM_COL_START = 'H';
-const ADAPT_SUM_COL_END = 'O';
+/** Excel H = display C — first column included in row-26 totals. */
+export const SYN_ROW26_SUM_EXCEL_COL_START = 'H';
 
 function colToNumLocal(col) {
   let n = 0;
@@ -159,11 +236,19 @@ function colToNumLocal(col) {
   return n;
 }
 
+/** Row 26 total column — all body cols from display C onward (not label F, pillars, spacers). */
+export function isSynRow26SumCol(col) {
+  if (!col || col === 'F') return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
+  if (isSynSp2DisplayExcelCol(col)) return false;
+  if (isSynSp2RestartDisplayExcelCol(col)) return false;
+  if (isSynBuiltinPillarExcelCol(col)) return false;
+  return colToNumLocal(String(col)) >= colToNumLocal(SYN_ROW26_SUM_EXCEL_COL_START);
+}
+
+/** @deprecated alias */
 export function isSynAdaptationSumCol(col) {
-  const n = colToNumLocal(String(col));
-  return (
-    n >= colToNumLocal(ADAPT_SUM_COL_START) && n <= colToNumLocal(ADAPT_SUM_COL_END)
-  );
+  return isSynRow26SumCol(col);
 }
 
 export function isSynAdaptationSumCell(row, col) {
@@ -288,7 +373,7 @@ export function buildVehColFilterIndex(bdCols, vehCol, getSynCell, getBdValue) {
   return rows;
 }
 
-/** Index BD body rows with Q=S by translated L2 label (AU after sheet transform). */
+/** Index BD body rows with Q=S by L2 key (Excel AS → AU on Database page). */
 export function buildSumproductL2Index(bdCols, getBdValue) {
   const index = new Map();
   const end = Math.min(BD_END_ROW, 4000);
@@ -297,21 +382,21 @@ export function buildSumproductL2Index(bdCols, getBdValue) {
       (getBdValue ? getBdValue(r, 'Q') : bdCols.Q?.[r]) ?? ''
     ).trim();
     if (q !== 'S') continue;
-    const l2 = String(
+    const l2Raw =
       (getBdValue ? getBdValue(r, BD_SUBSYSTEM_L2_COL) : bdCols[BD_SUBSYSTEM_L2_COL]?.[r]) ??
-        ''
-    ).trim();
-    if (!l2) continue;
-    if (!index.has(l2)) index.set(l2, []);
-    index.get(l2).push(r);
+      '';
+    const key = canonicalL2MatchKey(l2Raw);
+    if (!key) continue;
+    if (!index.has(key)) index.set(key, []);
+    index.get(key).push(r);
   }
   return index;
 }
 
 /**
- * Sum BD mass for one Synthesis cell (blue row × M…AA column).
- * @param {number[]|null} filterRows precomputed BD rows for vehCol
- * @param {Map|null} l2Index L2 → BD row list
+ * Exact Excel SOMMEPROD for one blue cell (display AC…AN → Excel AH…AS, or M…AA → R…AF):
+ *   Σ BD.V  ×  (BD L2 = Syn F)  ×  filtres AH$3…$14  ×  (BD.Q = "S")
+ * BD L2 = Excel AS, visible on Database as col. AU after export transform.
  */
 export function computeSumproduct(
   bdCols,
@@ -322,15 +407,13 @@ export function computeSumproduct(
   l2Index = null,
   filterRows = null
 ) {
-  const label = translateSubsystemLabel(
-    String(getSynCell(synRow, 'F') ?? '').trim()
-  );
+  const labelKey = canonicalL2MatchKey(getSynCell(synRow, 'F'));
   const weights = bdCols.V;
   if (!weights) return 0;
 
   let scan;
-  if (label && l2Index instanceof Map) {
-    const l2Rows = l2Index.get(label) || [];
+  if (labelKey && l2Index instanceof Map) {
+    const l2Rows = l2Index.get(labelKey) || [];
     if (filterRows?.length) {
       const filt = new Set(filterRows);
       scan = l2Rows.filter((r) => filt.has(r));
@@ -345,13 +428,12 @@ export function computeSumproduct(
 
   let sum = 0;
   for (const r of scan) {
-    if (label) {
-      const l2 = String(
+    if (labelKey) {
+      const l2Raw =
         (getBdValue
           ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
-          : bdCols[BD_SUBSYSTEM_L2_COL]?.[r]) ?? ''
-      ).trim();
-      if (l2 !== label) continue;
+          : bdCols[BD_SUBSYSTEM_L2_COL]?.[r]) ?? '';
+      if (canonicalL2MatchKey(l2Raw) !== labelKey) continue;
     }
     if (
       !filterRows &&
@@ -364,6 +446,9 @@ export function computeSumproduct(
   }
   return sum;
 }
+
+/** @deprecated Alias — same as {@link computeSumproduct} for display AC…AN. */
+export const computeAcanSumproduct = computeSumproduct;
 
 /** L2 sub-system registry from Database (for the Database page). */
 export function buildBdL2Registry(bdCols, getBdValue) {
@@ -430,7 +515,7 @@ export function computeSynSectionSum(
 /** @deprecated Use {@link computeSynSectionSum}. */
 export const computeSynSectionMaaSum = computeSynSectionSum;
 
-/** Green section total — sum of blue rows in the block. */
+/** Green section total — sum of blue rows in the block (same column). */
 export function isSynSectionSumDataCell(
   row,
   col,
@@ -440,12 +525,12 @@ export function isSynSectionSumDataCell(
   rowClass = ''
 ) {
   if (cell?.userEdited) return false;
-  if (!isSynMassCalcCol(col)) return false;
+  if (!isSynVehicleMassCol(col)) return false;
   if (!isSynCalcRow(row, sheet)) return false;
   return isSynGreenSectionRow(row, sheet, synLabel, rowClass);
 }
 
-/** Blue-row cell — live BD mass, read-only, per-column filters. */
+/** Blue-row cell — live SOMMEPROD from Database (filtres col. lignes 3–14, L2=F, Q=S). */
 export function isSynSumproductDataCell(
   row,
   col,
@@ -455,8 +540,9 @@ export function isSynSumproductDataCell(
   rowClass = ''
 ) {
   if (cell?.userEdited) return false;
-  if (!isSynMassCalcCol(col)) return false;
+  if (!isSynVehicleMassCol(col)) return false;
   if (!isSynCalcRow(row, sheet)) return false;
+  if (Number(row) === SYN_ADAPTATION_SUM_ROW) return false;
   if (isSynAdaptationSumCell(row, col)) return false;
   if (!String(synLabel ?? '').trim()) return false;
   return isSynBlueSubsectionRow(row, sheet, synLabel, rowClass);
@@ -478,7 +564,8 @@ export function isSynCalculatedMassCell(
   return (
     isSynSectionSumDataCell(row, col, sheet, cell, synLabel, rowClass) ||
     isSynSumproductDataCell(row, col, sheet, cell, synLabel, rowClass) ||
-    isSynAbDiffCell(row, col, sheet)
+    isSynAbDiffCell(row, col, sheet) ||
+    isSynAdaptationSumCell(row, col)
   );
 }
 
@@ -496,17 +583,97 @@ function isSynNumericRaw(raw) {
   return /^-?\d+([.,]\d+)?([eE][+-]?\d+)?$/.test(s);
 }
 
-/** Drop stale export/session values on row 26 (C–J) so the live sum always wins. */
+/** Excel cols with live mass engine on row 26+ (M…AA, AC…AN, AB Δ). */
+export function synLiveMassExcelCols() {
+  const set = new Set([
+    ...synMaaExcelCols(),
+    ...synAcanExcelCols(),
+    synAbDiffExcelCol(),
+  ]);
+  return [...set];
+}
+
+/** Drop stale export values on live calc bands so the engine always wins. */
+export function sanitizeSynLiveMassCells(cells = []) {
+  const cols = new Set(synLiveMassExcelCols());
+  for (let i = cells.length - 1; i >= 0; i--) {
+    const cell = cells[i];
+    if (Number(cell.r) < SYN_CALC_FIRST_ROW) continue;
+    if (!cols.has(cell.c)) continue;
+    if (cell.userEdited) continue;
+    cells.splice(i, 1);
+  }
+  return cells;
+}
+
+/** Drop stale export/session values on row 26 so the live SUM(27:41) always wins. */
 export function sanitizeSynAdaptationSumCells(cells = []) {
   for (let i = cells.length - 1; i >= 0; i--) {
     const cell = cells[i];
     if (!isSynAdaptationSumCell(cell.r, cell.c)) continue;
-    delete cell.userEdited;
-    delete cell.f;
-    const raw = cell.v != null ? String(cell.v).trim() : '';
-    if (!raw || !isSynNumericRaw(raw)) {
-      cells.splice(i, 1);
-    }
+    if (cell.userEdited) continue;
+    cells.splice(i, 1);
   }
   return cells;
+}
+
+const SYN_FORMULA_FILTER_LABELS = new Map(
+  SYN_FILTER_BD_LABELS.map((f) => [f.synRow, f.label])
+);
+
+function synFormulaFilterCrit(raw) {
+  const c = String(raw ?? '').trim();
+  if (!c) return '∅';
+  if (c === 'TT') return 'TT (tous)';
+  return `"${c}"`;
+}
+
+/**
+ * Human-readable formula for the Synthesis formula bar (Database-driven, not Excel export).
+ */
+export function describeSynCellFormula(
+  row,
+  col,
+  sheet,
+  synLabelText = '',
+  rowClass = '',
+  getSynCell = () => ''
+) {
+  const r = Number(row);
+  const excelCol = synVehicleMassExcelCol(col);
+  const dispCol = excelToDisplayCol(excelCol);
+  const colRef = dispCol;
+
+  if (isSynAdaptationSumCell(r, col)) {
+    return `=SOMME(${colRef}${SYN_ADAPTATION_SUM_FROM_ROW}:${colRef}${SYN_ADAPTATION_SUM_TO_ROW}) — total colonne (lignes bleues + SOMMEPROD BD)`;
+  }
+
+  if (
+    isSynSectionSumDataCell(r, col, sheet, null, synLabelText, rowClass)
+  ) {
+    return `=SOMME(lignes bleues col. ${colRef} jusqu'à la prochaine ligne verte)`;
+  }
+
+  if (
+    isSynSumproductDataCell(r, col, sheet, null, synLabelText, rowClass)
+  ) {
+    const l2 = String(synLabelText ?? '').trim() || '?';
+    const filterParts = SYN_FILTER_BD_ROWS.map(([bdCol, synRow]) => {
+      const crit = getSynCell(synRow, excelCol);
+      const label = SYN_FORMULA_FILTER_LABELS.get(synRow) ?? bdCol;
+      return `BD.${bdCol}=${synFormulaFilterCrit(crit)} (${label}, filtre ${colRef}${synRow})`;
+    });
+    return (
+      `=SOMMEPROD(` +
+      `BD.V × BD.AU="${l2}" × BD.Q="S" × ` +
+      filterParts.join(' × ') +
+      `) — colonne ${colRef} (filtres propres à cette colonne, ex. Silhouette ${colRef}5)`
+    );
+  }
+
+  if (isSynAbDiffCell(r, col, sheet)) {
+    return `=${excelToDisplayCol(synAbDiffVExcelCol())}${r} − ${excelToDisplayCol(synAbDiffYExcelCol())}${r}`;
+  }
+
+  return '';
 }
