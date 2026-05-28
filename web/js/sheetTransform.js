@@ -33,9 +33,9 @@ import {
   applySynRowsAcanPresetHeaderRows,
   applySynRowsApbbPresetCells,
   applySynRowsApbbPresetHeaderRows,
-} from './synStore.js?v=syn-apbb7';
+} from './synStore.js?v=syn-apbb8';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
-import { sanitizeSynAdaptationSumCells, sanitizeSynLiveMassCells } from './synthesisCalc.js?v=syn-apbb7';
+import { sanitizeSynAdaptationSumCells, sanitizeSynLiveMassCells } from './synthesisCalc.js?v=syn-apbb8';
 
 const POSITION_INSERT_AFTER = 'AD';
 const POSITION_INSERT_COUNT = 2;

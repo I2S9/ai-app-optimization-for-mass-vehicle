@@ -33,8 +33,8 @@ import {
   describeSynCellFormula,
   synVehicleMassExcelCol,
   affectsAdaptationSum,
-} from './synthesisCalc.js?v=syn-apbb7';
-import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=syn-apbb7';
+} from './synthesisCalc.js?v=syn-apbb8';
+import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=syn-apbb8';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {

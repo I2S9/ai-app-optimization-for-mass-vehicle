@@ -1,13 +1,13 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-nav4';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-apbb7';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-apbb8';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix12';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-apbb7';
-import { createWorkbookSession } from './workbookSession.js?v=syn-apbb7';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-apbb8';
+import { createWorkbookSession } from './workbookSession.js?v=syn-apbb8';
 import {
   buildMatrixState,
   applyMatrixSave,

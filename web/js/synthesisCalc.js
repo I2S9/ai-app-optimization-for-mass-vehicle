@@ -64,6 +64,10 @@ export const SYN_MAA_DISPLAY_END = 'AA';
 export const SYN_ACAN_DISPLAY_START = SYN_AC_AN_TABLE_DISPLAY_START;
 export const SYN_ACAN_DISPLAY_END = SYN_AC_AN_TABLE_DISPLAY_END;
 
+/** Display AP…BB (Excel AU…BG) — third project table (same SUMPRODUCT rules as M…AA). */
+export const SYN_APBB_DISPLAY_START = SYN_AP_BB_TABLE_DISPLAY_START;
+export const SYN_APBB_DISPLAY_END = SYN_AP_BB_TABLE_DISPLAY_END;
+
 /** Rows blank in M…AA — no live blue mass (grey spacers). */
 const SYN_SUMPRODUCT_SKIP_ROWS = new Set([
   34, 37, 40, 49, 50, 78, 79, 80, 83, 84, 105, 106, 107, 109,
@@ -130,15 +134,34 @@ export function isSynApbbMassCol(col) {
   const d = synMassDisplayCol(col);
   const n = colToNum(d);
   return (
-    n >= colToNum(SYN_AP_BB_TABLE_DISPLAY_START) &&
-    n <= colToNum(SYN_AP_BB_TABLE_DISPLAY_END)
+    n >= colToNum(SYN_APBB_DISPLAY_START) &&
+    n <= colToNum(SYN_APBB_DISPLAY_END)
   );
+}
+
+/** Excel columns for display AP…BB (vehicle filter axis AU…BG, rows 3–14). */
+export function synApbbExcelCols() {
+  const out = [];
+  for (
+    let d = colToNum(SYN_APBB_DISPLAY_START);
+    d <= colToNum(SYN_APBB_DISPLAY_END);
+    d++
+  ) {
+    out.push(displayToExcelCol(numToCol(d)));
+  }
+  return out;
 }
 
 /** Excel column for cellMap lookups and BD filter axis (display AC → AH). */
 export function synVehicleMassExcelCol(col) {
   const d = synMassDisplayCol(col);
   const n = colToNum(d);
+  if (
+    n >= colToNum(SYN_APBB_DISPLAY_START) &&
+    n <= colToNum(SYN_APBB_DISPLAY_END)
+  ) {
+    return displayToExcelCol(d);
+  }
   if (
     n >= colToNum(SYN_ACAN_DISPLAY_START) &&
     n <= colToNum(SYN_ACAN_DISPLAY_END)
@@ -154,9 +177,9 @@ export function synVehicleMassExcelCol(col) {
   return String(col);
 }
 
-/** Live SOMMEPROD columns: display M…AA (Excel R…AF) + AC…AN (Excel AH…AS). */
+/** Live SOMMEPROD columns: display M…AA + AC…AN + AP…BB (Excel R…AF, AH…AS, AU…BG). */
 export function isSynVehicleMassCol(col) {
-  return isSynMaaMassCol(col) || isSynAcanMassCol(col);
+  return isSynMaaMassCol(col) || isSynAcanMassCol(col) || isSynApbbMassCol(col);
 }
 
 /** Filter-row edit (rows 3–14) on a project vehicle column — invalidates that column's BD filter cache. */
@@ -209,9 +232,9 @@ export function isSynMassCalcCol(col) {
   return colToNum(col) >= colToNum('G');
 }
 
-/** All Excel vehicle columns with live filter index (M…AA + AC…AN only). */
+/** All Excel vehicle columns with live filter index (M…AA + AC…AN + AP…BB). */
 export function synCalcExcelCols(_sheet) {
-  return [...new Set([...synMaaExcelCols(), ...synAcanExcelCols()])];
+  return [...new Set([...synMaaExcelCols(), ...synAcanExcelCols(), ...synApbbExcelCols()])];
 }
 
 function isSynCalcRow(row, sheet) {
@@ -583,11 +606,12 @@ function isSynNumericRaw(raw) {
   return /^-?\d+([.,]\d+)?([eE][+-]?\d+)?$/.test(s);
 }
 
-/** Excel cols with live mass engine on row 26+ (M…AA, AC…AN, AB Δ). */
+/** Excel cols with live mass engine on row 26+ (M…AA, AC…AN, AP…BB, AB Δ). */
 export function synLiveMassExcelCols() {
   const set = new Set([
     ...synMaaExcelCols(),
     ...synAcanExcelCols(),
+    ...synApbbExcelCols(),
     synAbDiffExcelCol(),
   ]);
   return [...set];

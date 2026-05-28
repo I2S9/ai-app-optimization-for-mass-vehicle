@@ -19,7 +19,7 @@ import {
   isSynSectionSumDataCell,
   isSynAbDiffCell,
   isSynCalculatedMassCell,
-} from './synthesisCalc.js?v=syn-apbb7';
+} from './synthesisCalc.js?v=syn-apbb8';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
@@ -157,7 +157,7 @@ import {
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
   synLabel,
-} from './synStore.js?v=syn-apbb7';
+} from './synStore.js?v=syn-apbb8';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,

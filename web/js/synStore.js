@@ -54,7 +54,7 @@ import {
   SYN_CALC_FIRST_ROW,
   SYN_ADAPTATION_SUM_ROW,
   SYN_ADAPTATION_SUM_FROM_ROW,
-} from './synthesisCalc.js?v=syn-apbb7';
+} from './synthesisCalc.js?v=syn-apbb8';
 
 export {
   isSynSpacerDisplayExcelCol,
