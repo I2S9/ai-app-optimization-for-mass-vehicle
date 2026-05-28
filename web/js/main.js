@@ -1,6 +1,6 @@
-import { createApp, ref, computed, onMounted, onUnmounted, KeepAlive } from 'vue';
+import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-nav4';
-import SynthesisGrid from './SynthesisGrid.js?v=grid-nav4';
+import SynthesisGrid from './SynthesisGrid.js?v=grid-nav6';
 import { createEditHistory } from './editHistory.js?v=undo1';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
@@ -204,6 +204,14 @@ const App = {
         });
       return synthesisLoadPromise;
     }
+
+    onErrorCaptured((err) => {
+      error.value = err?.message || String(err);
+      synthesisLoading.value = false;
+      bdLoading.value = false;
+      console.error('Grid render failed:', err);
+      return false;
+    });
 
     onMounted(async () => {
       document.title = 'WGHT Dashboard';

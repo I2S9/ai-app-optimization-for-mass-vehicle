@@ -7,7 +7,8 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
-  z-index: 200;
+  /* Must sit above sticky grid headers/cols */
+  z-index: 1200;
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
@@ -27,7 +28,8 @@
   max-width: 85vw;
   background: #1e3a5f;
   color: #fff;
-  z-index: 210;
+  /* Must sit above sticky grid headers/cols */
+  z-index: 1210;
   transform: translateX(-100%);
   transition: transform 0.15s ease-out;
   display: flex;

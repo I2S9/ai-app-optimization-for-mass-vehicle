@@ -28,6 +28,36 @@ export const SYN_VEHICLE_COL_START = 'G';
 /** Header panel colour band — display C…J (Excel H…O), rows 3–22. */
 export const SYN_HDR_PANEL_COL_START = 'H';
 export const SYN_HDR_PANEL_COL_END = 'O';
+
+/**
+ * Grid header letters (display columns). Excel A–E are hidden (F→A, G→B, …).
+ * Do not use raw Excel letters here — e.g. display AB is Excel AG, not Excel AB (which shows as W).
+ */
+export const SYN_FORCE_WHITE_DISPLAY_COLS = [
+  'AB',
+  'AO',
+  'BC',
+  'BP',
+  'BR',
+  'CF',
+  'CG',
+  'CH',
+  'CZ',
+  'DQ',
+];
+
+/** Excel column keys for cell lookup (derived from display letters above). */
+export const SYN_FORCE_WHITE_EXCEL_COLS = new Set(
+  SYN_FORCE_WHITE_DISPLAY_COLS.map(displayToExcelCol)
+);
+
+export function isSynForceWhiteExcelCol(excelCol) {
+  return SYN_FORCE_WHITE_EXCEL_COLS.has(excelCol);
+}
+
+export function synForceWhiteColClass(col) {
+  return isSynForceWhiteExcelCol(col) ? 'syn-force-white-col' : '';
+}
 /** Rows 3–19, display C…J — bold + slightly larger text. */
 export const SYN_HDR_PANEL_BOLD_LAST_ROW = 19;
 /** Rows 18–19, display columns C–J (Excel H–O). */
@@ -111,7 +141,47 @@ export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
 /** Spot highlights — same blue as Database sub-section bands. */
 export const SYN_SPOT_BLUE_BG = '#00b0f0';
-export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4]);
+export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4, 13]);
+export const SYN_PROJ_HDR_YELLOW_BG = '#ffff99';
+export const SYN_PROJ_HDR_YELLOW_ROWS = new Set([5]);
+export const SYN_PROJ_HDR_GREY_BG = '#bfbfbf';
+export const SYN_PROJ_HDR_GREY_ROWS = new Set([11]);
+export const SYN_ROW19_MO_GREEN_BG = '#c6efce';
+export const SYN_ROW19_PAA_RED_BG = '#ffc7ce';
+export const SYN_ROW16_FLUO_BG = '#ffff00';
+export const SYN_ROW25_MAA_GREEN_BG = '#92d050';
+/** Display-row based green lines (same as rows 3–4: #92d050). */
+export const SYN_DISPLAY_GREEN_BG = SYN_SP2_TARGET_BG;
+export const SYN_DISPLAY_GREEN_ROWS = new Set([
+  42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 84, 90, 93, 97, 99, 165, 178, 181,
+  205, 261, 276, 279, 288, 291, 296, 298, 307, 315, 319, 344, 353, 361, 368,
+  372, 280, 289, 394, 398, 403, 407, 411, 415, 417, 422,
+]);
+
+/** Display-row based grey blocks for columns M…AA. */
+export const SYN_DISPLAY_GREY_MAA_BG = '#a6a6a6';
+export const SYN_DISPLAY_GREY_MAA_ROWS = (() => {
+  const s = new Set([
+    287, 35, 41, 50, 51, 77, 79, 86, 87, 108, 109, 110, 112, 179, 180, 189,
+    196, 199, 202, 204, 210, 221, 222, 224, 230, 239, 270, 272, 274, 275, 278,
+    320, 321, 341, 342, 362, 373, 375, 378, 379, 410,
+  ]);
+  const addRange = (a, b) => {
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    for (let i = lo; i <= hi; i++) s.add(i);
+  };
+  addRange(120, 123);
+  addRange(125, 133);
+  addRange(137, 157);
+  addRange(161, 164);
+  addRange(191, 193);
+  addRange(252, 254);
+  addRange(323, 339);
+  // User wrote "418 à 412" → interpret as 412…418 inclusive.
+  addRange(412, 418);
+  return s;
+})();
 /** Last Excel row exported / shown in the Synthesis grid. */
 export const SYN_MAX_EXCEL_ROW = 422;
 /** First Synthesis body row shown in the grid (Excel row 3 = Date). */
@@ -835,6 +905,140 @@ export function synProjHeaderGreenStyle() {
   };
 }
 
+/** Row 5, display columns M through AA (Excel R…AF). */
+export function isSynProjHeaderYellowCol(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || !SYN_PROJ_HDR_YELLOW_ROWS.has(r)) return false;
+  return isSynProjHeaderGreenExcelCol(col);
+}
+
+export function synProjHeaderYellowStyle() {
+  return {
+    background: SYN_PROJ_HDR_YELLOW_BG,
+    backgroundColor: SYN_PROJ_HDR_YELLOW_BG,
+    color: '#000',
+  };
+}
+
+/** Row 11, display columns M through AA (Excel R…AF). */
+export function isSynProjHeaderGreyCol(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || !SYN_PROJ_HDR_GREY_ROWS.has(r)) return false;
+  return isSynProjHeaderGreenExcelCol(col);
+}
+
+export function synProjHeaderGreyStyle() {
+  return {
+    background: SYN_PROJ_HDR_GREY_BG,
+    backgroundColor: SYN_PROJ_HDR_GREY_BG,
+    color: '#000',
+  };
+}
+
+/** Row 19: display M–O green, P–AA red. */
+export function isSynRow19MoGreenCol(row, col) {
+  if (Number(row) !== 19) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('O'));
+  return n >= start && n <= end;
+}
+
+export function isSynRow19PaaRedCol(row, col) {
+  if (Number(row) !== 19) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('P'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
+}
+
+export function synRow19MoGreenStyle() {
+  return {
+    background: SYN_ROW19_MO_GREEN_BG,
+    backgroundColor: SYN_ROW19_MO_GREEN_BG,
+    color: '#000',
+  };
+}
+
+export function synRow19PaaRedStyle() {
+  return {
+    background: SYN_ROW19_PAA_RED_BG,
+    backgroundColor: SYN_ROW19_PAA_RED_BG,
+    color: '#9c0006',
+  };
+}
+
+/** Row 25: display M–AA green. */
+export function isSynRow25MaGreenCol(row, col) {
+  if (Number(row) !== 25) return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
+}
+
+export function synRow25MaGreenStyle() {
+  return {
+    background: SYN_ROW25_MAA_GREEN_BG,
+    backgroundColor: SYN_ROW25_MAA_GREEN_BG,
+    color: '#000',
+  };
+}
+
+/**
+ * Row 16: every 3 columns fluo starting at display M.
+ * Pattern: M, P, S, V, Y (within M…AA).
+ */
+export function isSynRow16FluoEvery3FromMCol(row, col) {
+  if (Number(row) !== 16) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('AA'));
+  if (n < start || n > end) return false;
+  return (n - start) % 3 === 0;
+}
+
+export function synRow16FluoStyle() {
+  return {
+    background: SYN_ROW16_FLUO_BG,
+    backgroundColor: SYN_ROW16_FLUO_BG,
+    color: '#000',
+  };
+}
+
+export function isSynDisplayRowGreyMaaCol(displayRow, col) {
+  if (!SYN_DISPLAY_GREY_MAA_ROWS.has(Number(displayRow))) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
+}
+
+export function synDisplayRowGreyMaaStyle() {
+  return {
+    background: SYN_DISPLAY_GREY_MAA_BG,
+    backgroundColor: SYN_DISPLAY_GREY_MAA_BG,
+    color: '#000',
+  };
+}
+
+export function isSynDisplayRowGreenMaaCol(displayRow, col) {
+  if (!SYN_DISPLAY_GREEN_ROWS.has(Number(displayRow))) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
+}
+
+export function synDisplayRowGreenMaaStyle() {
+  return {
+    background: SYN_DISPLAY_GREEN_BG,
+    backgroundColor: SYN_DISPLAY_GREEN_BG,
+    color: '#000',
+  };
+}
+
 /** Rows 3–22 — bold vertical line right of display C…I (between columns C–J). */
 export function isSynHdrCjDividerRightCol(row, col) {
   if (!isSynHeaderPanelRow(row)) return false;
@@ -992,6 +1196,13 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   if (col === SYN_LABEL_COL) {
     style.textAlign = 'left';
     style.color = '#000';
+  }
+  const forceWhiteClass = synForceWhiteColClass(col);
+  if (forceWhiteClass) {
+    style.background = '#fff';
+    style.backgroundColor = '#fff';
+    style.color = '#000';
+    return style;
   }
   const spacerStyle = synSpacerColStyle(col);
   if (spacerStyle) {
@@ -1189,6 +1400,7 @@ export function synAdaptBandColClass(row, col, pillarColumns) {
   if (isSynSpotBlueCell(row, col)) return '';
   if (row < SYN_ZERO_FILL_FIRST_ROW) return '';
   if (col === SYN_LABEL_COL) return '';
+  if (isSynForceWhiteExcelCol(col)) return '';
   if (isSynSpacerDisplayExcelCol(col)) return '';
   if (isSynPillarColAtRow(col, row, pillarColumns)) return '';
   if (isSynAdaptGreyExcelCol(col)) return 'syn-adapt-col-grey';
@@ -1259,6 +1471,7 @@ export function synIsReadonly(_cell, _row, _sheet) {
 export function isSynZeroFillDataCol(row, col, pillarColumns) {
   if (row < SYN_ZERO_FILL_FIRST_ROW) return false;
   if (col === SYN_LABEL_COL) return false;
+  if (isSynForceWhiteExcelCol(col)) return false;
   if (isSynSpacerDisplayExcelCol(col)) return false;
   if (isSynPillarColAtRow(col, row, pillarColumns)) return false;
   return colToNum(col) >= colToNum(SYN_HDR_PANEL_COL_START);
@@ -1387,7 +1600,7 @@ export function synRowHasContent(map, row, sheet) {
 }
 
 export function isSynPanelGapEntry(entry) {
-  return Boolean(entry?.gapBeforePanel || entry?.gapAfterPanel);
+  return Boolean(entry?.gapBeforePanel || entry?.gapAfterPanel || entry?.gapBetween);
 }
 
 export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
@@ -1412,6 +1625,15 @@ export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
     if (r > SYN_HEADER_PANEL_LAST_ROW && !synRowHasContent(map, r, sheet)) continue;
     if (outlineOnly && !isSynOutlineRow(map, r, sheet)) continue;
     rows.push({ excelRow: r, displayRow: displayRow++ });
+    // Insert an extra blank display row between Excel rows 18 and 19.
+    if (!outlineOnly && r === 18) {
+      rows.push({
+        gapBetween: true,
+        gapKey: 'between-18-19',
+        excelRow: null,
+        displayRow: displayRow++,
+      });
+    }
     if (!outlineOnly && r === SYN_HEADER_PANEL_LAST_ROW) {
       for (let g = 1; g <= SYN_HDR_PANEL_GAP_COUNT; g++) {
         rows.push({

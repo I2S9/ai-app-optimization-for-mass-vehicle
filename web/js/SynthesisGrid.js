@@ -47,6 +47,24 @@ import {
   isSynSp2DisplayExcelCol,
   isSynProjHeaderGreenCol,
   synProjHeaderGreenStyle,
+  isSynProjHeaderYellowCol,
+  synProjHeaderYellowStyle,
+  isSynProjHeaderGreyCol,
+  synProjHeaderGreyStyle,
+  isSynRow19MoGreenCol,
+  isSynRow19PaaRedCol,
+  synRow19MoGreenStyle,
+  synRow19PaaRedStyle,
+  isSynRow25MaGreenCol,
+  synRow25MaGreenStyle,
+  isSynRow16FluoEvery3FromMCol,
+  synRow16FluoStyle,
+  SYN_DISPLAY_GREEN_ROWS,
+  SYN_DISPLAY_GREEN_BG,
+  isSynDisplayRowGreyMaaCol,
+  synDisplayRowGreyMaaStyle,
+  isSynDisplayRowGreenMaaCol,
+  synDisplayRowGreenMaaStyle,
   isSynHdrLmDividerRightCol,
   isSynHdrLmDividerLeftCol,
   isSynHdrAaDividerRightCol,
@@ -56,9 +74,10 @@ import {
   isSynHdrLmDividerLeftEntry,
   isSynHdrAaDividerRightEntry,
   isSynSpacerDisplayExcelCol,
+  isSynForceWhiteExcelCol,
   synSpacerColClass,
   SYN_GRID_FIRST_ROW,
-} from './synStore.js?v=syn-perf84';
+} from './synStore.js?v=syn-perf87';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -461,6 +480,7 @@ export default {
     function entryRowClasses(entry) {
       if (isSynPanelGapEntry(entry)) {
         const gap = ['syn-panel-gap-row', 'syn-panel-gap'];
+        if (entry.gapBetween) gap.push('syn-header-spacer-row', 'syn-header-spacer-white');
         if (entry.gapBeforePanel) gap.push('syn-panel-gap-top');
         if (entry.gapAfterPanel && entry.gapIndex === 1) gap.push('syn-panel-gap-first');
         if (entry.gapAfterPanel && entry.gapIndex === 2) gap.push('syn-panel-gap-last');
@@ -527,6 +547,30 @@ export default {
       if (isSynProjHeaderGreenCol(row, col)) {
         return { ...base, ...synProjHeaderGreenStyle() };
       }
+      if (isSynProjHeaderYellowCol(row, col)) {
+        return { ...base, ...synProjHeaderYellowStyle() };
+      }
+      if (isSynProjHeaderGreyCol(row, col)) {
+        return { ...base, ...synProjHeaderGreyStyle() };
+      }
+      if (isSynRow19MoGreenCol(row, col)) {
+        return { ...base, ...synRow19MoGreenStyle() };
+      }
+      if (isSynRow19PaaRedCol(row, col)) {
+        return { ...base, ...synRow19PaaRedStyle() };
+      }
+      if (isSynRow25MaGreenCol(row, col)) {
+        return { ...base, ...synRow25MaGreenStyle() };
+      }
+      if (isSynRow16FluoEvery3FromMCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
+      if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowGreyMaaStyle() };
+      }
+      if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowGreenMaaStyle() };
+      }
       return { ...base, ...cellInlineStyle(row, col) };
     }
 
@@ -543,8 +587,17 @@ export default {
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         return display ? 'syn-pillar-has-char' : '';
       }
+      if (isSynForceWhiteExcelCol(col)) return 'syn-force-white-col';
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return spacerCol;
+      // Display-row based styling (after spacer/pillar checks).
+      const displayRow = bodyRows.value.find((e) => e.excelRow === row)?.displayRow;
+      if (isSynDisplayRowGreyMaaCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-grey-maa', display);
+      }
+      if (isSynDisplayRowGreenMaaCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-green-maa', display);
+      }
       const spotBlue = synSpotBlueColClass(row, col);
       if (spotBlue) return withHdrPanelBold(row, col, spotBlue, display);
       const greyCol = synFilterGreyColClass(row, col);
@@ -562,6 +615,24 @@ export default {
       }
       if (isSynProjHeaderGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-green', display);
+      }
+      if (isSynProjHeaderYellowCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-proj-hdr-yellow', display);
+      }
+      if (isSynProjHeaderGreyCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-proj-hdr-grey', display);
+      }
+      if (isSynRow19MoGreenCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row19-mo-green', display);
+      }
+      if (isSynRow19PaaRedCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row19-paa-red', display);
+      }
+      if (isSynRow25MaGreenCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row25-ma-green', display);
+      }
+      if (isSynRow16FluoEvery3FromMCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       const rc = synRowStyleClass(cellMap.value, row, props.sheet);
       if (
@@ -645,6 +716,7 @@ export default {
         isSynPillarColAtRow(col, row, pillarColumns.value),
       isSynSp2DisplayExcelCol,
       isSynSpacerDisplayExcelCol,
+      isSynForceWhiteExcelCol,
       synSpacerColClass,
       isSynHdrLmDividerRightCol,
       isSynHdrLmDividerLeftCol,
@@ -723,7 +795,10 @@ export default {
                 v-for="entry in visibleScrollCols"
                 :key="'L-' + entry.col"
                 class="col-letter"
-                :class="{ 'syn-spacer-col-l-hdr': isSynSpacerDisplayExcelCol(entry.col) }"
+                :class="{
+                  'syn-spacer-col-l-hdr': isSynSpacerDisplayExcelCol(entry.col),
+                  'syn-force-white-col': isSynForceWhiteExcelCol(entry.col),
+                }"
                 :style="colStyle(entry.col, entry.width)"
               >{{ entry.letter }}</th>
               <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
@@ -735,7 +810,7 @@ export default {
             </tr>
             <tr
               v-for="entry in visibleRows"
-              :key="isGapEntry(entry) ? 'panel-gap-' + (entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex : entry.excelRow"
+              :key="isGapEntry(entry) ? ('panel-gap-' + (entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex))) : entry.excelRow"
               :class="entryRowClasses(entry)"
             >
               <td class="row-num syn-row-num">{{ entry.displayRow }}</td>

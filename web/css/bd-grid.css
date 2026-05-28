@@ -18,10 +18,12 @@
   table-layout: fixed;
   font-size: 11px;
 }
+
 .bd-table thead {
   position: sticky;
   top: 0;
-  z-index: 20;
+  /* Keep headers above any sticky columns in tbody */
+  z-index: 300;
 }
 .bd-table th,
 .bd-table td {
@@ -50,7 +52,8 @@
 .bd-table td.row-num {
   position: sticky;
   left: 0;
-  z-index: 4;
+  /* Above horizontally scrolling cells and sticky label/date columns */
+  z-index: 220;
   background: #fff;
   text-align: center;
   font-weight: 600;
@@ -64,16 +67,17 @@
 .bd-table td.col-sticky-date {
   position: sticky;
   left: 42px;
-  z-index: 8;
+  /* Above all horizontally scrolling cells */
+  z-index: 200;
   isolation: isolate;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
 }
 .bd-table thead th.corner {
-  z-index: 26;
+  z-index: 360;
   left: 0;
 }
 .bd-table thead th.col-sticky-date {
-  z-index: 25;
+  z-index: 350;
 }
 .bd-table thead tr.hdr-row-letters th.col-sticky-date {
   background: #d9d9d9;
@@ -406,7 +410,8 @@
 .synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.readonly:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-row-separator td.col-sticky-label,
-.synthesis-grid .bd-table tbody tr.syn-row-separator td.syn-label-col {
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.syn-row-num {
   background: #f2f2f2 !important;
   color: #000 !important;
   font-weight: 700;
@@ -414,7 +419,8 @@
 .synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.readonly:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-section td.col-sticky-label,
-.synthesis-grid .bd-table tbody tr.syn-row-section td.syn-label-col {
+.synthesis-grid .bd-table tbody tr.syn-row-section td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.syn-row-num {
   background: #ffff00 !important;
   color: #000 !important;
   font-weight: 700;
@@ -422,7 +428,8 @@
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.readonly:not(.syn-pillar-col):not(.syn-spacer-col-l),
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.col-sticky-label,
-.synthesis-grid .bd-table tbody tr.syn-row-subsection td.syn-label-col {
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.syn-label-col,
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.syn-row-num {
   background: #00b0f0 !important;
   color: #000 !important;
   font-weight: 700;
@@ -456,7 +463,8 @@
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-label-col,
-.synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label {
+.synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-row-num {
   background: #f7f7f7 !important;
   color: #000;
 }
@@ -545,6 +553,21 @@
   background-color: #fff !important;
   color: #000 !important;
 }
+.synthesis-grid .bd-table thead tr.hdr-row-letters th.syn-force-white-col,
+.synthesis-grid .bd-table tbody td.syn-force-white-col,
+.synthesis-grid .bd-table tbody td.data-cell.syn-force-white-col,
+.synthesis-grid .bd-table tbody td.data-cell.syn-force-white-col.readonly,
+.synthesis-grid .bd-table tbody tr td.syn-force-white-col {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-force-white-col input,
+.synthesis-grid .bd-table tbody td.syn-force-white-col span {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #000 !important;
+}
 .synthesis-grid .bd-table tbody td.syn-spacer-col-l,
 .synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l,
 .synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.readonly,
@@ -589,7 +612,8 @@
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-label-col,
-.synthesis-grid .bd-table tbody tr.syn-filter-band td.col-sticky-label {
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-row-num {
   background: #f2f2f2 !important;
   font-weight: 600;
 }
@@ -597,7 +621,8 @@
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-metric-cj-white),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-label-col,
-.synthesis-grid .bd-table tbody tr.syn-metric-band td.col-sticky-label {
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.col-sticky-label,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-row-num {
   background: #f7f7f7 !important;
   font-weight: 600;
 }
@@ -937,6 +962,136 @@
   font-weight: 700 !important;
   font-size: 12px !important;
 }
+
+/* Row 5, display M…AA — solid #ffff99 (M & AA included) */
+.synthesis-grid .bd-table tbody td.syn-proj-hdr-yellow,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-yellow,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-proj-hdr-yellow,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-proj-hdr-yellow {
+  background: #ffff99 !important;
+  background-color: #ffff99 !important;
+  color: #000 !important;
+  border-top: 1px solid #ffff99 !important;
+  border-bottom: 1px solid #ffff99 !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  vertical-align: middle;
+  text-align: center;
+}
+.synthesis-grid .bd-table tbody td.syn-proj-hdr-yellow input,
+.synthesis-grid .bd-table tbody td.syn-proj-hdr-yellow span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-yellow input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-yellow span {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  color: #000 !important;
+  background: #ffff99 !important;
+  background-color: #ffff99 !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+}
+
+/* Row 11, display M…AA — solid #bfbfbf (M & AA included) */
+.synthesis-grid .bd-table tbody td.syn-proj-hdr-grey,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-grey,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-proj-hdr-grey,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.syn-proj-hdr-grey {
+  background: #bfbfbf !important;
+  background-color: #bfbfbf !important;
+  color: #000 !important;
+  border-top: 1px solid #bfbfbf !important;
+  border-bottom: 1px solid #bfbfbf !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  vertical-align: middle;
+  text-align: center;
+}
+.synthesis-grid .bd-table tbody td.syn-proj-hdr-grey input,
+.synthesis-grid .bd-table tbody td.syn-proj-hdr-grey span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-grey input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-grey span {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 21px !important;
+  min-height: 21px !important;
+  line-height: 21px !important;
+  color: #000 !important;
+  background: #bfbfbf !important;
+  background-color: #bfbfbf !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+}
+
+/* Row 19: display M–O green */
+.synthesis-grid .bd-table tbody td.syn-row19-mo-green,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-mo-green {
+  background: #c6efce !important;
+  background-color: #c6efce !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-row19-mo-green input,
+.synthesis-grid .bd-table tbody td.syn-row19-mo-green span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-mo-green input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-mo-green span {
+  background: #c6efce !important;
+  background-color: #c6efce !important;
+  color: #000 !important;
+}
+
+/* Row 19: display P–AA red */
+.synthesis-grid .bd-table tbody td.syn-row19-paa-red,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-paa-red {
+  background: #ffc7ce !important;
+  background-color: #ffc7ce !important;
+  color: #9c0006 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-row19-paa-red input,
+.synthesis-grid .bd-table tbody td.syn-row19-paa-red span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-paa-red input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-paa-red span {
+  background: #ffc7ce !important;
+  background-color: #ffc7ce !important;
+  color: #9c0006 !important;
+}
+
+/* Row 25: display M–AA green */
+.synthesis-grid .bd-table tbody td.syn-row25-ma-green,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row25-ma-green {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-row25-ma-green input,
+.synthesis-grid .bd-table tbody td.syn-row25-ma-green span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row25-ma-green input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row25-ma-green span {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+
+/* Row 16: every 3 columns fluo starting at display M (M, P, S, V, Y) */
+.synthesis-grid .bd-table tbody td.syn-row16-fluo-every3,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 {
+  background: #ffff00 !important;
+  background-color: #ffff00 !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-row16-fluo-every3 input,
+.synthesis-grid .bd-table tbody td.syn-row16-fluo-every3 span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 span {
+  background: #ffff00 !important;
+  background-color: #ffff00 !important;
+  color: #000 !important;
+}
 .synthesis-grid .bd-table tbody tr.syn-header-block.syn-hdr-panel-grid td.syn-proj-hdr-green,
 .synthesis-grid .bd-table tbody tr.syn-header-block.syn-header-edge-sep td.syn-proj-hdr-green {
   border-bottom: var(--syn-bold-border) solid #000 !important;
@@ -1102,9 +1257,10 @@
 .synthesis-grid .bd-table th.col-sticky-label,
 .synthesis-grid .bd-table td.col-sticky-label {
   position: sticky;
-  z-index: 55;
+  /* Above any horizontally scrolling header/data cells (PS1 TARGET, SP2 target, ...) */
+  z-index: 200;
   isolation: isolate;
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.12);
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
   background-clip: padding-box;
 }
 .synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col,
@@ -1115,7 +1271,8 @@
   background-color: #f2f2f2;
 }
 .synthesis-grid .bd-table thead th.col-sticky-label {
-  z-index: 59;
+  /* Header cells should stay above sticky columns in tbody */
+  z-index: 350;
 }
 .synthesis-grid .bd-table thead tr.hdr-row-1 th.col-sticky-label {
   background: #4472c4;
@@ -1127,32 +1284,57 @@
   min-width: 56px;
   width: 56px;
   max-width: 56px;
-  background: #fff !important;
-  color: #000 !important;
+  background: #fff;
+  color: #000;
   font-weight: 600;
   text-align: center;
 }
-/* Row index — grey line between every row (independent of bold data separators) */
-.synthesis-grid .bd-table tbody td.syn-row-num,
-.synthesis-grid .bd-table tbody td.row-num.syn-row-num {
-  border-top: 1px solid #b4b4b4 !important;
-  border-bottom: 1px solid #b4b4b4 !important;
-  border-left: 1px solid #b4b4b4 !important;
-}
 .synthesis-grid .bd-table thead tr.hdr-row-letters th.corner.syn-row-num-hdr {
-  background: #d9d9d9 !important;
-  color: #333 !important;
+  background: #d9d9d9;
+  color: #333;
 }
 .synthesis-grid .bd-table th.corner.syn-row-num-hdr,
 .synthesis-grid .bd-table td.row-num.syn-row-num {
   position: sticky;
   left: 0;
-  z-index: 56;
+  z-index: 220;
   box-shadow: 2px 0 3px rgba(0, 0, 0, 0.1);
   background-clip: padding-box;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 .synthesis-grid .bd-table thead th.corner.syn-row-num-hdr {
-  z-index: 60;
+  z-index: 360;
+}
+/* Seal sub-pixel gaps on scroll — 1px grid grey, not thick borders */
+.synthesis-grid .bd-table tbody td.row-num.syn-row-num,
+.synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col {
+  overflow: visible;
+}
+.synthesis-grid .bd-table tbody td.row-num.syn-row-num::before,
+.synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: #b4b4b4;
+  pointer-events: none;
+}
+.synthesis-grid .bd-table tbody td.row-num.syn-row-num::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: #b4b4b4;
+  pointer-events: none;
+}
+.synthesis-grid .bd-table tbody td.col-sticky-label input,
+.synthesis-grid .bd-table tbody td.col-sticky-label span {
+  background-color: transparent;
 }
 .synthesis-grid .syn-pad {
   padding: 0 !important;
@@ -1459,6 +1641,23 @@
   background-color: #ffff00 !important;
   color: #000 !important;
 }
+
+/* Row 25: display M–AA green (override ADAPTATION fluo input/span rules). */
+.synthesis-grid .bd-table tbody td.syn-row25-ma-green,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row25-ma-green {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-row25-ma-green input,
+.synthesis-grid .bd-table tbody td.syn-row25-ma-green span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row25-ma-green input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row25-ma-green span {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+
 /* Display column L — must stay solid white (wins over ADAPTATION fluo input rules) */
 .synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l,
 .synthesis-grid .bd-table tbody td.data-cell.syn-spacer-col-l.syn-adapt-col-fluo,
@@ -1718,5 +1917,77 @@
   line-height: 21px;
   background: #00b0f0 !important;
   background-color: #00b0f0 !important;
+  color: #000 !important;
+}
+
+/* ── SYNTHESIS: explicit overrides (must be last) ── */
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-yellow,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-yellow input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-yellow span {
+  background: #ffff99 !important;
+  background-color: #ffff99 !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-grey,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-grey input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-proj-hdr-grey span {
+  background: #bfbfbf !important;
+  background-color: #bfbfbf !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-mo-green,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-mo-green input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-mo-green span {
+  background: #c6efce !important;
+  background-color: #c6efce !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-paa-red,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-paa-red input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row19-paa-red span {
+  background: #ffc7ce !important;
+  background-color: #ffc7ce !important;
+  color: #9c0006 !important;
+}
+.synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row16-fluo-every3 span {
+  background: #ffff00 !important;
+  background-color: #ffff00 !important;
+  color: #000 !important;
+}
+
+/* Display-row grey blocks (M…AA only) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-grey-maa span {
+  background: #a6a6a6 !important;
+  background-color: #a6a6a6 !important;
+  color: #000 !important;
+}
+
+/* Display-row green blocks (M…AA only) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa span {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+
+/* Forced white columns — must be last so it always wins. */
+.synthesis-grid .bd-table thead tr.hdr-row-letters th.syn-force-white-col,
+.synthesis-grid .bd-table tbody td.syn-force-white-col,
+.synthesis-grid .bd-table tbody td.data-cell.syn-force-white-col,
+.synthesis-grid .bd-table tbody td.data-cell.syn-force-white-col.readonly,
+.synthesis-grid .bd-table tbody tr td.syn-force-white-col {
+  background: #fff !important;
+  background-color: #fff !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-force-white-col input,
+.synthesis-grid .bd-table tbody td.syn-force-white-col span {
+  background: #fff !important;
+  background-color: #fff !important;
   color: #000 !important;
 }
