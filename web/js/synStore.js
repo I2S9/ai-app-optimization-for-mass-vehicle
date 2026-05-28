@@ -13,6 +13,8 @@ import {
   isSynProjHeaderGreenExcelCol,
   SYN_PROJ_HDR_GREEN_DISPLAY_START,
   SYN_PROJ_HDR_GREEN_DISPLAY_END,
+  SYN_AC_AN_TABLE_DISPLAY_START,
+  SYN_AC_AN_TABLE_DISPLAY_END,
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
@@ -171,7 +173,7 @@ export const SYN_ROW25_MAA_GREEN_BG = '#92d050';
 /** Display-row based green lines (same as rows 3–4: #92d050). */
 export const SYN_DISPLAY_GREEN_BG = SYN_SP2_TARGET_BG;
 export const SYN_DISPLAY_GREEN_ROWS = new Set([
-  26, 42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 84, 90, 93, 97, 99, 165, 178, 181,
+  26, 42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 82, 88, 91, 93, 95, 97, 99, 165, 178, 181,
   205, 261, 276, 279, 288, 291, 296, 298, 307, 315, 319, 344, 353, 361, 368,
   372, 280, 289, 394, 398, 403, 407, 411, 415, 417, 422,
 ]);
@@ -180,7 +182,7 @@ export const SYN_DISPLAY_GREEN_ROWS = new Set([
 export const SYN_DISPLAY_GREY_MAA_BG = '#a6a6a6';
 export const SYN_DISPLAY_GREY_MAA_ROWS = (() => {
   const s = new Set([
-    27, 35, 38, 41, 287, 50, 51, 77, 79, 86, 87, 108, 109, 110, 112, 179, 180, 189,
+    27, 35, 38, 41, 287, 50, 51, 79, 80, 81, 84, 85, 86, 87, 106, 107, 108, 110, 112, 179, 180, 189,
     196, 199, 202, 204, 210, 221, 222, 224, 230, 239, 270, 272, 274, 275, 278,
     320, 321, 341, 342, 362, 373, 375, 378, 379, 410,
   ]);
@@ -631,11 +633,13 @@ export function applySynRows27To41PresetCells(cells = []) {
   return applySynRowsCjPresetCells(cells);
 }
 
-/** Rows 25–75 (grid display 26–76) — display M…AA presets; null = empty grey spacer. */
+/** Rows 25–117 (grid display 26–118) — display M…AA presets; null = empty grey spacer. */
 export const SYN_ADAPT_MAA_PRESET_FIRST_ROW = 25;
-export const SYN_ADAPT_MAA_PRESET_LAST_ROW = 75;
-/** Excel rows blank in M…AA (grid display 27, 35, 38, 41, 50, 51). */
-export const SYN_MAA_GREY_SPACER_EXCEL_ROWS = new Set([26, 34, 37, 40, 49, 50]);
+export const SYN_ADAPT_MAA_PRESET_LAST_ROW = 117;
+/** Excel rows blank in M…AA (grid grey spacers in display 27, 35, 38, 41, 50, 51, 79–81, 84–85, 106–108, 110). */
+export const SYN_MAA_GREY_SPACER_EXCEL_ROWS = new Set([
+  26, 34, 37, 40, 49, 50, 78, 79, 80, 83, 84, 105, 106, 107, 109,
+]);
 const SYN_MAA_PRESET_DISPLAY_COLS = [
   'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA',
 ];
@@ -674,6 +678,62 @@ function synMaaPresetSplitThirdTriplet(a, b, s, t, u, vA, vB) {
 
 function synMaaPresetAll(v) {
   return synMaaPresetRowMap(SYN_MAA_PRESET_DISPLAY_COLS.map(() => v));
+}
+
+const SYN_MAA_ROW_135_PATTERN = [
+  0, 0, 13.5, 0, 0, 13.5, 0, 13.5, 13.5, 0, 0, 13.5, 0, 0, 13.5,
+];
+
+function synMaaPresetEntries76To117() {
+  const Z = SYN_MAA_PRESET_ZERO_ROW;
+  const N = SYN_MAA_PRESET_NULL_ROW;
+  const G = synMaaPresetFiveGroups;
+  const all = synMaaPresetAll;
+  const p135 = () => synMaaPresetRowMap(SYN_MAA_ROW_135_PATTERN);
+  return [
+    [76, synMaaPresetRowMap(G(0, 0, 0, 94.5, 105.5))],
+    [77, synMaaPresetRowMap(G(0, 0, 0, 11.5, 11.5))],
+    [78, N],
+    [79, N],
+    [80, N],
+    [81, synMaaPresetRowMap(G(413.1, 413.1, 413.1, 371.0, 371.0))],
+    [82, synMaaPresetRowMap(G(42.1, 42.1, 42.1, 0, 0))],
+    [83, N],
+    [84, N],
+    [85, Z],
+    [86, all(371.0)],
+    [87, all(12.0)],
+    [88, all(1.4)],
+    [89, all(10.6)],
+    [90, p135()],
+    [91, Z],
+    [92, p135()],
+    [93, Z],
+    [94, all(4.8)],
+    [95, all(4.8)],
+    [96, all(6.7)],
+    [97, Z],
+    [98, Z],
+    [99, all(6.7)],
+    [100, Z],
+    [101, Z],
+    [102, Z],
+    [103, Z],
+    [104, Z],
+    [105, N],
+    [106, N],
+    [107, N],
+    [108, Z],
+    [109, N],
+    [110, Z],
+    [111, Z],
+    [112, Z],
+    [113, Z],
+    [114, Z],
+    [115, Z],
+    [116, Z],
+    [117, Z],
+  ];
 }
 
 function synMaaPresetEntries42To75() {
@@ -797,6 +857,7 @@ const SYN_ROWS_MAA_PRESETS = new Map([
     ]),
   ],
   ...synMaaPresetEntries42To75(),
+  ...synMaaPresetEntries76To117(),
 ]);
 
 export function synRowMaaPresetRaw(row, col) {
@@ -809,7 +870,7 @@ export function synRowMaaPresetRaw(row, col) {
   return rowMap.get(d);
 }
 
-/** Rows 25–75 — force display M…AA presets (overrides legacy export). */
+/** Rows 25–117 — force display M…AA presets (overrides legacy export). */
 export function applySynRowsMaaPresetCells(cells = []) {
   for (const [row, rowMap] of SYN_ROWS_MAA_PRESETS) {
     for (const [display, value] of rowMap) {
@@ -1338,6 +1399,63 @@ export function isSynHdrLmDividerRightEntry(entry, col) {
 /** @deprecated use isSynHdrLmDividerRightCol */
 export function isSynHdrLmDividerCol(row, col) {
   return isSynHdrLmDividerRightCol(row, col);
+}
+
+/** Excel rows 3–22 — AC…AN summary table (display row 23 = Excel 22). */
+export function isSynAcAnTableRow(row) {
+  return isSynHeaderPanelRow(row);
+}
+
+export function isSynAcAnTableCol(col) {
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_AC_AN_TABLE_DISPLAY_START));
+  const end = colToNum(displayToExcelCol(SYN_AC_AN_TABLE_DISPLAY_END));
+  return n >= start && n <= end;
+}
+
+export function isSynAcAnTableCell(row, col) {
+  return isSynAcAnTableRow(row) && isSynAcAnTableCol(col);
+}
+
+/** Bold vertical line right of display AC…AM (between columns AC–AN). */
+export function isSynHdrAcAnDividerRightCol(row, col) {
+  if (!isSynAcAnTableRow(row)) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol(SYN_AC_AN_TABLE_DISPLAY_START));
+  const endAn = colToNum(displayToExcelCol(SYN_AC_AN_TABLE_DISPLAY_END));
+  return n >= start && n < endAn;
+}
+
+/** Bold vertical line — left edge of display AC. */
+export function isSynHdrAcAnDividerLeftCol(row, col) {
+  if (!isSynAcAnTableRow(row)) return false;
+  return col === displayToExcelCol(SYN_AC_AN_TABLE_DISPLAY_START);
+}
+
+/** Bold vertical line — right edge of display AN. */
+export function isSynHdrAcAnDividerRightEdgeCol(row, col) {
+  if (!isSynAcAnTableRow(row)) return false;
+  return col === displayToExcelCol(SYN_AC_AN_TABLE_DISPLAY_END);
+}
+
+export function isSynAcAnTableCellEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynAcAnTableCell(entry.excelRow, col);
+}
+
+export function isSynHdrAcAnDividerRightEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrAcAnDividerRightCol(entry.excelRow, col);
+}
+
+export function isSynHdrAcAnDividerLeftEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrAcAnDividerLeftCol(entry.excelRow, col);
+}
+
+export function isSynHdrAcAnDividerRightEdgeEntry(entry, col) {
+  if (!entry || entry.excelRow == null) return false;
+  return isSynHdrAcAnDividerRightEdgeCol(entry.excelRow, col);
 }
 
 /** Display column L (Excel Q) — white gutter, all body rows. */

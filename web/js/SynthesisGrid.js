@@ -73,6 +73,11 @@ import {
   isSynHdrLmDividerRightEntry,
   isSynHdrLmDividerLeftEntry,
   isSynHdrAaDividerRightEntry,
+  isSynAcAnTableCellEntry,
+  isSynHdrAcAnDividerRightEntry,
+  isSynHdrAcAnDividerLeftEntry,
+  isSynHdrAcAnDividerRightEdgeEntry,
+  SYN_HEADER_PANEL_LAST_ROW,
   isSynSpacerDisplayExcelCol,
   isSynForceWhiteExcelCol,
   synSpacerColClass,
@@ -81,7 +86,7 @@ import {
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
-} from './synStore.js?v=syn-maa89';
+} from './synStore.js?v=syn-maa90';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -511,6 +516,9 @@ export default {
       const list = [cls];
       if (isSynHeaderPanelRow(row)) {
         list.push('syn-header-block', 'syn-proj-table-frame', 'syn-hdr-panel-grid');
+        list.push('syn-ac-an-table-frame');
+        if (row === SYN_GRID_FIRST_ROW) list.push('syn-ac-an-edge-top');
+        if (row === SYN_HEADER_PANEL_LAST_ROW) list.push('syn-ac-an-edge-bottom');
       }
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
@@ -721,6 +729,33 @@ export default {
       scrollSync.dispose();
     });
 
+    // Vue template only sees setup() return values — keep all template helpers here.
+    const synGridTemplateHelpers = {
+      excelToDisplayCol,
+      isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
+      isSynPillarColAtRow: (col, row) =>
+        isSynPillarColAtRow(col, row, pillarColumns.value),
+      isSynSp2DisplayExcelCol,
+      synPillarAccentClass,
+      isSynSpacerDisplayExcelCol,
+      isSynForceWhiteExcelCol,
+      synSpacerColClass,
+      isSynHdrLmDividerRightCol,
+      isSynHdrLmDividerLeftCol,
+      isSynHdrAaDividerRightCol,
+      isSynHdrLmDividerRightEntry,
+      isSynHdrLmDividerLeftEntry,
+      isSynHdrAaDividerRightEntry,
+      isSynHdrCjDividerRightEntry,
+      isSynHdrMaDividerRightEntry,
+      isSynAcAnTableCellEntry,
+      isSynHdrAcAnDividerRightEntry,
+      isSynHdrAcAnDividerLeftEntry,
+      isSynHdrAcAnDividerRightEdgeEntry,
+      isSynProjHeaderGreenCol,
+      synProjHeaderGreenStyle,
+    };
+
     return {
       scrollEl,
       pinnedCols,
@@ -743,25 +778,7 @@ export default {
       isGapGreenPillarCol,
       pillarTitle,
       pillarColumns,
-      excelToDisplayCol,
-      isSynPillarCol: (col) => isSynPillarCol(col, pillarColumns.value),
-      isSynPillarColAtRow: (col, row) =>
-        isSynPillarColAtRow(col, row, pillarColumns.value),
-      isSynSp2DisplayExcelCol,
-      synPillarAccentClass,
-      isSynSpacerDisplayExcelCol,
-      isSynForceWhiteExcelCol,
-      synSpacerColClass,
-      isSynHdrLmDividerRightCol,
-      isSynHdrLmDividerLeftCol,
-      isSynHdrAaDividerRightCol,
-      isSynHdrLmDividerRightEntry,
-      isSynHdrLmDividerLeftEntry,
-      isSynHdrAaDividerRightEntry,
-      isSynHdrCjDividerRightEntry,
-      isSynHdrMaDividerRightEntry,
-      isSynProjHeaderGreenCol,
-      synProjHeaderGreenStyle,
+      ...synGridTemplateHelpers,
       cellInlineStyle,
       scrollDataCellStyle,
       cellExtraClass,
@@ -941,6 +958,19 @@ export default {
                       colEntry.col
                     ),
                     'syn-hdr-edge-aa-right': isSynHdrAaDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-ac-an-cell': isSynAcAnTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-acan-right': isSynHdrAcAnDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-ac-left': isSynHdrAcAnDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-an-right': isSynHdrAcAnDividerRightEdgeEntry(
                       entry,
                       colEntry.col
                     ),
