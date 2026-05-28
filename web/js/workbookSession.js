@@ -12,17 +12,19 @@ import {
   buildSynSectionRowList,
   buildVehColFilterIndex,
   computeSumproduct,
-  computeSynSectionMaaSum,
+  computeSynSectionSum,
+  computeSynAbDiff,
   computeAdaptationRowSum,
   isSumproductCell,
   isSynAdaptationSumCell,
+  isSynAbDiffCell,
   isSynBlueSubsectionRow,
-  isSynCalculatedMaaCell,
+  isSynCalculatedMassCell,
   isSynSectionSumDataCell,
   isSynSumproductDataCell,
   affectsAdaptationSum,
-  synMaaExcelCols,
-} from './synthesisCalc.js?v=sumprod-maa3';
+  synCalcExcelCols,
+} from './synthesisCalc.js?v=sumprod-ab1';
 import { getSynAdaptBandNumeric, synRowMaaPresetRaw } from './synStore.js?v=syn-cicy1';
 import { isSynFilterEdit, isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
@@ -80,7 +82,7 @@ export function createWorkbookSession() {
     vehColFilterIndex = null;
     if (!bdCols || !synGridGetter) return;
     const map = new Map();
-    for (const col of synMaaExcelCols()) {
+    for (const col of synCalcExcelCols(synSheetMeta)) {
       map.set(
         col,
         buildVehColFilterIndex(bdCols, col, getSynCell, getBdValue)
@@ -130,13 +132,65 @@ export function createWorkbookSession() {
     if (sumproductCache.has(cacheKey)) {
       return parseFloat(sumproductCache.get(cacheKey)) || 0;
     }
-    const n = computeSynSectionMaaSum(
+    const n = computeSynSectionSum(
       sectionRow,
       col,
       synSectionRows,
       isBlueSubsectionRow,
       getBlueMaaValue
     );
+    sumproductCache.set(cacheKey, String(n));
+    return n;
+  }
+
+  function parseSynNum(raw) {
+    if (raw == null || raw === '') return 0;
+    const n = parseFloat(String(raw).replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function resolveSynNumericAt(row, col) {
+    const cell = synGridGetter?.(row, col) ?? null;
+    if (isSynAdaptationSumCell(row, col)) {
+      return computeAdaptationRowSum(getSynNumeric, col);
+    }
+    if (cell?.userEdited) {
+      return parseSynNum(displayValue(cell));
+    }
+    if (
+      isSynProjHeaderGreenExcelCol(col) &&
+      row >= 3 &&
+      row <= 22
+    ) {
+      const preset = synRowMaaPresetRaw(row, col);
+      if (preset !== undefined) {
+        return parseSynNum(preset);
+      }
+    }
+    const synLabel = getSynLabel(row);
+    const rowClass = getSynRowClass(row);
+    if (
+      bdCols &&
+      synSectionRows.length &&
+      isSynSectionSumDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
+    ) {
+      return getSectionMaaValue(row, col);
+    }
+    if (
+      bdCols &&
+      isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
+    ) {
+      return getBlueMaaValue(row, col);
+    }
+    return parseSynNum(displayValue(cell));
+  }
+
+  function getAbDiffValue(row) {
+    const cacheKey = `d:${row}:AB`;
+    if (sumproductCache.has(cacheKey)) {
+      return parseFloat(sumproductCache.get(cacheKey)) || 0;
+    }
+    const n = computeSynAbDiff(resolveSynNumericAt, row);
     sumproductCache.set(cacheKey, String(n));
     return n;
   }
@@ -246,6 +300,9 @@ export function createWorkbookSession() {
     }
     const synLabel = getSynLabel(row);
     const rowClass = getSynRowClass(row);
+    if (sheetName === 'SYNTHESIS' && isSynAbDiffCell(row, col, synSheetMeta)) {
+      return String(getAbDiffValue(row));
+    }
     if (sheetName === 'SYNTHESIS' && bdCols && synSectionRows.length) {
       if (
         isSynSectionSumDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
@@ -281,7 +338,7 @@ export function createWorkbookSession() {
     }
     const synLabel = sheetName === 'SYNTHESIS' ? getSynLabel(row) : '';
     const rowClass = sheetName === 'SYNTHESIS' ? getSynRowClass(row) : '';
-    if (isSynCalculatedMaaCell(cell, row, col, synSheetMeta, synLabel, rowClass)) {
+    if (isSynCalculatedMassCell(cell, row, col, synSheetMeta, synLabel, rowClass)) {
       return true;
     }
     if (sheetName === 'BD') {
@@ -296,6 +353,7 @@ export function createWorkbookSession() {
     const synLabel = getSynLabel(row);
     const rowClass = getSynRowClass(row);
     return (
+      isSynAbDiffCell(row, col, synSheetMeta) ||
       isSynSectionSumDataCell(row, col, synSheetMeta, cell, synLabel, rowClass) ||
       isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
     );

@@ -1,7 +1,6 @@
 /**
  * Live mass aggregation SYNTHESIS ↔ BD (Excel SUMPRODUCT equivalent).
- * Blue subsection rows, display columns M…AA: sum BD!V filtered by column params (rows 3–14)
- * and L2 label F{row} ↔ BD!AU.
+ * Rows 26+ : blue = BD mass filtered; green = sum of blues until next section.
  */
 import { BD_SUBSYSTEM_L2_COL, BD_MASS_COL } from './bdColumnConfig.js';
 import { isSectionLabel } from './bdStore.js';
@@ -11,6 +10,8 @@ import {
   numToCol,
   displayToExcelCol,
   isSynSpacerDisplayExcelCol,
+  isSynSp2DisplayExcelCol,
+  isSynSp2RestartDisplayExcelCol,
 } from './synthesisPerf.js';
 
 const BD_END_ROW = 3480;
@@ -45,13 +46,16 @@ export const SYN_FILTER_BD_LABELS = [
   { synRow: 14, bdCol: 'O', label: 'Finish' },
 ];
 
-/** Display M…AA (Excel R…AF) — project mass columns. */
+/** First Excel row for live blue/green mass engine (adaptation band). */
+export const SYN_CALC_FIRST_ROW = 26;
+
+/** Display M…AA (Excel R…AF) — project header band (subset of calc cols). */
 export const SYN_MAA_DISPLAY_START = 'M';
 export const SYN_MAA_DISPLAY_END = 'AA';
 
-/** Rows blank in M…AA — no live mass (grey spacers, adaptation total row). */
+/** Rows blank in M…AA — no live blue mass (grey spacers). */
 const SYN_SUMPRODUCT_SKIP_ROWS = new Set([
-  26, 34, 37, 40, 49, 50, 78, 79, 80, 83, 84, 105, 106, 107, 109,
+  34, 37, 40, 49, 50, 78, 79, 80, 83, 84, 105, 106, 107, 109,
 ]);
 
 function parseNum(v) {
@@ -74,6 +78,119 @@ export function isSynMaaMassCol(col) {
   const lo = colToNum(displayToExcelCol(SYN_MAA_DISPLAY_START));
   const hi = colToNum(displayToExcelCol(SYN_MAA_DISPLAY_END));
   return n >= lo && n <= hi;
+}
+
+/** Display AB = Excel AG — Δ(V − Y) on the same row (display V=AA, Y=AD). */
+export const SYN_AB_DIFF_DISPLAY_COL = 'AB';
+export const SYN_AB_DIFF_V_DISPLAY_COL = 'V';
+export const SYN_AB_DIFF_Y_DISPLAY_COL = 'Y';
+
+export function synAbDiffExcelCol() {
+  return displayToExcelCol(SYN_AB_DIFF_DISPLAY_COL);
+}
+
+export function synAbDiffVExcelCol() {
+  return displayToExcelCol(SYN_AB_DIFF_V_DISPLAY_COL);
+}
+
+export function synAbDiffYExcelCol() {
+  return displayToExcelCol(SYN_AB_DIFF_Y_DISPLAY_COL);
+}
+
+export function isSynAbDiffExcelCol(col) {
+  return col === synAbDiffExcelCol();
+}
+
+/** Live formula cell: display AB = display V − display Y (same row). */
+export function isSynAbDiffCell(row, col, sheet) {
+  if (!isSynAbDiffExcelCol(col)) return false;
+  return isSynCalcRow(row, sheet);
+}
+
+export function computeSynAbDiff(getNumeric, row) {
+  const v = getNumeric(row, synAbDiffVExcelCol());
+  const y = getNumeric(row, synAbDiffYExcelCol());
+  return Math.round((v - y) * 10000) / 10000;
+}
+
+/** Vehicle / data column eligible for live blue or green mass (G…last, no pillars/spacer). */
+export function isSynMassCalcCol(col) {
+  if (col === 'F') return false;
+  if (isSynAbDiffExcelCol(col)) return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
+  if (isSynSp2DisplayExcelCol(col)) return false;
+  if (isSynSp2RestartDisplayExcelCol(col)) return false;
+  return colToNum(col) >= colToNum('G');
+}
+
+/** All Excel columns recalculated live (for filter-index cache). */
+export function synCalcExcelCols(sheet) {
+  const cols = sheet?.columns;
+  if (Array.isArray(cols) && cols.length) {
+    return cols.filter(isSynMassCalcCol);
+  }
+  const out = [];
+  for (let n = colToNum('G'); n <= colToNum('NI'); n++) {
+    const c = numToCol(n);
+    if (isSynMassCalcCol(c)) out.push(c);
+  }
+  return out;
+}
+
+function isSynCalcRow(row, sheet) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || r < SYN_CALC_FIRST_ROW) return false;
+  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? 422;
+  return r <= last;
+}
+
+/** ADAPTATION total row — Excel SUM(H27:H41) … SUM(O27:O41) (display C–J, row 26). */
+export const SYN_ADAPTATION_SUM_ROW = 26;
+export const SYN_ADAPTATION_SUM_FROM_ROW = 27;
+export const SYN_ADAPTATION_SUM_TO_ROW = 41;
+const ADAPT_SUM_COL_START = 'H';
+const ADAPT_SUM_COL_END = 'O';
+
+function colToNumLocal(col) {
+  let n = 0;
+  for (let i = 0; i < col.length; i++) {
+    n = n * 26 + (col.charCodeAt(i) - 64);
+  }
+  return n;
+}
+
+export function isSynAdaptationSumCol(col) {
+  const n = colToNumLocal(String(col));
+  return (
+    n >= colToNumLocal(ADAPT_SUM_COL_START) && n <= colToNumLocal(ADAPT_SUM_COL_END)
+  );
+}
+
+export function isSynAdaptationSumCell(row, col) {
+  return (
+    Number(row) === SYN_ADAPTATION_SUM_ROW && isSynAdaptationSumCol(col)
+  );
+}
+
+export function affectsAdaptationSum(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r) || r < SYN_ADAPTATION_SUM_FROM_ROW) return false;
+  if (r > SYN_ADAPTATION_SUM_TO_ROW) return false;
+  return isSynAdaptationSumCol(col);
+}
+
+/** @param {(row: number, col: string) => number} getNumeric */
+export function computeAdaptationRowSum(
+  getNumeric,
+  col,
+  fromRow = SYN_ADAPTATION_SUM_FROM_ROW,
+  toRow = SYN_ADAPTATION_SUM_TO_ROW
+) {
+  let sum = 0;
+  for (let r = fromRow; r <= toRow; r++) {
+    sum += getNumeric(r, col);
+  }
+  return Math.round(sum * 10000) / 10000;
 }
 
 /** Yellow/green L1 section band — total row for blues below until next section. */
@@ -276,9 +393,9 @@ export function buildBdL2Registry(bdCols, getBdValue) {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
-/** Sorted Excel rows for yellow/green L1 section headers. */
+/** Sorted Excel rows for yellow/green L1 section headers (row 26+). */
 export function buildSynSectionRowList(sheet, getLabel, getRowClass) {
-  const first = sheet?.dataStartRow ?? 15;
+  const first = SYN_CALC_FIRST_ROW;
   const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? 422;
   const rows = [];
   for (let r = first; r <= last; r++) {
@@ -290,12 +407,9 @@ export function buildSynSectionRowList(sheet, getLabel, getRowClass) {
 }
 
 /**
- * Green section row (M…AA) = sum of blue rows after this section until the next section.
- * @param {number[]} sectionRows from {@link buildSynSectionRowList}
- * @param {(row: number) => boolean} isBlueRow
- * @param {(row: number, col: string) => number} getBlueValueAt
+ * Green section row = sum of blue rows after this section until the next section.
  */
-export function computeSynSectionMaaSum(
+export function computeSynSectionSum(
   sectionRow,
   col,
   sectionRows,
@@ -313,7 +427,10 @@ export function computeSynSectionMaaSum(
   return Math.round(sum * 10000) / 10000;
 }
 
-/** Green section total — sum of blue rows in the block (M…AA). */
+/** @deprecated Use {@link computeSynSectionSum}. */
+export const computeSynSectionMaaSum = computeSynSectionSum;
+
+/** Green section total — sum of blue rows in the block. */
 export function isSynSectionSumDataCell(
   row,
   col,
@@ -323,16 +440,12 @@ export function isSynSectionSumDataCell(
   rowClass = ''
 ) {
   if (cell?.userEdited) return false;
-  if (isSynSpacerDisplayExcelCol(col)) return false;
-  if (!isSynMaaMassCol(col)) return false;
-  const r = Number(row);
-  if (!Number.isFinite(r)) return false;
-  const dataStart = sheet?.dataStartRow ?? 15;
-  if (r < dataStart) return false;
+  if (!isSynMassCalcCol(col)) return false;
+  if (!isSynCalcRow(row, sheet)) return false;
   return isSynGreenSectionRow(row, sheet, synLabel, rowClass);
 }
 
-/** Blue-row M…AA cell — live BD mass, read-only, per-column filters. */
+/** Blue-row cell — live BD mass, read-only, per-column filters. */
 export function isSynSumproductDataCell(
   row,
   col,
@@ -342,18 +455,15 @@ export function isSynSumproductDataCell(
   rowClass = ''
 ) {
   if (cell?.userEdited) return false;
-  if (isSynSpacerDisplayExcelCol(col)) return false;
-  if (!isSynMaaMassCol(col)) return false;
-  const r = Number(row);
-  if (!Number.isFinite(r)) return false;
-  const dataStart = sheet?.dataStartRow ?? 15;
-  if (r < dataStart) return false;
+  if (!isSynMassCalcCol(col)) return false;
+  if (!isSynCalcRow(row, sheet)) return false;
+  if (isSynAdaptationSumCell(row, col)) return false;
   if (!String(synLabel ?? '').trim()) return false;
   return isSynBlueSubsectionRow(row, sheet, synLabel, rowClass);
 }
 
-/** M…AA cell computed live (blue BD mass or green section subtotal). */
-export function isSynCalculatedMaaCell(
+/** Body cell computed live (blue BD mass or green section subtotal). */
+export function isSynCalculatedMassCell(
   cell,
   row,
   col,
@@ -367,61 +477,17 @@ export function isSynCalculatedMaaCell(
   }
   return (
     isSynSectionSumDataCell(row, col, sheet, cell, synLabel, rowClass) ||
-    isSynSumproductDataCell(row, col, sheet, cell, synLabel, rowClass)
+    isSynSumproductDataCell(row, col, sheet, cell, synLabel, rowClass) ||
+    isSynAbDiffCell(row, col, sheet)
   );
+}
+
+export function isSynCalculatedMaaCell(...args) {
+  return isSynCalculatedMassCell(...args);
 }
 
 export function isSumproductCell(cell, row, col, sheet, synLabel = '', rowClass = '') {
-  return isSynCalculatedMaaCell(cell, row, col, sheet, synLabel, rowClass);
-}
-
-/** ADAPTATION total row — Excel SUM(H27:H41) … SUM(O27:O41) (display C–J, row 26). */
-export const SYN_ADAPTATION_SUM_ROW = 26;
-export const SYN_ADAPTATION_SUM_FROM_ROW = 27;
-export const SYN_ADAPTATION_SUM_TO_ROW = 41;
-const ADAPT_SUM_COL_START = 'H';
-const ADAPT_SUM_COL_END = 'O';
-
-function colToNumLocal(col) {
-  let n = 0;
-  for (let i = 0; i < col.length; i++) {
-    n = n * 26 + (col.charCodeAt(i) - 64);
-  }
-  return n;
-}
-
-export function isSynAdaptationSumCol(col) {
-  const n = colToNumLocal(String(col));
-  return (
-    n >= colToNumLocal(ADAPT_SUM_COL_START) && n <= colToNumLocal(ADAPT_SUM_COL_END)
-  );
-}
-
-export function isSynAdaptationSumCell(row, col) {
-  return (
-    Number(row) === SYN_ADAPTATION_SUM_ROW && isSynAdaptationSumCol(col)
-  );
-}
-
-export function affectsAdaptationSum(row, col) {
-  const r = Number(row);
-  if (!Number.isFinite(r) || r < SYN_ADAPTATION_SUM_FROM_ROW) return false;
-  if (r > SYN_ADAPTATION_SUM_TO_ROW) return false;
-  return isSynAdaptationSumCol(col);
-}
-
-/** @param {(row: number, col: string) => number} getNumeric */
-export function computeAdaptationRowSum(
-  getNumeric,
-  col,
-  fromRow = SYN_ADAPTATION_SUM_FROM_ROW,
-  toRow = SYN_ADAPTATION_SUM_TO_ROW
-) {
-  let sum = 0;
-  for (let r = fromRow; r <= toRow; r++) {
-    sum += getNumeric(r, col);
-  }
-  return Math.round(sum * 10000) / 10000;
+  return isSynCalculatedMassCell(cell, row, col, sheet, synLabel, rowClass);
 }
 
 function isSynNumericRaw(raw) {

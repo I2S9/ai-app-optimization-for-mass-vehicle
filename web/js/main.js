@@ -7,12 +7,11 @@ import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix12';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-cicy1';
-import { createWorkbookSession } from './workbookSession.js?v=sumprod-maa3';
+import { createWorkbookSession } from './workbookSession.js?v=sumprod-ab1';
 import {
+  SYN_CALC_FIRST_ROW,
   SYN_FILTER_BD_LABELS,
-  SYN_MAA_DISPLAY_START,
-  SYN_MAA_DISPLAY_END,
-} from './synthesisCalc.js?v=sumprod-maa3';
+} from './synthesisCalc.js?v=sumprod-ab1';
 import {
   buildMatrixState,
   applyMatrixSave,
@@ -664,7 +663,6 @@ const App = {
     });
 
     const synFilterBdLabels = SYN_FILTER_BD_LABELS;
-    const synMaaColRange = `${SYN_MAA_DISPLAY_START}…${SYN_MAA_DISPLAY_END}`;
 
     return {
       bdLoading,
@@ -704,7 +702,7 @@ const App = {
       externalEditTick,
       bdL2Registry,
       synFilterBdLabels,
-      synMaaColRange,
+      SYN_CALC_FIRST_ROW,
     };
   },
   template: `
@@ -827,7 +825,7 @@ const App = {
       <div v-if="isDatabase && bdSheet" class="bd-syn-engine-panel">
         <details class="bd-syn-engine-details">
           <summary>
-            Moteur Synthesis — lignes bleues (L2), colonnes {{ synMaaColRange }}
+            Moteur Synthesis — lignes {{ SYN_CALC_FIRST_ROW }}+ (bleues + vertes), toutes colonnes G…NI
             <span v-if="session.ready" class="bd-syn-engine-meta">
               · {{ bdL2Registry.length }} sous-systèmes répertoriés (BD col. AU, statut Q=S)
             </span>
@@ -835,10 +833,10 @@ const App = {
           </summary>
           <div class="bd-syn-engine-body">
             <p class="bd-syn-engine-lead">
-              Colonnes {{ synMaaColRange }} — calcul instantané depuis la Database&nbsp;:
+              Colonnes G…NI (ligne {{ SYN_CALC_FIRST_ROW }} → fin) — calcul instantané depuis la Database&nbsp;:
               <strong>lignes bleues</strong> = masse filtrée (col.&nbsp;V, sous-système AU, critères lignes 3–14 de la colonne)&nbsp;;
               <strong>lignes vertes/jaunes</strong> (sections L1) = somme des lignes bleues jusqu'à la section suivante.
-              Modifier une masse ou un filtre ici met à jour Synthesis immédiatement.
+              Ligne 26 colonnes H–O = total adaptation (somme lignes 27–41). Modifier Database ou filtres → Synthesis à jour.
             </p>
             <div class="bd-syn-engine-grid">
               <section>

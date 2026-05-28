@@ -17,7 +17,8 @@ import {
   isSynAdaptationSumCell,
   isSynSumproductDataCell,
   isSynSectionSumDataCell,
-} from './synthesisCalc.js?v=sumprod-maa3';
+  isSynAbDiffCell,
+} from './synthesisCalc.js?v=sumprod-ab1';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
@@ -509,6 +510,7 @@ export default {
       const label = synLabel(cellMap.value, row);
       const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
       return (
+        isSynAbDiffCell(row, col, props.sheet) ||
         isSynSectionSumDataCell(row, col, props.sheet, cell, label, rowClass) ||
         isSynSumproductDataCell(row, col, props.sheet, cell, label, rowClass)
       );

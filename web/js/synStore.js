@@ -44,8 +44,9 @@ import {
   isSynAdaptationSumCell,
   isSynSumproductDataCell,
   isSynSectionSumDataCell,
+  isSynAbDiffCell,
   computeAdaptationRowSum,
-} from './synthesisCalc.js?v=sumprod-maa3';
+} from './synthesisCalc.js?v=sumprod-ab1';
 
 export {
   isSynSpacerDisplayExcelCol,
@@ -3055,6 +3056,16 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
         col
       );
       return synTranslateText(formatSynNumericDisplay(String(n)), col);
+    }
+    if (
+      isSynAbDiffCell(row, col, sheet)
+    ) {
+      const raw = cell ? displayValue(cell) : '';
+      if (raw !== '' && isSynNumericRaw(raw)) {
+        return synTranslateText(formatSynNumericDisplay(raw), col);
+      }
+      if (raw !== '') return synTranslateText(raw, col);
+      return '0,00';
     }
     if (
       isSynSectionSumDataCell(
