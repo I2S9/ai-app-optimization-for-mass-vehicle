@@ -69,6 +69,9 @@ export const SYN_PROJ_TABLE_EDGE_DISPLAY_COLS = {
 /** Summary table frame — display columns AC…AN, Excel rows 3–22 (display rows 3–23). */
 export const SYN_AC_AN_TABLE_DISPLAY_START = 'AC';
 export const SYN_AC_AN_TABLE_DISPLAY_END = 'AN';
+/** Summary table frame — display columns AP…BB, Excel rows 3–22 (display rows 3–23). */
+export const SYN_AP_BB_TABLE_DISPLAY_START = 'AP';
+export const SYN_AP_BB_TABLE_DISPLAY_END = 'BB';
 
 /** Filter band rows 3–14: fixed grey cells in display columns C and H. */
 export const SYN_FILTER_GREY_DISPLAY_COLS = ['C', 'H'];

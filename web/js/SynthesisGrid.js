@@ -77,6 +77,10 @@ import {
   isSynHdrAcAnDividerRightEntry,
   isSynHdrAcAnDividerLeftEntry,
   isSynHdrAcAnDividerRightEdgeEntry,
+  isSynApBbTableCellEntry,
+  isSynHdrApBbDividerRightEntry,
+  isSynHdrApBbDividerLeftEntry,
+  isSynHdrApBbDividerRightEdgeEntry,
   SYN_HEADER_PANEL_LAST_ROW,
   isSynSpacerDisplayExcelCol,
   isSynForceWhiteExcelCol,
@@ -86,7 +90,7 @@ import {
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
-} from './synStore.js?v=syn-maa90';
+} from './synStore.js?v=syn-apbb2';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -517,8 +521,15 @@ export default {
       if (isSynHeaderPanelRow(row)) {
         list.push('syn-header-block', 'syn-proj-table-frame', 'syn-hdr-panel-grid');
         list.push('syn-ac-an-table-frame');
-        if (row === SYN_GRID_FIRST_ROW) list.push('syn-ac-an-edge-top');
-        if (row === SYN_HEADER_PANEL_LAST_ROW) list.push('syn-ac-an-edge-bottom');
+        list.push('syn-ap-bb-table-frame');
+        if (row === SYN_GRID_FIRST_ROW) {
+          list.push('syn-ac-an-edge-top');
+          list.push('syn-ap-bb-edge-top');
+        }
+        if (row === SYN_HEADER_PANEL_LAST_ROW) {
+          list.push('syn-ac-an-edge-bottom');
+          list.push('syn-ap-bb-edge-bottom');
+        }
       }
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
       if (row >= 15 && row <= 22) list.push('syn-metric-band');
@@ -752,6 +763,10 @@ export default {
       isSynHdrAcAnDividerRightEntry,
       isSynHdrAcAnDividerLeftEntry,
       isSynHdrAcAnDividerRightEdgeEntry,
+      isSynApBbTableCellEntry,
+      isSynHdrApBbDividerRightEntry,
+      isSynHdrApBbDividerLeftEntry,
+      isSynHdrApBbDividerRightEdgeEntry,
       isSynProjHeaderGreenCol,
       synProjHeaderGreenStyle,
     };
@@ -971,6 +986,19 @@ export default {
                       colEntry.col
                     ),
                     'syn-hdr-edge-an-right': isSynHdrAcAnDividerRightEdgeEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-ap-bb-cell': isSynApBbTableCellEntry(entry, colEntry.col),
+                    'syn-hdr-edge-apbb-right': isSynHdrApBbDividerRightEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-ap-left': isSynHdrApBbDividerLeftEntry(
+                      entry,
+                      colEntry.col
+                    ),
+                    'syn-hdr-edge-bb-right': isSynHdrApBbDividerRightEdgeEntry(
                       entry,
                       colEntry.col
                     ),
