@@ -106,7 +106,7 @@ if ($nodeExe -and (Test-Path $serverMjs)) {
     exit $LASTEXITCODE
 }
 
-Write-Host "Node.js absent — serveur statique (sans API chunks)." -ForegroundColor Yellow
+Write-Host "Node.js absent - serveur statique (sans API chunks)." -ForegroundColor Yellow
 Write-Host "Installez Node ou lancez: node web/server.mjs" -ForegroundColor Yellow
 
 & (Join-Path $root "scripts\serve-web.ps1") -Port $Port -WebRoot $webRoot -OpenBrowser:$openBrowser

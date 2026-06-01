@@ -145,6 +145,22 @@ export default {
     }
 
     watch(
+      () => props.open,
+      (isOpen) => {
+        if (!isOpen) {
+          resetMatrixUiState();
+          return;
+        }
+        if (props.state?.bd) {
+          model.value = cloneStructure(props.state.bd);
+          resetMatrixUiState();
+          const ids = model.value.sections.slice(0, 2).map((s) => s.id);
+          if (ids.length) selectedIds.value = ids;
+        }
+      }
+    );
+
+    watch(
       () => props.state,
       (s) => {
         if (!s?.bd) {
@@ -155,6 +171,10 @@ export default {
         if (!model.value?.sections?.length) {
           model.value = cloneStructure(s.bd);
           resetMatrixUiState();
+          if (props.open) {
+            const ids = model.value.sections.slice(0, 2).map((sec) => sec.id);
+            if (ids.length) selectedIds.value = ids;
+          }
           return;
         }
         if (syncModelRowCoords(model.value, s.bd)) return;
@@ -211,6 +231,11 @@ export default {
     }
 
     function notifyChange() {
+      if (!model.value || model.value.sections.length < 2) return;
+      // Draft only — parent applies once on Done (not on every drag).
+    }
+
+    function publishDraft() {
       if (!model.value || model.value.sections.length < 2) return;
       emit('change', { bd: cloneStructure(model.value) });
     }
@@ -614,7 +639,6 @@ export default {
     }
 
     function close() {
-      notifyChange();
       emit('close');
     }
 
@@ -626,7 +650,7 @@ export default {
         );
         return;
       }
-      notifyChange();
+      publishDraft();
       emit('close');
     }
 
@@ -677,19 +701,21 @@ export default {
       subStyle,
       close,
       done,
-      notifyChange,
+      publishDraft,
     };
   },
   template: `
     <Teleport to="body">
       <Transition name="matrix-fade">
-        <div v-if="open && model" class="matrix-overlay" @click.self="close">
-          <div class="matrix-panel" role="dialog" aria-modal="true" aria-label="Bookmark Matrix">
+        <div v-if="open" class="matrix-overlay" @click.self="close">
+          <div v-if="!model" class="matrix-panel matrix-panel-loading" role="dialog" aria-modal="true" aria-label="Bookmark Matrix">
+            <p class="matrix-loading-text">Chargement Bookmark Matrix…</p>
+          </div>
+          <div v-else class="matrix-panel" role="dialog" aria-modal="true" aria-label="Bookmark Matrix">
             <header class="matrix-header">
               <button type="button" class="matrix-close" aria-label="Close" @click="close">×</button>
               <div class="matrix-title-block">
                 <h2 class="matrix-title">Bookmark Matrix</h2>
-                <p class="matrix-subtitle">Sections jaunes et sous-sections bleues — communes à Database et Synthesis, mises à jour en direct.</p>
               </div>
               <button
                 type="button"
@@ -927,7 +953,7 @@ export default {
             <div class="matrix-confirm" role="alertdialog" aria-modal="true">
               <p class="matrix-confirm-text">
                 Delete <strong>{{ confirmDelete.name }}</strong>?
-                Applied when you save.
+                Applied when you click Done.
               </p>
               <div class="matrix-confirm-actions">
                 <button type="button" class="matrix-editor-cancel" @click="cancelDelete">Cancel</button>

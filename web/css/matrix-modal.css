@@ -20,6 +20,17 @@
   overflow: hidden;
 }
 
+.matrix-panel-loading {
+  align-items: center;
+  justify-content: center;
+}
+
+.matrix-loading-text {
+  margin: 0;
+  font-size: 15px;
+  color: #444;
+}
+
 .matrix-header {
   flex: 0 0 auto;
   display: grid;
@@ -56,14 +67,6 @@
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-}
-
-.matrix-subtitle {
-  margin: 4px 0 0;
-  font-size: 11px;
-  font-weight: 400;
-  color: #555;
-  line-height: 1.35;
 }
 
 .matrix-save {

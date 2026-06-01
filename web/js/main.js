@@ -4,7 +4,7 @@ import SynthesisGrid from './SynthesisGrid.js?v=grid-perf10';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MatrixModal from './MatrixModal.js?v=matrix12';
+import MatrixModal from './MatrixModal.js?v=matrix13';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf7';
 import { createWorkbookSession } from './workbookSession.js?v=grid-perf9';
@@ -66,12 +66,10 @@ const App = {
     let engineStarted = false;
     let synthesisLoadPromise = null;
     let synthesisPreparePromise = null;
-    let matrixApplyTimer = null;
     let matrixPendingModel = null;
     let matrixSessionBefore = null;
     let matrixSessionDirty = false;
     let matrixApplyQueued = false;
-    const MATRIX_APPLY_MS = 200;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
     let preservedSynRaw = null;
     /** Skip re-running transformBdSheet / transformSynthesisSheet when raw unchanged. */
@@ -750,15 +748,31 @@ const App = {
 
     async function openMatrix() {
       if (!bdSheet.value) return;
-      await loadSynthesis();
-      matrixState.value = buildMatrixState(bdSheet.value, synRaw.value);
-      matrixSessionBefore = {
-        bd: cloneRawSheet(bdRaw.value),
-        syn: synRaw.value ? cloneRawSheet(synRaw.value) : null,
-      };
-      matrixSessionDirty = false;
       matrixPendingModel = null;
+      matrixState.value = null;
       matrixOpen.value = true;
+      try {
+        if (!synRaw.value) {
+          void startSynBackgroundPrepare();
+          try {
+            const raw = await loadSheetRaw('synthesis');
+            if (raw) synRaw.value = raw;
+          } catch {
+            /* BD-only matrix still usable */
+          }
+        }
+        const synSource = synRaw.value ?? null;
+        matrixState.value = buildMatrixState(bdSheet.value, synSource);
+        matrixSessionBefore = {
+          bd: cloneRawSheet(bdRaw.value),
+          syn: synRaw.value ? cloneRawSheet(synRaw.value) : null,
+        };
+        matrixSessionDirty = false;
+      } catch (e) {
+        error.value = e?.message || String(e);
+        console.error('Matrix open failed:', e);
+        matrixOpen.value = false;
+      }
     }
 
     function commitMatrixSessionHistory() {
@@ -789,7 +803,14 @@ const App = {
       }
       matrixSaving.value = true;
       try {
-        await loadSynthesis();
+        if (!synRaw.value) {
+          try {
+            const raw = await loadSheetRaw('synthesis');
+            if (raw) synRaw.value = raw;
+          } catch {
+            /* apply BD structure only */
+          }
+        }
         const synBase = matrixState.value?.syn ?? null;
         const synModel = synBase
           ? alignSynModelToBd(cloneStructure(synBase), bdModel)
@@ -803,12 +824,12 @@ const App = {
         );
         bdRaw.value = result.bdRaw;
         bumpBdSheetRevision();
-        await applyBdFromRaw(true);
+        await applyBdFromRaw(false);
         if (result.synRaw) {
           synRaw.value = result.synRaw;
           preservedSynRaw = result.synRaw;
           bumpSynSheetRevision();
-          await applySynFromRaw(true);
+          await applySynFromRaw(false);
         }
         externalEditTick.value += 1;
         if (engineStarted && bdSheet.value) {
@@ -841,26 +862,19 @@ const App = {
     }
 
     function onMatrixChange({ bd }) {
-      if (!matrixOpen.value || !bd) return;
+      if (!bd) return;
       matrixPendingModel = bd;
-      if (matrixApplyTimer) clearTimeout(matrixApplyTimer);
-      matrixApplyTimer = setTimeout(() => {
-        matrixApplyTimer = null;
-        void applyMatrixFromModel(matrixPendingModel);
-      }, MATRIX_APPLY_MS);
     }
 
     async function closeMatrix() {
-      if (matrixApplyTimer) {
-        clearTimeout(matrixApplyTimer);
-        matrixApplyTimer = null;
-      }
-      if (matrixPendingModel) {
-        await applyMatrixFromModel(matrixPendingModel);
-        matrixPendingModel = null;
+      const pending = matrixPendingModel;
+      matrixPendingModel = null;
+      if (pending) {
+        await applyMatrixFromModel(pending);
       }
       commitMatrixSessionHistory();
       matrixOpen.value = false;
+      matrixState.value = null;
     }
 
     return {
@@ -974,7 +988,7 @@ const App = {
               class="icon-btn icon-btn-sm"
               title="Bookmark Matrix — reorder sections and sub-sections"
               aria-label="Open Bookmark Matrix"
-              @click="deferClick(openMatrix)"
+              @click="openMatrix"
             >
               <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                 <rect x="1" y="1" width="6" height="6" fill="currentColor"/>
