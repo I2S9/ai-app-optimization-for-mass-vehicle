@@ -33,8 +33,8 @@ import {
   describeSynCellFormula,
   synVehicleMassExcelCol,
   affectsAdaptationSum,
-} from './synthesisCalc.js?v=syn-apbb8';
-import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=syn-apbb8';
+} from './synthesisCalc.js?v=grid-perf2';
+import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=grid-perf2';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
@@ -303,11 +303,17 @@ export function createWorkbookSession() {
     }
   }
 
+  let boundSynSheet = null;
+
   function bindSynthesisGrid(getCell, sheet = null, getLabel = null, getRowClass = null) {
     synGridGetter = getCell;
-    synSheetMeta = sheet;
     synLabelGetter = getLabel;
     synRowClassGetter = getRowClass;
+    if (boundSynSheet === sheet && synSheetMeta === sheet) {
+      return;
+    }
+    boundSynSheet = sheet;
+    synSheetMeta = sheet;
     invalidateSumproductCaches();
     revision.value += 1;
   }

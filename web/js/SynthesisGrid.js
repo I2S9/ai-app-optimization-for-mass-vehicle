@@ -19,7 +19,7 @@ import {
   isSynSectionSumDataCell,
   isSynAbDiffCell,
   isSynCalculatedMassCell,
-} from './synthesisCalc.js?v=syn-apbb8';
+} from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
 import {
@@ -157,7 +157,7 @@ import {
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
   synLabel,
-} from './synStore.js?v=syn-apbb8';
+} from './synStore.js?v=grid-perf2';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -174,7 +174,7 @@ import {
   createScrollRafSync,
   SYN_MAX_RENDERED_ROWS,
   visibleRowRange,
-} from './gridScroll.js?v=syn-nav-perf2';
+} from './gridScroll.js?v=grid-perf2';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -210,7 +210,11 @@ export default {
     );
 
     const pillarColumns = computed(() => {
-      const map = buildSynPillarColumns(props.sheet, cellMap.value);
+      const preset = props.sheet?.pillarColumns;
+      const map =
+        preset && typeof preset === 'object'
+          ? new Map(Object.entries(preset))
+          : buildSynPillarColumns(props.sheet, cellMap.value);
       for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {
         map.set(col, { ...meta, ...map.get(col) });
       }
@@ -445,10 +449,12 @@ export default {
     const selectedCell = ref(null);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
     const displayCache = new Map();
+    const scrollStyleCache = new Map();
     let displayCacheKey = '';
 
     function invalidateDisplayCache() {
       displayCache.clear();
+      scrollStyleCache.clear();
       displayCacheKey = '';
     }
 
@@ -461,10 +467,20 @@ export default {
     );
 
     watch(
-      () => [props.session?.revision?.value ?? 0, props.session?.ready?.value ?? false],
+      () => props.session?.revision?.value ?? 0,
       () => {
         editEpoch.value += 1;
         invalidateDisplayCache();
+      }
+    );
+
+    watch(
+      () => props.session?.ready?.value ?? false,
+      (ready, wasReady) => {
+        if (ready && !wasReady) {
+          editEpoch.value += 1;
+          invalidateDisplayCache();
+        }
       }
     );
 
@@ -800,8 +816,25 @@ export default {
       const base = colStyle(col, width);
       if (isGapEntry(entry)) return base;
       const row = entry.excelRow;
+      const styleKey = `${displayCacheKey}:${row}:${col}:${width}`;
+      if (scrollStyleCache.has(styleKey)) {
+        return scrollStyleCache.get(styleKey);
+      }
       if (isSynForceWhiteExcelCol(col)) return base;
       if (isSynSpacerDisplayExcelCol(col)) return base;
+      // Body rows 26+ (non header panel): skip heavy header style chain.
+      if (row >= SYN_GRID_FIRST_ROW && !isSynHeaderPanelRow(row)) {
+        const out = { ...base, ...cellInlineStyle(row, col) };
+        if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowGreyMaaStyle());
+        } else if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowGreenMaaStyle());
+        } else if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowGreenAcanStyle());
+        }
+        scrollStyleCache.set(styleKey, out);
+        return out;
+      }
       const display = cellDisplay(row, col);
       const bevStyle = synHdrBevTextStyle(row, display);
       if (bevStyle) {
@@ -887,7 +920,9 @@ export default {
       if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenAcanStyle() };
       }
-      return { ...base, ...cellInlineStyle(row, col) };
+      const out = { ...base, ...cellInlineStyle(row, col) };
+      scrollStyleCache.set(styleKey, out);
+      return out;
     }
 
     function withHdrPanelBold(row, col, cls, display = '') {
@@ -1052,17 +1087,21 @@ export default {
       { immediate: true }
     );
 
-    // Bind before first paint — cellDisplay calls session.getDisplayValue during render.
-    watchEffect(() => {
-      if (!props.sheet || !props.session?.bindSynthesisGrid) return;
-      const map = cellMap.value;
-      props.session.bindSynthesisGrid(
-        (row, col) => getCell(map, row, col),
-        props.sheet,
-        (row) => synLabel(map, row),
-        (row) => synRowStyleClass(map, row, props.sheet)
-      );
-    });
+    // Bind once per sheet — avoids full display-cache flush on every render pass.
+    watch(
+      () => props.sheet,
+      (sheet) => {
+        if (!sheet || !props.session?.bindSynthesisGrid) return;
+        const map = cellMap.value;
+        props.session.bindSynthesisGrid(
+          (row, col) => getCell(map, row, col),
+          sheet,
+          (row) => synLabel(map, row),
+          (row) => synRowStyleClass(map, row, sheet)
+        );
+      },
+      { immediate: true }
+    );
 
     onMounted(() => {
       updateViewport();

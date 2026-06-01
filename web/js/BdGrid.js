@@ -35,9 +35,10 @@ import {
   ROW_H,
   rowOverscan,
   shouldVirtualizeRows,
-  createRowScrollCache,
+  visibleRowRange,
   createScrollRafSync,
-} from './gridScroll.js?v=syn-scroll5';
+  MAX_RENDERED_ROWS,
+} from './gridScroll.js?v=grid-perf2';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
@@ -95,7 +96,6 @@ export default {
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
     const rowOverscanPx = computed(() => rowOverscan(viewportH.value));
-    const rowScrollCache = createRowScrollCache();
     const visibleStart = ref(0);
     const visibleEnd = ref(0);
 
@@ -106,11 +106,12 @@ export default {
         visibleEnd.value = count;
         return;
       }
-      const range = rowScrollCache.resolve(
+      const range = visibleRowRange(
         scrollTop.value,
         viewportH.value,
         count,
-        rowOverscanPx.value
+        rowOverscanPx.value,
+        MAX_RENDERED_ROWS
       );
       visibleStart.value = range.start;
       visibleEnd.value = range.end;

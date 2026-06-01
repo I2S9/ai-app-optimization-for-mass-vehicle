@@ -108,7 +108,7 @@
   flex-direction: column;
   position: relative;
 }
-/* Keep BD/Synthesis mounted; v-show toggles visibility (fast menu navigation). */
+/* Keep BD/Synthesis mounted via KeepAlive when switching routes. */
 .grid-route-pane {
   flex: 1 1 auto;
   min-height: 0;

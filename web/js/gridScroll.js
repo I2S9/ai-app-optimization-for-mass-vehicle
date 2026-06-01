@@ -6,7 +6,7 @@ export const ROW_H = 21;
  * Hard cap on mounted rows when row virtualization is active (Database sheet).
  */
 export const MAX_RENDERED_ROWS = 220;
-export const SYN_MAX_RENDERED_ROWS = 120;
+export const SYN_MAX_RENDERED_ROWS = 220;
 
 /** Rows to render above/below the viewport. */
 export function rowOverscan(viewportH, minRows = 20, maxRows = 56) {

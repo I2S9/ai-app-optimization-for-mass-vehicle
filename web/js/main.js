@@ -1,13 +1,13 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
-import BdGrid from './BdGrid.js?v=grid-nav4';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-apbb8';
+import BdGrid from './BdGrid.js?v=grid-perf2';
+import SynthesisGrid from './SynthesisGrid.js?v=grid-perf2';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix12';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=syn-apbb8';
-import { createWorkbookSession } from './workbookSession.js?v=syn-apbb8';
+import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=grid-perf2';
+import { createWorkbookSession } from './workbookSession.js?v=grid-perf2';
 import {
   buildMatrixState,
   applyMatrixSave,
@@ -529,8 +529,8 @@ const App = {
     }
 
     function navigate(id) {
-      route.value = id;
       menuOpen.value = false;
+      route.value = id;
       if (id === 'synthesis') {
         void loadSynthesis();
         scheduleEngine();
