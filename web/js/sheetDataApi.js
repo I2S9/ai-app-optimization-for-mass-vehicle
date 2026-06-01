@@ -161,4 +161,23 @@ export async function saveSession(projectId, payload) {
   return res.json();
 }
 
+/**
+ * PATCH cell values — BD edits trigger server-side Synthesis recalc (P2).
+ * @param {'bd'|'synthesis'} sheetId
+ * @param {{ r: number, c: string, v: * }[]} changes
+ * @returns {Promise<{ ok: boolean, synPatches?: { r: number, c: string, v: string, mat?: boolean }[] }>}
+ */
+export async function patchSheetCells(sheetId, changes) {
+  const res = await fetch(url(`/api/v1/sheets/${sheetId}/cells`), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ changes }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `PATCH failed (${res.status})`);
+  }
+  return res.json();
+}
+
 export { mergeMeta, CHUNK_ROWS };

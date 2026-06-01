@@ -307,7 +307,8 @@ export function createWorkbookSession() {
       excelCol,
       synSectionRows,
       isBlueSubsectionRow,
-      getBlueMaaValue
+      getBlueMaaValue,
+      synSheetMeta?.effectiveLastRow ?? synSheetMeta?.lastRow ?? 422
     );
     sumproductCache.set(cacheKey, String(n));
     return n;
@@ -532,6 +533,9 @@ export function createWorkbookSession() {
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
+    if (sheetName === 'SYNTHESIS' && cell?.mat && !cell?.userEdited) {
+      return displayValue(cell);
+    }
     if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
       if (!synGridGetter) return '0';
       const n = computeAdaptationRowSum(getAdaptationBlockNumeric, col);

@@ -1,6 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, nextTick } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-perf9';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-fix1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-p2';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
@@ -15,7 +15,7 @@ import {
   resolveGridSheet,
   hasSheetEdits,
 } from './gridBoot.js?v=1';
-import { loadSheetRaw, probeSheetApi } from './sheetDataApi.js?v=chunk1';
+import { loadSheetRaw, probeSheetApi, patchSheetCells } from './sheetDataApi.js?v=p2';
 import {
   buildMatrixState,
   applyMatrixSave,
@@ -41,6 +41,7 @@ const App = {
     /** @type {import('vue').Ref<{ sheetId: string, pct: number } | null>} */
     const dataLoadProgress = ref(null);
     const chunkedApi = ref(false);
+    const serverCalc = ref(false);
     const error = ref(null);
     const bdSheet = ref(null);
     const synthesisSheet = ref(null);
@@ -419,6 +420,7 @@ const App = {
 
     async function bootApp() {
       const wantSynthesis = route.value === 'synthesis';
+      void fetchPrecomputedPack('syn');
 
       try {
         await nextTick();
@@ -428,6 +430,7 @@ const App = {
           fetchPrecomputedPack('bd'),
         ]);
         chunkedApi.value = Boolean(apiCfg?.chunkedLoad);
+        serverCalc.value = Boolean(apiCfg?.serverCalc);
 
         const bdHasEdits =
           (snapshot?.version === 3 && hasSheetEdits(snapshot.bdEdits)) ||
@@ -646,6 +649,30 @@ const App = {
       }
     }
 
+    function applySynPatches(patches) {
+      if (!patches?.length) return;
+      const raw = synRaw.value;
+      const grid = synthesisSheet.value;
+      if (!raw) return;
+      for (const p of patches) {
+        upsertRawCell(raw, p.r, p.c, p.v);
+        if (grid) {
+          const key = `${p.r}:${p.c}`;
+          const map = grid.cellMap instanceof Map ? grid.cellMap : null;
+          let cell = map?.get(key);
+          if (!cell) {
+            cell = { r: p.r, c: p.c, v: p.v, mat: true };
+            grid.cells.push(cell);
+            map?.set(key, cell);
+          } else if (!cell.userEdited) {
+            cell.v = p.v;
+            cell.mat = true;
+          }
+        }
+      }
+      externalEditTick.value += 1;
+    }
+
     function onCellChange({ row, col, value, sheet, previousValue }) {
       if (!applyingHistory) {
         editHistory.push({
@@ -664,6 +691,11 @@ const App = {
             ? bdRaw.value
             : null;
       if (raw) upsertRawCell(raw, row, col, value);
+      if (sheet === 'BD' && serverCalc.value && chunkedApi.value) {
+        void patchSheetCells('bd', [{ r: row, c: col, v: value }])
+          .then((res) => applySynPatches(res.synPatches))
+          .catch((e) => console.warn('Server Syn recalc:', e));
+      }
       dirty.value += 1;
       autoSave.schedule();
       void autoSave.saveNow();

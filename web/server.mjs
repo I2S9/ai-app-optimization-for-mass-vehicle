@@ -1,5 +1,5 @@
 /**
- * Static server + progressive sheet API (same origin).
+ * Static server + progressive sheet API + server-side Synthesis calc (P2).
  * Run: node web/server.mjs
  */
 import http from 'http';
@@ -7,6 +7,8 @@ import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { fileURLToPath } from 'url';
+import { transformBdSheet, transformSynthesisSheet } from './js/sheetTransform.js';
+import { createSynCalcContext } from './js/synMaterialize.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 5173;
@@ -25,10 +27,12 @@ const SHEET_FILES = {
   synthesis: path.join(__dirname, 'public/data/synthesis-sheet.json'),
 };
 
-/** @type {Map<string, object>} */
+/** @type {Map<string, object>} raw JSON cache */
 const sheetCache = new Map();
+/** @type {{ bd: object, syn: object, ctx: object } | null} */
+let calcRuntime = null;
 
-function loadSheet(sheetId) {
+function loadSheetRaw(sheetId) {
   if (sheetCache.has(sheetId)) return sheetCache.get(sheetId);
   const filePath = SHEET_FILES[sheetId];
   if (!filePath || !fs.existsSync(filePath)) {
@@ -37,6 +41,50 @@ function loadSheet(sheetId) {
   const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
   sheetCache.set(sheetId, data);
   return data;
+}
+
+function getCalcRuntime() {
+  if (calcRuntime) return calcRuntime;
+  const bdRaw = loadSheetRaw('bd');
+  const synRaw = loadSheetRaw('synthesis');
+  const bdSheet = transformBdSheet(bdRaw);
+  const synSheet = transformSynthesisSheet(synRaw);
+  const ctx = createSynCalcContext(bdSheet, synSheet);
+  calcRuntime = { bdRaw, synRaw, bdSheet, synSheet, ctx };
+  return calcRuntime;
+}
+
+function resetCalcRuntime() {
+  calcRuntime = null;
+}
+
+function readJsonBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      try {
+        const text = Buffer.concat(chunks).toString('utf8') || '{}';
+        resolve(JSON.parse(text));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+function upsertRawCell(raw, row, col, value) {
+  const cells = raw.cells || (raw.cells = []);
+  let cell = cells.find((c) => c.r === row && c.c === col);
+  if (!cell) {
+    cell = { r: row, c: col, v: value, userEdited: true };
+    cells.push(cell);
+  } else {
+    cell.v = value;
+    cell.userEdited = true;
+    delete cell.f;
+  }
 }
 
 function parseQuery(url) {
@@ -60,20 +108,29 @@ function sendJson(res, obj, status = 200) {
   res.end(body);
 }
 
-function handleApi(req, res, urlPath, fullUrl) {
+async function handleApi(req, res, urlPath, fullUrl) {
   if (urlPath === '/api/v1/config') {
-    sendJson(res, { mode: 'local-node', chunkedLoad: true, version: 1, projectId: 'default' });
+    // Local dev: full JSON is faster than many /cells chunks (re-parse file each request).
+    const chunkedLoad = process.env.WGHT_CHUNKED_LOAD === '1';
+    const serverCalc = process.env.WGHT_SERVER_CALC === '1';
+    sendJson(res, {
+      mode: 'local-node',
+      chunkedLoad,
+      serverCalc,
+      version: 2,
+      projectId: 'default',
+    });
     return true;
   }
   if (urlPath === '/api/v1/health') {
-    sendJson(res, { ok: true, backend: 'local-node' });
+    sendJson(res, { ok: true, backend: 'local-node', serverCalc: true });
     return true;
   }
 
   const metaMatch = urlPath.match(/^\/api\/v1\/sheets\/(bd|synthesis)\/meta$/);
   if (metaMatch) {
     try {
-      const raw = loadSheet(metaMatch[1]);
+      const raw = loadSheetRaw(metaMatch[1]);
       const meta = { ...raw };
       delete meta.cells;
       meta.cellCount = (raw.cells || []).length;
@@ -85,7 +142,7 @@ function handleApi(req, res, urlPath, fullUrl) {
   }
 
   const cellsMatch = urlPath.match(/^\/api\/v1\/sheets\/(bd|synthesis)\/cells$/);
-  if (cellsMatch) {
+  if (cellsMatch && req.method === 'GET') {
     const q = parseQuery(fullUrl);
     const rowMin = Number(q.rowMin);
     const rowMax = Number(q.rowMax);
@@ -94,7 +151,7 @@ function handleApi(req, res, urlPath, fullUrl) {
       return true;
     }
     try {
-      const raw = loadSheet(cellsMatch[1]);
+      const raw = loadSheetRaw(cellsMatch[1]);
       const cells = [];
       for (const cell of raw.cells || []) {
         const r = Number(cell.r);
@@ -103,6 +160,40 @@ function handleApi(req, res, urlPath, fullUrl) {
       sendJson(res, { cells, rowMin, rowMax });
     } catch (e) {
       sendJson(res, { error: e.message }, 404);
+    }
+    return true;
+  }
+
+  const patchMatch = urlPath.match(/^\/api\/v1\/sheets\/(bd|synthesis)\/cells$/);
+  if (patchMatch && req.method === 'PATCH') {
+    try {
+      const body = await readJsonBody(req);
+      const changes = Array.isArray(body?.changes) ? body.changes : [];
+      if (!changes.length) {
+        sendJson(res, { error: 'changes[] required' }, 400);
+        return true;
+      }
+      const sheetId = patchMatch[1];
+      const raw = loadSheetRaw(sheetId);
+      for (const ch of changes) {
+        const r = Number(ch.r);
+        const c = String(ch.c || '');
+        if (!Number.isFinite(r) || !c) continue;
+        upsertRawCell(raw, r, c, ch.v ?? '');
+      }
+      resetCalcRuntime();
+      let synPatches = [];
+      if (sheetId === 'bd') {
+        const rt = getCalcRuntime();
+        for (const ch of changes) {
+          rt.ctx.patchBdCell(Number(ch.r), String(ch.c), ch.v ?? '');
+        }
+        synPatches = rt.ctx.recalcAfterBdEdit();
+        rt.ctx.applyPatches(synPatches);
+      }
+      sendJson(res, { ok: true, synPatches });
+    } catch (e) {
+      sendJson(res, { error: e.message }, 500);
     }
     return true;
   }
@@ -156,11 +247,11 @@ function serveStatic(req, res, urlPath) {
   });
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   const fullUrl = req.url || '/';
   const urlPath = fullUrl.split('?')[0];
   if (urlPath.startsWith('/api/')) {
-    if (handleApi(req, res, urlPath, fullUrl)) return;
+    if (await handleApi(req, res, urlPath, fullUrl)) return;
     sendJson(res, { error: 'Not found' }, 404);
     return;
   }
@@ -169,7 +260,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`WGHT app: http://${HOST}:${PORT}/`);
-  console.log('Progressive API: GET /api/v1/config');
+  console.log('API: GET /api/v1/config  PATCH /api/v1/sheets/bd/cells  (P2 server calc)');
 });
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

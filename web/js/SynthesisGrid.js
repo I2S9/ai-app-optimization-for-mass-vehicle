@@ -176,7 +176,7 @@ import {
   createRowScrollCache,
   SYN_MAX_RENDERED_COLS,
   SYN_MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=syn-fix1';
+} from './gridScroll.js?v=syn-fix2';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -413,8 +413,13 @@ export default {
 
     const pillarLetterOverlays = computed(() => {
       const start = findSynEchappementRow(cellMap.value, props.sheet);
+      const visibleCols = new Set([
+        ...visibleScrollCols.value.map((c) => c.col),
+        SYN_STICKY_COL,
+      ]);
       const overlays = [];
       for (const layout of columnLayout.value) {
+        if (!visibleCols.has(layout.col)) continue;
         if (!SYN_PILLAR_OVERLAY_COLS.has(layout.col)) continue;
         if (
           !pillarColumns.value.has(layout.col) &&
@@ -472,8 +477,22 @@ export default {
     });
 
     const editEpoch = ref(0);
-    /** Defer SUMPRODUCT until after first paint — avoids multi-second freeze on mount. */
+    /** Defer SUMPRODUCT until after first paint. */
     const liveCalcReady = ref(false);
+    /** Static values while scrolling — live calc refreshes when scroll stops. */
+    const scrollActive = ref(false);
+    let scrollEndTimer = null;
+
+    function onGridScroll(e) {
+      scrollSync.onScroll(e);
+      if (!scrollActive.value) scrollActive.value = true;
+      if (scrollEndTimer) clearTimeout(scrollEndTimer);
+      scrollEndTimer = setTimeout(() => {
+        scrollEndTimer = null;
+        scrollActive.value = false;
+        editEpoch.value += 1;
+      }, 80);
+    }
     const selectedCell = ref(null);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
     const synCalcTick = computed(() => props.session?.synCalcTick?.value ?? 0);
@@ -720,13 +739,17 @@ export default {
       const cell = getCell(cellMap.value, row, col);
       const label = synLabel(cellMap.value, row);
       const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
+      const materialized =
+        props.sheet?.materializedCalc || (cell?.mat && !cell?.userEdited);
       const isLiveCalc =
         isSynAdaptationSumCell(row, col) ||
         isSynCalculatedMassCell(cell, row, col, props.sheet, label, rowClass);
 
       if (
         isLiveCalc &&
+        !materialized &&
         liveCalcReady.value &&
+        !scrollActive.value &&
         props.session?.getDisplayValue &&
         props.session.ready?.value
       ) {
@@ -1296,21 +1319,42 @@ export default {
       return rp > 0 ? { width: `${rp}px`, minWidth: `${rp}px` } : null;
     });
 
-    /** Row + cached cell models for the visible window only (~7k cells max). */
-    const visibleRowShells = computed(() => {
+    /** Row metadata — stable when only horizontal scroll changes. */
+    const visibleRowMeta = computed(() => {
       if (!props.paneVisible) return [];
-      void editEpoch.value;
-      void synCalcTick.value;
-      const pinned = pinnedCols.value;
-      const scrollCols = visibleScrollCols.value;
       return visibleRows.value.map((entry) => ({
         key: rowEntryKey(entry),
         entry,
         displayRow: entry.displayRow,
         rowClasses: cachedEntryRowClasses(entry),
-        pinned: pinned.map((p) => getCachedPinnedCellModel(entry, p)),
-        scroll: scrollCols.map((c, i) => getCachedScrollCellModel(entry, c, i)),
       }));
+    });
+
+    const pinnedCellsByRowKey = computed(() => {
+      if (!props.paneVisible) return {};
+      void editEpoch.value;
+      void synCalcTick.value;
+      const pinned = pinnedCols.value;
+      const out = {};
+      for (const entry of visibleRows.value) {
+        const key = rowEntryKey(entry);
+        out[key] = pinned.map((p) => getCachedPinnedCellModel(entry, p));
+      }
+      return out;
+    });
+
+    const scrollCellsByRowKey = computed(() => {
+      if (!props.paneVisible) return {};
+      void editEpoch.value;
+      void synCalcTick.value;
+      void visibleScrollCols.value;
+      const cols = visibleScrollCols.value;
+      const out = {};
+      for (const entry of visibleRows.value) {
+        const key = rowEntryKey(entry);
+        out[key] = cols.map((c, i) => getCachedScrollCellModel(entry, c, i));
+      }
+      return out;
     });
 
     function cellDisplayHtml(row, col, displayed) {
@@ -1372,12 +1416,19 @@ export default {
       (sheet) => {
         if (!sheet || !props.session?.bindSynthesisGrid) return;
         const map = cellMap.value;
-        props.session.bindSynthesisGrid(
-          (row, col) => getCell(map, row, col),
-          sheet,
-          (row) => synLabel(map, row),
-          (row) => synRowStyleClass(map, row, sheet)
-        );
+        const bind = () => {
+          props.session.bindSynthesisGrid(
+            (row, col) => getCell(map, row, col),
+            sheet,
+            (row) => synLabel(map, row),
+            (row) => synRowStyleClass(map, row, sheet)
+          );
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(bind, { timeout: 400 });
+        } else {
+          setTimeout(bind, 0);
+        }
       },
       { immediate: true }
     );
@@ -1386,18 +1437,20 @@ export default {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
+      if (props.sheet?.materializedCalc) return;
       requestAnimationFrame(() => {
         const enable = () => {
           liveCalcReady.value = true;
         };
         if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(enable, { timeout: 1500 });
+          requestIdleCallback(enable, { timeout: 2800 });
         } else {
-          setTimeout(enable, 400);
+          setTimeout(enable, 600);
         }
       });
     });
     onUnmounted(() => {
+      if (scrollEndTimer) clearTimeout(scrollEndTimer);
       window.removeEventListener('resize', updateViewport);
       scrollSync.dispose();
     });
@@ -1617,12 +1670,9 @@ export default {
       pinnedCols,
       visibleScrollCols,
       tableWidth,
-      visibleRowShells,
-      visibleRows,
-      getCachedScrollCellModel,
-      scrollCell,
-      scrollColsLen,
-      editEpoch,
+      visibleRowMeta,
+      pinnedCellsByRowKey,
+      scrollCellsByRowKey,
       topSpacer,
       bottomSpacer,
       leftPad,
@@ -1650,7 +1700,7 @@ export default {
       pillarLetterOverlays,
       usesPillarLetterOverlay,
       synExcelColTraceClass,
-      onScroll: scrollSync.onScroll,
+      onScroll: onGridScroll,
       isCellActive,
       cellShowValue,
       cellDisplayHtml,
@@ -1733,14 +1783,14 @@ export default {
               <td :colspan="colspan" :style="{ height: topSpacer + 'px', border: 'none', padding: 0 }"></td>
             </tr>
             <tr
-              v-for="row in visibleRowShells"
+              v-for="row in visibleRowMeta"
               :key="row.key"
               class="grid-row-cv"
               :class="row.rowClasses"
             >
               <td class="row-num syn-row-num">{{ row.displayRow }}</td>
               <td
-                v-for="cell in row.pinned"
+                v-for="cell in pinnedCellsByRowKey[row.key]"
                 :key="row.key + '-p-' + cell.col"
                 class="data-cell col-sticky-label syn-label-col"
                 :class="[{ readonly: cell.readonly }, cell.classes]"
@@ -1772,7 +1822,7 @@ export default {
               </td>
               <td v-if="leftPad > 0" class="syn-pad" :style="leftPadStyle"></td>
               <td
-                v-for="cell in row.scroll"
+                v-for="cell in scrollCellsByRowKey[row.key]"
                 :key="row.key + '-' + cell.col"
                 class="data-cell"
                 :class="[{ readonly: cell.readonly }, cell.classes]"

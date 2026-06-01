@@ -8,6 +8,16 @@ web/public/data/bd-sheet.json
 web/.wght-server.pid
 *.zip
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+api/.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
 .DS_Store
 Thumbs.db
 .cursorrules

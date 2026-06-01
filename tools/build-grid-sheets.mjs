@@ -1,6 +1,7 @@
 /**
  * Build precomputed grid JSON from raw exports (run after export-bd/synthesis-sheet).
  * Eliminates ~5 s browser transform on cold start.
+ * Synthesis pack includes server-materialized SUMPRODUCT values (P2).
  *
  *   node tools/build-grid-sheets.mjs
  */
@@ -9,11 +10,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { transformBdSheet, transformSynthesisSheet } from '../web/js/sheetTransform.js';
 import { rawFingerprint, serializeTransformSheet } from '../web/js/sessionPersistence.js';
+import { materializeSynSheet } from '../web/js/synMaterialize.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(__dirname, '..', 'web', 'public', 'data');
 
-function buildOne(sheetId, rawName, outName, transform) {
+function buildOne(sheetId, rawName, outName, transform, { materialize = false } = {}) {
   const rawPath = path.join(DATA, rawName);
   const outPath = path.join(DATA, outName);
   if (!fs.existsSync(rawPath)) {
@@ -24,7 +26,18 @@ function buildOne(sheetId, rawName, outName, transform) {
   const t0 = Date.now();
   const raw = JSON.parse(fs.readFileSync(rawPath, 'utf8'));
   const fp = rawFingerprint(raw);
-  const sheet = transform(raw);
+  let sheet = transform(raw);
+  if (materialize) {
+    const bdRawPath = path.join(DATA, 'bd-sheet.json');
+    if (!fs.existsSync(bdRawPath)) {
+      console.warn('Skip materialize: missing bd-sheet.json');
+    } else {
+      console.log('  Materializing Synthesis calc (P2)…');
+      const bdSheet = transformBdSheet(JSON.parse(fs.readFileSync(bdRawPath, 'utf8')));
+      const { patchCount } = materializeSynSheet(bdSheet, sheet);
+      console.log(`  → ${patchCount} calc cells materialized`);
+    }
+  }
   const pack = {
     version: 1,
     fingerprint: fp,
@@ -37,5 +50,7 @@ function buildOne(sheetId, rawName, outName, transform) {
 }
 
 buildOne('bd', 'bd-sheet.json', 'bd-sheet-grid.json', transformBdSheet);
-buildOne('syn', 'synthesis-sheet.json', 'synthesis-sheet-grid.json', transformSynthesisSheet);
+buildOne('syn', 'synthesis-sheet.json', 'synthesis-sheet-grid.json', transformSynthesisSheet, {
+  materialize: true,
+});
 console.log('Done.');

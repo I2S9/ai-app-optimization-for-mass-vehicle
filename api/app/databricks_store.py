@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator
 
 from .config import settings
+from .snapshot_codec import compress_json, decompress_json
 
 
 @contextmanager
@@ -46,8 +47,8 @@ def fetch_session(project_id: str) -> dict[str, Any] | None:
             return {
                 "project_id": project_id,
                 "revision": int(revision or 0),
-                "bd": json.loads(bd_snap) if bd_snap else None,
-                "syn": json.loads(syn_snap) if syn_snap else None,
+                "bd": decompress_json(bd_snap),
+                "syn": decompress_json(syn_snap),
                 "updated_at": str(updated_at) if updated_at else None,
                 "updated_by": updated_by,
             }
@@ -76,14 +77,28 @@ def upsert_session(
           updated_by = s.updated_by
         WHEN NOT MATCHED THEN INSERT *
     """
-    bd_json = json.dumps(bd, ensure_ascii=False) if bd else None
-    syn_json = json.dumps(syn, ensure_ascii=False) if syn else None
+    bd_json = compress_json(bd) if bd else None
+    syn_json = compress_json(syn) if syn else None
     with databricks_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                q,
-                (project_id, revision, bd_json, syn_json, updated_by),
-            )
+            if bd_json and syn_json and len(bd_json) + len(syn_json) > 1_900_000:
+                cur.execute(
+                    q,
+                    (project_id, revision, bd_json, None, updated_by),
+                )
+                cur.execute(
+                    f"""
+                    UPDATE {_table('workbook_sessions')}
+                    SET syn_snapshot = ?, updated_at = current_timestamp(), updated_by = ?
+                    WHERE project_id = ? AND revision <= ?
+                    """,
+                    (syn_json, updated_by, project_id, revision),
+                )
+            else:
+                cur.execute(
+                    q,
+                    (project_id, revision, bd_json, syn_json, updated_by),
+                )
     return {"project_id": project_id, "revision": revision, "ok": True}
 
 

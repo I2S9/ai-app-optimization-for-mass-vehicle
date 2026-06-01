@@ -522,11 +522,15 @@ export function computeSynSectionSum(
   col,
   sectionRows,
   isBlueRow,
-  getBlueValueAt
+  getBlueValueAt,
+  lastRow = null
 ) {
   const idx = sectionRows.indexOf(sectionRow);
   if (idx < 0) return 0;
-  const end = sectionRows[idx + 1] ?? Number.MAX_SAFE_INTEGER;
+  let end = sectionRows[idx + 1];
+  if (end == null) {
+    end = lastRow != null ? lastRow + 1 : sectionRow + 1;
+  }
   let sum = 0;
   for (let r = sectionRow + 1; r < end; r++) {
     if (!isBlueRow(r)) continue;
