@@ -37,7 +37,7 @@ import {
   createScrollRafSync,
   createRowScrollCache,
   MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=grid-perf6';
+} from './gridScroll.js?v=syn-fix1';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
@@ -354,6 +354,14 @@ export default {
     }
 
     watch(
+      () => rowCount.value,
+      () => {
+        rowScrollCache.reset();
+        nextTick(() => scrollSync.flush());
+      }
+    );
+
+    watch(
       () => props.outlineOnly,
       () => {
         rowScrollCache.reset();
@@ -463,7 +471,6 @@ export default {
             <tr
               v-for="entry in visibleRows"
               :key="entry.excelRow"
-              v-memo="[entry.excelRow, externalEditTick, calcRevision, outlineOnly, visibleStart]"
               class="grid-row-cv"
               :class="rowStyleClass(entry.excelRow)"
             >

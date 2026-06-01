@@ -174,9 +174,9 @@ import {
   createScrollRafSync,
   createColScrollCache,
   createRowScrollCache,
-  MAX_RENDERED_ROWS,
   SYN_MAX_RENDERED_COLS,
-} from './gridScroll.js?v=grid-perf10';
+  SYN_MAX_RENDERED_ROWS,
+} from './gridScroll.js?v=syn-fix1';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -283,7 +283,7 @@ export default {
       shouldVirtualizeCols(tableWidth.value, viewportW.value)
     );
     const colBufferPx = computed(() => synColOverscanPx(viewportW.value));
-    /** Columns window — bounded span (no unbounded monotonic accumulation). */
+    /** Column window — viewport-first (monotonic off avoids 60k+ DOM nodes). */
     const colScrollCache = createColScrollCache(SYN_MAX_RENDERED_COLS, {
       monotonic: false,
     });
@@ -312,9 +312,7 @@ export default {
       scrollableCols.value.slice(colRangeStart.value, colRangeEnd.value)
     );
 
-    const scrollColKey = computed(() =>
-      visibleScrollCols.value.map((c) => c.col).join(',')
-    );
+    const scrollColsLen = computed(() => visibleScrollCols.value.length);
 
     const leftPad = computed(() => {
       if (!virtualizeCols.value) return 0;
@@ -331,9 +329,11 @@ export default {
       return Math.max(0, tableWidth.value - (last.left + last.width));
     });
 
-    const bodyRows = computed(() =>
-      computeSynBodyRows(props.sheet, cellMap.value, props.outlineOnly)
-    );
+    const bodyRows = computed(() => {
+      void props.outlineOnly;
+      void props.sheet?.effectiveLastRow;
+      return computeSynBodyRows(props.sheet, cellMap.value, props.outlineOnly);
+    });
     const rowCount = computed(() => bodyRows.value.length);
 
     const displayRowByExcel = computed(() => {
@@ -353,7 +353,7 @@ export default {
       return m;
     });
 
-    const rowScrollCache = createRowScrollCache(MAX_RENDERED_ROWS, {
+    const rowScrollCache = createRowScrollCache(SYN_MAX_RENDERED_ROWS, {
       monotonic: false,
     });
     const virtualizeRows = computed(() =>
@@ -1237,33 +1237,80 @@ export default {
       };
     }
 
-    const visibleRenderRows = computed(() => {
-      if (!props.paneVisible) return [];
-      void synCalcTick.value;
-      void liveCalcReady.value;
-      void editEpoch.value;
-      void scrollColKey.value;
-      const scrollCols = visibleScrollCols.value;
-      const colsLen = scrollCols.length;
+    function rowEntryKey(entry) {
+      if (isGapEntry(entry)) {
+        return `panel-gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`;
+      }
+      return String(entry.excelRow);
+    }
+
+    const pinnedCellCache = new Map();
+    const scrollCellCache = new Map();
+    let cellModelCacheGen = 0;
+
+    function bumpCellModelCache() {
+      cellModelCacheGen += 1;
+      if (cellModelCacheGen > 1000) {
+        pinnedCellCache.clear();
+        scrollCellCache.clear();
+        cellModelCacheGen = 0;
+      } else {
+        pinnedCellCache.clear();
+        scrollCellCache.clear();
+      }
+    }
+
+    watch(
+      () => [editEpoch.value, synCalcTick.value, liveCalcReady.value],
+      () => bumpCellModelCache()
+    );
+
+    function scrollCell(entry, colEntry, colIdx) {
+      return getCachedScrollCellModel(entry, colEntry, colIdx);
+    }
+
+    function getCachedPinnedCellModel(entry, colEntry) {
+      const key = `${cellModelCacheGen}:${rowEntryKey(entry)}:${colEntry.col}`;
+      if (pinnedCellCache.has(key)) return pinnedCellCache.get(key);
+      const model = buildPinnedCellModel(entry, colEntry);
+      pinnedCellCache.set(key, model);
+      return model;
+    }
+
+    function getCachedScrollCellModel(entry, colEntry, colIdx) {
+      const colsLen = scrollColsLen.value;
+      const key = `${cellModelCacheGen}:${rowEntryKey(entry)}:${colEntry.col}`;
+      if (scrollCellCache.has(key)) return scrollCellCache.get(key);
+      const model = buildScrollCellModel(entry, colEntry, colIdx, colsLen);
+      scrollCellCache.set(key, model);
+      return model;
+    }
+
+    const leftPadStyle = computed(() => {
       const lp = leftPad.value;
+      return lp > 0 ? { width: `${lp}px`, minWidth: `${lp}px` } : null;
+    });
+
+    const rightPadStyle = computed(() => {
       const rp = rightPad.value;
-      return visibleRows.value.map((entry) => {
-        const rowKey = isGapEntry(entry)
-          ? `panel-gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`
-          : String(entry.excelRow);
-        return {
-          key: rowKey,
-          entry,
-          displayRow: entry.displayRow,
-          rowClasses: cachedEntryRowClasses(entry),
-          pinned: pinnedCols.value.map((p) => buildPinnedCellModel(entry, p)),
-          leftPad: lp,
-          leftPadStyle: lp > 0 ? { width: `${lp}px`, minWidth: `${lp}px` } : null,
-          scroll: scrollCols.map((c, i) => buildScrollCellModel(entry, c, i, colsLen)),
-          rightPad: rp,
-          rightPadStyle: rp > 0 ? { width: `${rp}px`, minWidth: `${rp}px` } : null,
-        };
-      });
+      return rp > 0 ? { width: `${rp}px`, minWidth: `${rp}px` } : null;
+    });
+
+    /** Row + cached cell models for the visible window only (~7k cells max). */
+    const visibleRowShells = computed(() => {
+      if (!props.paneVisible) return [];
+      void editEpoch.value;
+      void synCalcTick.value;
+      const pinned = pinnedCols.value;
+      const scrollCols = visibleScrollCols.value;
+      return visibleRows.value.map((entry) => ({
+        key: rowEntryKey(entry),
+        entry,
+        displayRow: entry.displayRow,
+        rowClasses: cachedEntryRowClasses(entry),
+        pinned: pinned.map((p) => getCachedPinnedCellModel(entry, p)),
+        scroll: scrollCols.map((c, i) => getCachedScrollCellModel(entry, c, i)),
+      }));
     });
 
     function cellDisplayHtml(row, col, displayed) {
@@ -1282,6 +1329,15 @@ export default {
       viewportH.value = scrollEl.value.clientHeight;
       viewportW.value = scrollEl.value.clientWidth;
     }
+
+    watch(
+      () => rowCount.value,
+      () => {
+        rowScrollCache.reset();
+        colScrollCache.reset();
+        nextTick(() => scrollSync.flush());
+      }
+    );
 
     watch(
       () => props.outlineOnly,
@@ -1335,9 +1391,9 @@ export default {
           liveCalcReady.value = true;
         };
         if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(enable, { timeout: 500 });
+          requestIdleCallback(enable, { timeout: 1500 });
         } else {
-          setTimeout(enable, 120);
+          setTimeout(enable, 400);
         }
       });
     });
@@ -1561,11 +1617,18 @@ export default {
       pinnedCols,
       visibleScrollCols,
       tableWidth,
-      visibleRenderRows,
+      visibleRowShells,
+      visibleRows,
+      getCachedScrollCellModel,
+      scrollCell,
+      scrollColsLen,
+      editEpoch,
       topSpacer,
       bottomSpacer,
       leftPad,
       rightPad,
+      leftPadStyle,
+      rightPadStyle,
       colspan,
       SYN_STICKY_COL,
       colStyle,
@@ -1670,7 +1733,7 @@ export default {
               <td :colspan="colspan" :style="{ height: topSpacer + 'px', border: 'none', padding: 0 }"></td>
             </tr>
             <tr
-              v-for="row in visibleRenderRows"
+              v-for="row in visibleRowShells"
               :key="row.key"
               class="grid-row-cv"
               :class="row.rowClasses"
@@ -1707,7 +1770,7 @@ export default {
                   v-html="cell.html"
                 ></span>
               </td>
-              <td v-if="row.leftPad > 0" class="syn-pad" :style="row.leftPadStyle"></td>
+              <td v-if="leftPad > 0" class="syn-pad" :style="leftPadStyle"></td>
               <td
                 v-for="cell in row.scroll"
                 :key="row.key + '-' + cell.col"
@@ -1739,7 +1802,7 @@ export default {
                   v-html="cell.html"
                 ></span>
               </td>
-              <td v-if="row.rightPad > 0" class="syn-pad" :style="row.rightPadStyle"></td>
+              <td v-if="rightPad > 0" class="syn-pad" :style="rightPadStyle"></td>
             </tr>
             <tr v-if="bottomSpacer > 0" class="bd-spacer-bottom">
               <td :colspan="colspan" :style="{ height: bottomSpacer + 'px', border: 'none', padding: 0 }"></td>

@@ -13,10 +13,9 @@
   overflow-anchor: none;
 }
 
-/** Off-screen rows stay in DOM but skip layout/paint until scrolled near. */
+/** Virtual rows skip layout via row windowing — content-visibility breaks paint in scroll containers. */
 .bd-table tbody tr.grid-row-cv {
-  content-visibility: auto;
-  contain-intrinsic-size: 21px;
+  content-visibility: visible;
 }
 .bd-table {
   border-collapse: collapse;

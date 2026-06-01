@@ -2,26 +2,27 @@
 
 export const ROW_H = 21;
 
-/** BD row window — small cap keeps UI + menu responsive. */
-export const MAX_RENDERED_ROWS = 64;
+/** BD row window. */
+export const MAX_RENDERED_ROWS = 128;
 
-/** Synthesis horizontal window — bounded to limit DOM / memory (was unbounded monotonic). */
-export const SYN_MAX_RENDERED_COLS = 56;
+/** Synthesis row/column windows — viewport always covered, no full-sheet mount. */
+export const SYN_MAX_RENDERED_COLS = 72;
+export const SYN_MAX_RENDERED_ROWS = 96;
 
-/** Rows to render above/below the viewport. */
-export function rowOverscan(viewportH, minRows = 24, maxRows = 120) {
+/** Rows above/below viewport (BD). */
+export function rowOverscan(viewportH, minRows = 12, maxRows = 40) {
   const visible = Math.max(1, Math.ceil(viewportH / ROW_H));
-  return Math.min(maxRows, Math.max(minRows, Math.ceil(visible * 1.5)));
+  return Math.min(maxRows, Math.max(minRows, Math.ceil(visible * 0.75)));
 }
 
-/** Horizontal pixels to render left/right of the viewport. */
-export function colOverscanPx(viewportW, minPx = 480) {
-  return Math.min(3200, Math.max(minPx, Math.floor(viewportW * 1.5)));
+/** Horizontal pixels left/right of viewport. */
+export function colOverscanPx(viewportW, minPx = 640) {
+  return Math.min(4000, Math.max(minPx, Math.floor(viewportW * 2)));
 }
 
-/** Synthesis horizontal buffer — wide enough to avoid pop-in while scrolling. */
+/** Synthesis horizontal buffer. */
 export function synColOverscanPx(viewportW) {
-  return Math.min(1600, Math.max(400, Math.floor(viewportW * 1.2)));
+  return Math.min(1200, Math.max(320, Math.floor(viewportW * 1.5)));
 }
 
 /** Binary search on precomputed column layout (`left`, `width`). */
@@ -48,23 +49,80 @@ export function findVisibleColIndexRange(layout, minPx, maxPx) {
   return { start, end: Math.min(lo, layout.length) };
 }
 
+/**
+ * Row slice that always includes the viewport within [start, end).
+ */
 export function visibleRowRange(
   scrollTop,
   viewportH,
   rowCount,
-  overscan,
+  overscanRows,
   maxRendered = MAX_RENDERED_ROWS
 ) {
-  const start = Math.max(0, Math.floor(scrollTop / ROW_H) - overscan);
-  let count = Math.ceil(viewportH / ROW_H) + overscan * 2;
-  count = Math.min(count, maxRendered);
-  const end = Math.min(rowCount, start + count);
-  return { start, end };
+  if (rowCount <= 0) return { start: 0, end: 0, viewportStart: 0, viewportEnd: 0 };
+
+  const visible = Math.max(1, Math.ceil(viewportH / ROW_H));
+  const span = Math.min(maxRendered, rowCount);
+  const viewportStart = Math.min(
+    Math.max(0, Math.floor(scrollTop / ROW_H)),
+    Math.max(0, rowCount - 1)
+  );
+  const viewportEnd = Math.min(rowCount, viewportStart + visible);
+
+  const maxOverscan = Math.max(0, Math.floor((span - visible) / 2));
+  const overscan = Math.min(
+    typeof overscanRows === 'number' ? overscanRows : 0,
+    maxOverscan
+  );
+
+  let start = Math.max(0, viewportStart - overscan);
+  let end = Math.min(rowCount, viewportEnd + overscan);
+
+  if (end - start > span) {
+    const mid = Math.floor((viewportStart + viewportEnd - 1) / 2);
+    start = Math.max(0, mid - Math.floor(span / 2));
+    end = Math.min(rowCount, start + span);
+    if (end - start < span) start = Math.max(0, end - span);
+  } else if (end - start < span) {
+    const deficit = span - (end - start);
+    start = Math.max(0, start - Math.floor(deficit / 2));
+    end = Math.min(rowCount, start + span);
+    start = Math.max(0, end - span);
+  }
+
+  start = Math.min(start, viewportStart);
+  end = Math.max(end, viewportEnd);
+
+  return { start, end, viewportStart, viewportEnd };
 }
 
 /**
- * Expanding range cache — once a row/col was visited it stays mounted.
- * monotonic=true: never trim (scroll back keeps everything).
+ * Merge viewport range into cache; never leave [vpStart, vpEnd) uncovered.
+ */
+function mergeViewportRange(lo, hi, start, end, vpStart, vpEnd, total, maxSpan) {
+  lo = Math.min(lo, start, vpStart);
+  hi = Math.max(hi, end, vpEnd);
+  lo = Math.max(0, lo);
+  hi = Math.min(total, hi);
+
+  if (hi - lo <= maxSpan) return { start: lo, end: hi };
+
+  let nLo = Math.max(0, vpStart - Math.floor((maxSpan - (vpEnd - vpStart)) / 2));
+  let nHi = Math.min(total, nLo + maxSpan);
+  if (nHi < vpEnd) {
+    nHi = vpEnd;
+    nLo = Math.max(0, nHi - maxSpan);
+  }
+  if (nLo > vpStart) {
+    nLo = vpStart;
+    nHi = Math.min(total, nLo + maxSpan);
+  }
+  return { start: nLo, end: nHi };
+}
+
+/**
+ * monotonic=true: visited rows/cols stay mounted (scroll back = nothing vanishes).
+ * Viewport is always fully covered even when trimming to maxSpan.
  */
 export function createRangeScrollCache(maxSpan = MAX_RENDERED_ROWS, { monotonic = false } = {}) {
   let lo = 0;
@@ -77,43 +135,34 @@ export function createRangeScrollCache(maxSpan = MAX_RENDERED_ROWS, { monotonic 
     primed = false;
   }
 
-  function resolveVisible(start, end, total) {
-    if (!primed) {
-      lo = start;
-      hi = end;
-      primed = true;
-      return { start: lo, end: hi };
-    }
-
-    lo = Math.min(lo, start);
-    hi = Math.max(hi, end);
-    hi = Math.min(hi, total);
-
+  function resolveVisible(start, end, total, vpStart = start, vpEnd = end) {
     if (!monotonic) {
-      const span = hi - lo;
-      const cap = maxSpan;
-      if (span > cap) {
-        const viewMid = (start + end) >> 1;
-        const half = Math.floor(cap / 2);
-        lo = Math.max(0, viewMid - half);
-        hi = Math.min(total, lo + cap);
-        if (hi - lo < cap) lo = Math.max(0, hi - cap);
-      }
+      return mergeViewportRange(start, end, start, end, vpStart, vpEnd, total, maxSpan);
     }
 
-    return { start: lo, end: hi };
+    if (!primed) {
+      lo = Math.min(start, vpStart);
+      hi = Math.max(end, vpEnd);
+      primed = true;
+      return mergeViewportRange(lo, hi, start, end, vpStart, vpEnd, total, maxSpan);
+    }
+
+    lo = Math.min(lo, start, vpStart);
+    hi = Math.max(hi, end, vpEnd);
+    return mergeViewportRange(lo, hi, start, end, vpStart, vpEnd, total, maxSpan);
   }
 
   function resolveRows(scrollTop, viewportH, rowCount, overscan) {
     if (rowCount <= 0) return { start: 0, end: 0 };
-    const { start, end } = visibleRowRange(
+    const cap = monotonic ? maxSpan : maxSpan;
+    const { start, end, viewportStart, viewportEnd } = visibleRowRange(
       scrollTop,
       viewportH,
       rowCount,
       overscan,
-      monotonic ? rowCount : maxSpan
+      cap
     );
-    return resolveVisible(start, end, rowCount);
+    return resolveVisible(start, end, rowCount, viewportStart, viewportEnd);
   }
 
   function resolveCols(layout, scrollLeft, viewportW, bufferPx) {
@@ -121,7 +170,7 @@ export function createRangeScrollCache(maxSpan = MAX_RENDERED_ROWS, { monotonic 
     const min = scrollLeft - bufferPx;
     const max = scrollLeft + viewportW + bufferPx;
     const { start, end } = findVisibleColIndexRange(layout, min, max);
-    return resolveVisible(start, end, layout.length);
+    return resolveVisible(start, end, layout.length, start, end);
   }
 
   return { resolveRows, resolveCols, reset };
@@ -147,7 +196,7 @@ export function createColScrollCache(maxSpan, opts) {
   };
 }
 
-/** BD uses row windowing; Synthesis renders all body rows (native scroll). */
+/** BD row windowing; Synthesis uses forceOff (all rows in DOM). */
 export function shouldVirtualizeRows(rowCount, viewportH, { forceOff = false } = {}) {
   if (forceOff) return false;
   const visible = Math.ceil(viewportH / ROW_H);
@@ -158,7 +207,7 @@ export function shouldVirtualizeCols(tableWidth, viewportW) {
   return tableWidth > viewportW + 120;
 }
 
-/** Sync scroll — virtual window must match native scroll position (no grey bands). */
+/** Sync scroll position immediately — virtual window must track scroll (no 1-frame lag). */
 export function createScrollRafSync(refs) {
   const { scrollTop, scrollLeft = null, getScrollEl } = refs;
 

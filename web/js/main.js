@@ -1,6 +1,6 @@
 import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, nextTick } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-perf9';
-import SynthesisGrid from './SynthesisGrid.js?v=grid-perf10';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-fix1';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
@@ -503,6 +503,8 @@ const App = {
           } finally {
             synthesisLoading.value = false;
           }
+        } else {
+          void deferHeavy(() => startSynBackgroundPrepare());
         }
       } catch (e) {
         error.value = e.message;
