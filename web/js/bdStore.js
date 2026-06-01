@@ -415,8 +415,18 @@ function isSignificantDataRow(map, row, sectionHeaderRows) {
   if (freeField && freeField !== '0') return true;
   return isProjectConfigRow(map, row, sectionHeaderRows);
 }
+function isRowInArchivedBands(sheet, row) {
+  const bands = sheet?.archivedRowBands;
+  if (!bands?.length || row == null) return false;
+  for (const b of bands) {
+    if (row >= b.start && row <= b.end) return true;
+  }
+  return false;
+}
+
 export function shouldDisplayBodyRow(map, row, sheet) {
   if (HIDDEN_META_ROWS.has(row)) return false;
+  if (isRowInArchivedBands(sheet, row)) return false;
   const dataStart = sheet.dataStartRow || 6;
   const sh = sheet.sectionHeaderRows;
   if (

@@ -3,7 +3,12 @@ import {
   cloneStructure,
   findSection,
   findSubsection,
-} from './structureModel.js?v=matrix13';
+  archiveSection,
+  restoreSection,
+  archiveSubsection,
+  restoreSubsection,
+  sortModelArchiveToEnd,
+} from './structureModel.js?v=matrix14';
 
 const DEFAULT_SECTION_COLOR = '#ffff00';
 const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
@@ -86,6 +91,14 @@ function subSortIndex(model, subId) {
   return -1;
 }
 
+function isSectionLocked(sec) {
+  return Boolean(sec?.archived);
+}
+
+function isSubLocked(sec, sub) {
+  return Boolean(sec?.archived || sub?.archived);
+}
+
 export default {
   name: 'MatrixModal',
   props: {
@@ -125,8 +138,14 @@ export default {
           if (loc.subsections[j].id !== inc.subsections[j].id) continue;
           loc.subsections[j].startRow = inc.subsections[j].startRow;
           loc.subsections[j].endRow = inc.subsections[j].endRow;
+          loc.subsections[j].archived = inc.subsections[j].archived;
+          loc.subsections[j].archiveRestoreIndex =
+            inc.subsections[j].archiveRestoreIndex;
         }
+        loc.archived = inc.archived;
+        loc.archiveRestoreIndex = inc.archiveRestoreIndex;
       }
+      sortModelArchiveToEnd(local);
       return true;
     }
 
@@ -209,6 +228,11 @@ export default {
     }
 
     function onSecDragStart(secId, e) {
+      const sec = findSection(model.value, secId);
+      if (isSectionLocked(sec)) {
+        e?.preventDefault?.();
+        return;
+      }
       dragSecId.value = secId;
       if (e?.dataTransfer) {
         e.dataTransfer.effectAllowed = 'move';
@@ -246,9 +270,15 @@ export default {
       const sections = model.value.sections;
       const fromIdx = sections.findIndex((s) => s.id === id);
       if (fromIdx < 0) return;
-      let idx = insertIndex == null ? sections.length : insertIndex;
       const [item] = sections.splice(fromIdx, 1);
+      if (isSectionLocked(item)) {
+        sections.splice(fromIdx, 0, item);
+        return;
+      }
+      const activeCount = sections.filter((s) => !s.archived).length;
+      let idx = insertIndex == null ? activeCount : insertIndex;
       if (fromIdx < idx) idx -= 1;
+      idx = Math.max(0, Math.min(idx, activeCount));
       sections.splice(idx, 0, item);
       dragSecId.value = null;
       secDropIndex.value = null;
@@ -264,6 +294,7 @@ export default {
     }
 
     function startEditSection(sec) {
+      if (isSectionLocked(sec)) return;
       editing.value = {
         kind: 'section',
         sectionId: sec.id,
@@ -273,6 +304,7 @@ export default {
     }
 
     function startEditSubsection(sec, sub) {
+      if (isSubLocked(sec, sub)) return;
       editing.value = {
         kind: 'subsection',
         sectionId: sec.id,
@@ -360,6 +392,7 @@ export default {
 
     function onSubClick(sec, sub, e) {
       if (e.target.closest('.matrix-action')) return;
+      if (isSubLocked(sec, sub)) return;
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         toggleSubSelect(sub.id);
@@ -376,13 +409,20 @@ export default {
     }
 
     function resolveDragIds(subId) {
+      let ids;
       if (
         selectedSubIds.value.length > 0 &&
         selectedSubIds.value.includes(subId)
       ) {
-        return [...selectedSubIds.value];
+        ids = [...selectedSubIds.value];
+      } else {
+        ids = [subId];
       }
-      return [subId];
+      if (!model.value) return [];
+      return ids.filter((id) => {
+        const hit = findSubsection(model.value, id);
+        return hit && !isSubLocked(hit.section, hit.subsection);
+      });
     }
 
     function isDropTarget(sectionId, index) {
@@ -392,6 +432,10 @@ export default {
 
     function onDragStart(subId, e) {
       const ids = resolveDragIds(subId);
+      if (!ids.length) {
+        e?.preventDefault?.();
+        return;
+      }
       dragSubIds.value = ids;
       dragSubId.value = subId;
       if (e?.dataTransfer) {
@@ -427,7 +471,7 @@ export default {
       const items = ids
         .map((id) => {
           const hit = findSubsection(model.value, id);
-          if (!hit) return null;
+          if (!hit || isSubLocked(hit.section, hit.subsection)) return null;
           return {
             subsection: hit.subsection,
             order: subSortIndex(model.value, id),
@@ -439,12 +483,15 @@ export default {
         })
         .filter(Boolean)
         .sort((a, b) => a.order - b.order);
+      if (!items.length) return;
 
       const toSec = findSection(model.value, targetSectionId);
-      if (!toSec) return;
+      if (!toSec || isSectionLocked(toSec)) return;
 
+      const activeSubCount = toSec.subsections.filter((s) => !s.archived).length;
       let idx =
-        insertIndex == null ? toSec.subsections.length : insertIndex;
+        insertIndex == null ? activeSubCount : insertIndex;
+      idx = Math.max(0, Math.min(idx, activeSubCount));
       let adjust = 0;
       for (const item of items) {
         if (
@@ -477,6 +524,7 @@ export default {
     }
 
     function askDeleteSection(sec) {
+      if (isSectionLocked(sec)) return;
       confirmDelete.value = {
         kind: 'section',
         sectionId: sec.id,
@@ -485,6 +533,7 @@ export default {
     }
 
     function askDeleteSubsection(sec, sub) {
+      if (isSubLocked(sec, sub)) return;
       confirmDelete.value = {
         kind: 'subsection',
         sectionId: sec.id,
@@ -529,18 +578,23 @@ export default {
 
       if (type === 'section') {
         const sec = findSection(model.value, sectionId);
-        if (!sec) return;
+        if (!sec || isSectionLocked(sec)) return;
         ids = [sectionId];
         current = sec.color || DEFAULT_SECTION_COLOR;
       } else {
         if (selectedSubIds.value.length > 0) {
-          ids = [...selectedSubIds.value];
+          ids = selectedSubIds.value.filter((id) => {
+            const hit = findSubsection(model.value, id);
+            return hit && !isSubLocked(hit.section, hit.subsection);
+          });
+          if (!ids.length) return;
           const first = findSubsection(model.value, ids[0]);
           current = first?.subsection.color || DEFAULT_SUBSECTION_COLOR;
         } else if (subId) {
-          ids = [subId];
           const hit = findSubsection(model.value, subId);
-          current = hit?.subsection.color || DEFAULT_SUBSECTION_COLOR;
+          if (!hit || isSubLocked(hit.section, hit.subsection)) return;
+          ids = [subId];
+          current = hit.subsection.color || DEFAULT_SUBSECTION_COLOR;
         } else {
           return;
         }
@@ -583,6 +637,7 @@ export default {
     }
 
     function openAddSubsection(sec) {
+      if (isSectionLocked(sec)) return;
       itemEditor.value = {
         kind: 'add-subsection',
         sectionId: sec.id,
@@ -631,11 +686,45 @@ export default {
     }
 
     function sectionStyle(sec) {
-      return { background: sec.color || DEFAULT_SECTION_COLOR };
+      const style = { background: sec.color || DEFAULT_SECTION_COLOR };
+      if (sec.archived) {
+        style.filter = 'grayscale(1)';
+        style.opacity = '0.52';
+      }
+      return style;
     }
 
-    function subStyle(sub) {
-      return { background: sub.color || DEFAULT_SUBSECTION_COLOR };
+    function subStyle(sub, sec) {
+      const style = { background: sub.color || DEFAULT_SUBSECTION_COLOR };
+      if (sub.archived || sec?.archived) {
+        style.filter = 'grayscale(1)';
+        style.opacity = '0.52';
+      }
+      return style;
+    }
+
+    function onArchiveSection(sec) {
+      if (!model.value || sec.archived) return;
+      archiveSection(model.value, sec.id);
+      notifyChange();
+    }
+
+    function onRestoreSection(sec) {
+      if (!model.value || !sec.archived) return;
+      restoreSection(model.value, sec.id);
+      notifyChange();
+    }
+
+    function onArchiveSubsection(sec, sub) {
+      if (!model.value || sub.archived) return;
+      archiveSubsection(model.value, sub.id);
+      notifyChange();
+    }
+
+    function onRestoreSubsection(sec, sub) {
+      if (!model.value || !sub.archived) return;
+      restoreSubsection(model.value, sub.id);
+      notifyChange();
     }
 
     function close() {
@@ -702,6 +791,10 @@ export default {
       close,
       done,
       publishDraft,
+      onArchiveSection,
+      onRestoreSection,
+      onArchiveSubsection,
+      onRestoreSubsection,
     };
   },
   template: `
@@ -744,9 +837,10 @@ export default {
                     :class="{
                       'is-selected': selectedIds.includes(sec.id),
                       'is-dragging': dragSecId === sec.id,
-                      'is-dimmed': dragSecId && dragSecId !== sec.id
+                      'is-dimmed': dragSecId && dragSecId !== sec.id,
+                      'is-archived': sec.archived
                     }"
-                    draggable="true"
+                    :draggable="!sec.archived"
                     @click="toggleSection(sec.id)"
                     @dragstart="onSecDragStart(sec.id, $event)"
                     @dragend="onSecDragEnd"
@@ -786,30 +880,65 @@ export default {
                     <span
                       v-else
                       class="matrix-col-title"
+                      :class="{ 'is-locked': sec.archived }"
                       @click="startEditSection(sec)"
                     >{{ sec.label }}</span>
                     <span class="matrix-col-actions" @mousedown.stop>
+                      <template v-if="!sec.archived">
+                        <button
+                          type="button"
+                          class="matrix-action"
+                          title="Color"
+                          aria-label="Change color"
+                          @click.stop="pickColor('section', sec.id, null, $event)"
+                        >✎</button>
+                        <button
+                          type="button"
+                          class="matrix-action matrix-action-archive"
+                          title="Archiver la section"
+                          aria-label="Archiver la section"
+                          @click.stop="onArchiveSection(sec)"
+                        >
+                          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                            <path
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="1.25"
+                              stroke-linejoin="round"
+                              d="M2.5 4.5h11v2H2.5zM4 6.5v7h8v-7"
+                            />
+                            <path
+                              fill="none"
+                              stroke="currentColor"
+                              stroke-width="1.25"
+                              stroke-linecap="round"
+                              d="M8 9v3.5"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          class="matrix-action"
+                          title="Add sub-section"
+                          aria-label="Add sub-section"
+                          @click.stop="openAddSubsection(sec)"
+                        >+</button>
+                        <button
+                          type="button"
+                          class="matrix-action matrix-action-delete"
+                          title="Delete section"
+                          aria-label="Delete section"
+                          @click.stop="askDeleteSection(sec)"
+                        >×</button>
+                      </template>
                       <button
+                        v-else
                         type="button"
-                        class="matrix-action"
-                        title="Color"
-                        aria-label="Change color"
-                        @click.stop="pickColor('section', sec.id, null, $event)"
-                      >✎</button>
-                      <button
-                        type="button"
-                        class="matrix-action"
-                        title="Add sub-section"
-                        aria-label="Add sub-section"
-                        @click.stop="openAddSubsection(sec)"
-                      >+</button>
-                      <button
-                        type="button"
-                        class="matrix-action matrix-action-delete"
-                        title="Delete section"
-                        aria-label="Delete section"
-                        @click.stop="askDeleteSection(sec)"
-                      >×</button>
+                        class="matrix-action matrix-action-restore"
+                        title="Restaurer la section"
+                        aria-label="Restaurer la section"
+                        @click.stop="onRestoreSection(sec)"
+                      >↩</button>
                     </span>
                   </div>
                   <ul
@@ -834,10 +963,11 @@ export default {
                         :class="{
                           'is-dragging': dragSubId === sub.id,
                           'is-dimmed': dragSubId && dragSubId !== sub.id,
-                          'is-selected': isSubSelected(sub.id)
+                          'is-selected': isSubSelected(sub.id),
+                          'is-archived': sub.archived || sec.archived
                         }"
-                        :style="subStyle(sub)"
-                        draggable="true"
+                        :style="subStyle(sub, sec)"
+                        :draggable="!sub.archived && !sec.archived"
                         @click="onSubClick(sec, sub, $event)"
                         @dragstart="onDragStart(sub.id, $event)"
                         @dragend="onDragEnd"
@@ -854,22 +984,57 @@ export default {
                         <span
                           v-else
                           class="matrix-sub-label"
+                          :class="{ 'is-locked': sub.archived || sec.archived }"
                         >{{ sub.label }}</span>
                         <span class="matrix-sub-actions" @mousedown.stop>
+                          <template v-if="!sub.archived && !sec.archived">
+                            <button
+                              type="button"
+                              class="matrix-action"
+                              title="Color"
+                              aria-label="Change color"
+                              @click.stop="pickColor('subsection', sec.id, sub.id, $event)"
+                            >✎</button>
+                            <button
+                              type="button"
+                              class="matrix-action matrix-action-archive"
+                              title="Archiver la sous-section"
+                              aria-label="Archiver la sous-section"
+                              @click.stop="onArchiveSubsection(sec, sub)"
+                            >
+                              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                                <path
+                                  fill="none"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linejoin="round"
+                                  d="M2.5 4.5h11v2H2.5zM4 6.5v7h8v-7"
+                                />
+                                <path
+                                  fill="none"
+                                  stroke="currentColor"
+                                  stroke-width="1.25"
+                                  stroke-linecap="round"
+                                  d="M8 9v3.5"
+                                />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              class="matrix-action matrix-action-delete"
+                              title="Delete sub-section"
+                              aria-label="Delete sub-section"
+                              @click.stop="askDeleteSubsection(sec, sub)"
+                            >×</button>
+                          </template>
                           <button
+                            v-else-if="sub.archived && !sec.archived"
                             type="button"
-                            class="matrix-action"
-                            title="Color"
-                            aria-label="Change color"
-                            @click.stop="pickColor('subsection', sec.id, sub.id, $event)"
-                          >✎</button>
-                          <button
-                            type="button"
-                            class="matrix-action matrix-action-delete"
-                            title="Delete sub-section"
-                            aria-label="Delete sub-section"
-                            @click.stop="askDeleteSubsection(sec, sub)"
-                          >×</button>
+                            class="matrix-action matrix-action-restore"
+                            title="Restaurer la sous-section"
+                            aria-label="Restaurer la sous-section"
+                            @click.stop="onRestoreSubsection(sec, sub)"
+                          >↩</button>
                         </span>
                       </li>
                     </template>

@@ -21,7 +21,7 @@ import {
   applyMatrixSave,
   alignSynModelToBd,
   cloneStructure,
-} from './structureModel.js?v=matrix13';
+} from './structureModel.js?v=matrix14';
 import {
   upsertRawCell,
   loadLocalSnapshot,

@@ -108,11 +108,13 @@ export function extractBdStructure(sheet) {
       customLines: [],
     });
   }
-  return {
+  const model = {
     prefixEndRow: (sheet.dataStartRow || 6) - 1,
     finRow: sheet.finRow ?? sheet.lastRow,
     sections,
   };
+  applyStructureArchiveToModel(model, sheet.structureArchive);
+  return model;
 }
 
 export function extractSynStructure(sheet) {
@@ -159,7 +161,14 @@ export function extractSynStructure(sheet) {
       customLines: [],
     });
   }
-  return { prefixEndRow, finRow: last, sections, skippedRows: [...SYN_SKIPPED_ROWS] };
+  const model = {
+    prefixEndRow,
+    finRow: last,
+    sections,
+    skippedRows: [...SYN_SKIPPED_ROWS],
+  };
+  applyStructureArchiveToModel(model, sheet.structureArchive);
+  return model;
 }
 
 /** Deep clone for the matrix editor UI. */
@@ -185,18 +194,21 @@ export function findSubsection(model, subId) {
  */
 function bdBlocksFromStructure(model) {
   const blocks = [];
+  const active = [];
+  const archived = [];
   for (const sec of model.sections) {
     const start = sec.headerRow;
     if (start == null) continue;
     const end = sec.endRow ?? start;
     if (end < start) continue;
-    blocks.push({
+    const block = {
       type: 'section-band',
       rows: rowRange(start, end),
       meta: sec,
-    });
+    };
+    (sec.archived ? archived : active).push(block);
   }
-  return blocks;
+  return [...active, ...archived];
 }
 
 function remapSheetRows(sheet, oldToNew, newLastRow) {
@@ -354,6 +366,182 @@ function normalizeKey(label) {
     .replace(/\s+/g, ' ');
 }
 
+function sectionArchiveKey(label) {
+  return normalizeKey(label);
+}
+
+function subsectionArchiveKey(sectionLabel, subLabel) {
+  return `${normalizeKey(sectionLabel)}|${normalizeKey(subLabel)}`;
+}
+
+/** Persisted on raw sheets after matrix apply (label keys survive row remaps). */
+export function structureArchiveFromModel(model) {
+  const archive = { sections: {}, subsections: {} };
+  if (!model?.sections) return archive;
+  for (const sec of model.sections) {
+    if (sec.archived) {
+      archive.sections[sectionArchiveKey(sec.label)] = {
+        restoreIndex: sec.archiveRestoreIndex ?? 0,
+      };
+    }
+    let subActive = 0;
+    for (const sub of sec.subsections) {
+      if (sub.archived) {
+        archive.subsections[subsectionArchiveKey(sec.label, sub.label)] = {
+          restoreIndex: sub.archiveRestoreIndex ?? subActive,
+        };
+      } else {
+        subActive++;
+      }
+    }
+  }
+  return archive;
+}
+
+export function applyStructureArchiveToModel(model, archive) {
+  if (!model?.sections || !archive) return;
+  for (const sec of model.sections) {
+    const hit = archive.sections?.[sectionArchiveKey(sec.label)];
+    if (hit) {
+      sec.archived = true;
+      sec.archiveRestoreIndex = hit.restoreIndex ?? 0;
+    } else {
+      delete sec.archived;
+      delete sec.archiveRestoreIndex;
+    }
+    let subActive = 0;
+    for (const sub of sec.subsections) {
+      const subHit =
+        archive.subsections?.[subsectionArchiveKey(sec.label, sub.label)];
+      if (subHit) {
+        sub.archived = true;
+        sub.archiveRestoreIndex = subHit.restoreIndex ?? subActive;
+      } else {
+        delete sub.archived;
+        delete sub.archiveRestoreIndex;
+      }
+      if (!sub.archived) subActive++;
+    }
+  }
+  sortModelArchiveToEnd(model);
+}
+
+/** Active items first, archived at the end (sections and subsections). */
+export function sortModelArchiveToEnd(model) {
+  if (!model?.sections) return;
+  const activeSecs = [];
+  const archivedSecs = [];
+  for (const sec of model.sections) {
+    (sec.archived ? archivedSecs : activeSecs).push(sec);
+  }
+  for (const sec of [...activeSecs, ...archivedSecs]) {
+    const activeSubs = [];
+    const archivedSubs = [];
+    for (const sub of sec.subsections) {
+      (sub.archived ? archivedSubs : activeSubs).push(sub);
+    }
+    sec.subsections = [...activeSubs, ...archivedSubs];
+  }
+  model.sections = [...activeSecs, ...archivedSecs];
+}
+
+export function collectArchivedRowBands(model) {
+  const bands = [];
+  if (!model?.sections) return bands;
+  for (const sec of model.sections) {
+    if (sec.archived && sec.headerRow != null) {
+      bands.push({
+        start: sec.headerRow,
+        end: sec.endRow ?? sec.headerRow,
+      });
+      continue;
+    }
+    for (const sub of sec.subsections) {
+      if (sub.archived && sub.startRow != null) {
+        bands.push({
+          start: sub.startRow,
+          end: sub.endRow ?? sub.startRow,
+        });
+      }
+    }
+  }
+  return bands;
+}
+
+export function isExcelRowArchived(sheet, row) {
+  const bands = sheet?.archivedRowBands;
+  if (!bands?.length || row == null) return false;
+  for (const b of bands) {
+    if (row >= b.start && row <= b.end) return true;
+  }
+  return false;
+}
+
+function activeSections(model) {
+  return (model?.sections || []).filter((s) => !s.archived);
+}
+
+export function archiveSection(model, secId) {
+  const sections = model?.sections;
+  if (!sections) return;
+  const idx = sections.findIndex((s) => s.id === secId);
+  if (idx < 0) return;
+  const sec = sections[idx];
+  if (sec.archived) return;
+  sec.archiveRestoreIndex = activeSections(model).findIndex((s) => s.id === secId);
+  sec.archived = true;
+  sortModelArchiveToEnd(model);
+}
+
+export function restoreSection(model, secId) {
+  const sections = model?.sections;
+  if (!sections) return;
+  const sec = sections.find((s) => s.id === secId);
+  if (!sec?.archived) return;
+  const active = sections.filter((s) => !s.archived && s.id !== secId);
+  let at = sec.archiveRestoreIndex ?? active.length;
+  at = Math.max(0, Math.min(at, active.length));
+  sec.archived = false;
+  delete sec.archiveRestoreIndex;
+  const archived = sections.filter((s) => s.archived);
+  model.sections = [
+    ...active.slice(0, at),
+    sec,
+    ...active.slice(at),
+    ...archived,
+  ];
+}
+
+export function archiveSubsection(model, subId) {
+  const hit = findSubsection(model, subId);
+  if (!hit || hit.subsection.archived) return;
+  const { section, subsection } = hit;
+  const active = section.subsections.filter((s) => !s.archived);
+  subsection.archiveRestoreIndex = active.findIndex((s) => s.id === subId);
+  subsection.archived = true;
+  sortModelArchiveToEnd(model);
+}
+
+export function restoreSubsection(model, subId) {
+  const hit = findSubsection(model, subId);
+  if (!hit?.subsection.archived) return;
+  const { section, subsection } = hit;
+  const active = section.subsections.filter(
+    (s) => !s.archived && s.id !== subId
+  );
+  let at = subsection.archiveRestoreIndex ?? active.length;
+  at = Math.max(0, Math.min(at, active.length));
+  subsection.archived = false;
+  delete subsection.archiveRestoreIndex;
+  const archived = section.subsections.filter((s) => s.archived);
+  section.subsections = [
+    ...active.slice(0, at),
+    subsection,
+    ...active.slice(at),
+    ...archived,
+  ];
+}
+
 function buildSynBlocks(synModel, bdModel) {
   syncSynToBdLabels(synModel, bdModel);
   const blocks = [];
@@ -361,7 +549,9 @@ function buildSynBlocks(synModel, bdModel) {
   blocks.push({ type: 'prefix', rows: rowRange(1, prefixEnd) });
   const bdOrder = [];
   for (const sec of bdModel.sections) {
+    if (sec.archived) continue;
     for (const sub of sec.subsections) {
+      if (sub.archived) continue;
       bdOrder.push({ secLabel: sec.label, subLabel: sub.label });
     }
   }
@@ -372,6 +562,7 @@ function buildSynBlocks(synModel, bdModel) {
     }
   }
   for (const sec of synModel.sections) {
+    if (sec.archived) continue;
     blocks.push({ type: 'section', rows: [sec.headerRow], meta: sec });
   }
   for (const { secLabel, subLabel } of bdOrder) {
@@ -387,8 +578,9 @@ function buildSynBlocks(synModel, bdModel) {
     });
   }
   for (const sec of synModel.sections) {
+    if (sec.archived) continue;
     for (const sub of sec.subsections) {
-      if (sub._placed) continue;
+      if (sub.archived || sub._placed) continue;
       blocks.push({
         type: 'subsection',
         rows: rowRange(sub.startRow, sub.endRow),
@@ -482,13 +674,22 @@ export function alignSynModelToBd(synModel, bdModel) {
       (bdSec.synLinkId && synSecById.get(bdSec.synLinkId)) ||
       synBySec.get(normalizeKey(bdSec.label));
     const sec = synSec
-      ? { ...synSec, label: bdSec.label, color: bdSec.color, subsections: [] }
+      ? {
+          ...synSec,
+          label: bdSec.label,
+          color: bdSec.color,
+          archived: bdSec.archived,
+          archiveRestoreIndex: bdSec.archiveRestoreIndex,
+          subsections: [],
+        }
       : {
           id: uid('sec'),
           label: bdSec.label,
           headerRow: null,
           endRow: null,
           color: bdSec.color,
+          archived: bdSec.archived,
+          archiveRestoreIndex: bdSec.archiveRestoreIndex,
           subsections: [],
           customLines: [],
         };
@@ -508,12 +709,16 @@ export function alignSynModelToBd(synModel, bdModel) {
               ...existing,
               label: bdSub.label,
               color: bdSub.color,
+              archived: bdSub.archived,
+              archiveRestoreIndex: bdSub.archiveRestoreIndex,
               synLinkId: existing.id,
             }
           : {
               id: uid('sub'),
               label: bdSub.label,
               color: bdSub.color,
+              archived: bdSub.archived,
+              archiveRestoreIndex: bdSub.archiveRestoreIndex,
               isNew: true,
               startRow: null,
               endRow: null,
@@ -548,6 +753,8 @@ export function applyStructureToBdRaw(bdRaw, model) {
   sheet.matrixColors = collectMatrixColors(m);
   sheet = applyBdLabels(sheet, m);
   sheet = attachBdStructureMeta(sheet, m);
+  sheet.structureArchive = structureArchiveFromModel(m);
+  sheet.archivedRowBands = collectArchivedRowBands(m);
   return { sheet, model: m };
 }
 
@@ -563,6 +770,8 @@ export function applyStructureToSynRaw(synRaw, synModel, bdModel) {
     }
   }
   applySynLabels(sheet, m);
+  sheet.structureArchive = structureArchiveFromModel(m);
+  sheet.archivedRowBands = collectArchivedRowBands(m);
   return { sheet, model: m };
 }
 

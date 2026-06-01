@@ -3615,7 +3615,17 @@ export function computeSynEffectiveLastRow(sheet, cellMap) {
 }
 
 /** Skip blank lines below the grid; keep filter band rows 3–14. */
+function isSynRowArchived(sheet, row) {
+  const bands = sheet?.archivedRowBands;
+  if (!bands?.length || row == null) return false;
+  for (const b of bands) {
+    if (row >= b.start && row <= b.end) return true;
+  }
+  return false;
+}
+
 export function synRowHasContent(map, row, sheet) {
+  if (isSynRowArchived(sheet, row)) return false;
   if (isSynPanelGapRow(row)) return true;
   if (isSynHeaderPanelRow(row)) return true;
   if (synLabel(map, row)) return true;

@@ -152,11 +152,26 @@
 .matrix-sec-pick.is-dimmed {
   opacity: 0.65;
 }
+.matrix-sec-pick.is-archived {
+  filter: grayscale(1);
+  opacity: 0.52;
+  color: #666;
+}
 .matrix-sec-pick[draggable='true'] {
   cursor: grab;
 }
-.matrix-sec-pick:active {
+.matrix-sec-pick[draggable='false'] {
+  cursor: default;
+}
+.matrix-sec-pick:active[draggable='true'] {
   cursor: grabbing;
+}
+
+.matrix-sub[draggable='false'] {
+  cursor: default;
+}
+.matrix-sub.is-archived .matrix-sub-actions {
+  pointer-events: auto;
 }
 .matrix-sec-pick-dot {
   flex-shrink: 0;
@@ -187,6 +202,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: text;
+}
+.matrix-col-title.is-locked,
+.matrix-sub-label.is-locked {
+  cursor: default;
+  user-select: none;
 }
 
 .matrix-inline-input {
@@ -221,12 +241,28 @@
   line-height: 1;
   cursor: pointer;
   color: rgba(0, 0, 0, 0.65);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.matrix-action svg {
+  display: block;
 }
 .matrix-action:hover {
   color: #1e3a5f;
 }
 .matrix-action-delete:hover {
   color: #a22;
+}
+.matrix-action-archive:hover {
+  color: #555;
+}
+.matrix-action-restore:hover {
+  color: #0a6b0a;
+}
+
+.matrix-sub.is-archived .matrix-sub-label {
+  color: #666;
 }
 
 .matrix-palette-layer {

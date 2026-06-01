@@ -90,7 +90,7 @@ if ($nodeExe -and (Test-Path $serverMjs)) {
     Set-Content -Path $pidFile -Value $PID -Encoding ASCII -NoNewline
     Write-Host ""
     Write-Host "BD page: $url" -ForegroundColor Green
-    Write-Host "Serveur Node (JSON direct — rapide). Chunks: `$env:WGHT_CHUNKED_LOAD=1" -ForegroundColor Cyan
+    Write-Host "Serveur Node (JSON direct - rapide). Chunks: `$env:WGHT_CHUNKED_LOAD=1" -ForegroundColor Cyan
     Write-Host "Ctrl+C pour arreter." -ForegroundColor Gray
     Write-Host ""
     if ($openBrowser) {
