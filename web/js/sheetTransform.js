@@ -5,6 +5,8 @@ import {
   computeOutlineRows,
   computeSectionHeaderRows,
   measureFreeFieldWidth,
+  shouldDisplayBodyRow,
+  BD_BODY_DISPLAY_ROW_START,
 } from './bdStore.js';
 import {
   HEADER_FR_EN,
@@ -34,6 +36,7 @@ import {
   applySynRowsApbbPresetCells,
   applySynRowsApbbPresetHeaderRows,
 } from './synStore.js?v=syn-apbb8';
+import { runInChunks, yieldToMain } from './yieldMain.js?v=2';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 import { sanitizeSynAdaptationSumCells, sanitizeSynLiveMassCells } from './synthesisCalc.js?v=syn-apbb8';
 
@@ -370,17 +373,98 @@ export function transformBdSheet(sheet) {
     headerRows,
     colWidths,
   };
-  const { rows, canonicalByLabel } = computeSectionHeaderRows(prepared);
+  return finalizeBdPrepared(prepared);
+}
+
+function finalizeBdPrepared(prepared) {
+  prepared.cellMap = buildCellMap(prepared.cells, prepared.headerRows);
+  const { rows, canonicalByLabel } = computeSectionHeaderRows(
+    prepared,
+    prepared.cellMap
+  );
   prepared.sectionHeaderRows = rows;
   prepared.canonicalSectionByLabel = Object.fromEntries(canonicalByLabel);
   prepared.canonicalSectionMap = canonicalByLabel;
-  prepared.outlineRows = computeOutlineRows(prepared).filter(
+  prepared.outlineRows = computeOutlineRows(prepared, prepared.cellMap).filter(
     (r) => r <= prepared.lastRow
   );
-  prepared.cellMap = buildCellMap(prepared.cells, prepared.headerRows);
   prepared.bodyDisplayRows = computeBodyDisplayRows(prepared);
+  let outlineDisplayRow = BD_BODY_DISPLAY_ROW_START;
+  prepared.outlineBodyDisplayRows = (prepared.outlineRows || [])
+    .filter((r) => shouldDisplayBodyRow(prepared.cellMap, r, prepared))
+    .map((excelRow) => ({ excelRow, displayRow: outlineDisplayRow++ }));
   prepared.freeFieldWidth = measureFreeFieldWidth(prepared.cells);
   return prepared;
+}
+
+function mapBdCell(c) {
+  let entry = { ...c };
+  if (isSubsystemDataCol(c.c) && entry.v != null) {
+    entry.v = stripExcelErrors(String(entry.v));
+    if (entry.v === '') delete entry.v;
+    else entry.v = translateSubsystemLabel(String(entry.v));
+  } else if (entry.v != null && entry.v !== '') {
+    const v = translateCellValue(String(entry.v), c.c);
+    if (v !== entry.v) entry = { ...entry, v };
+  }
+  return entry;
+}
+
+/** Same as transformBdSheet but yields during the heaviest cell pass. */
+export async function transformBdSheetAsync(sheet) {
+  sheet = trimSheetAfterFin(sheet);
+  sheet = insertPositionColumns(sheet);
+  sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS);
+  sheet = clearColumnCells(sheet, new Set([BD_TITLE_COL]));
+  const afterIdx = colToIndex(POSITION_INSERT_AFTER);
+  const hiddenCols = new Set(
+    [...HIDDEN_COLUMNS].map((c) => remapSheetCol(c, afterIdx, POSITION_INSERT_COUNT))
+  );
+  const columns = sheet.columns.filter((c) => !hiddenCols.has(c));
+  const headers = { ...sheet.headers };
+  for (const col of hiddenCols) {
+    delete headers[col];
+  }
+  for (const [rawCol, label] of Object.entries(SUBSYSTEM_HEADERS_RAW)) {
+    const col = remapColAfterYZ(rawCol);
+    if (columns.includes(col)) headers[col] = label;
+  }
+  for (const col of columns) {
+    if (Object.values(SUBSYSTEM_HEADERS_RAW).includes(headers[col])) continue;
+    const raw = headers[col];
+    if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
+    else if (raw) headers[col] = translateValue(raw);
+  }
+  const filtered = sheet.cells.filter((c) => !hiddenCols.has(c.c));
+  const cells = await runInChunks(filtered, (slice) => slice.map(mapBdCell));
+  await yieldToMain();
+  const headerRows = {};
+  for (const [row, cols] of Object.entries(sheet.headerRows || {})) {
+    headerRows[row] = {};
+    for (const [col, cell] of Object.entries(cols)) {
+      if (hiddenCols.has(col)) continue;
+      let v = cell.v;
+      if (v != null && v !== '') {
+        v = isSubsystemDataCol(col)
+          ? stripExcelErrors(String(v))
+          : translateCellValue(String(v), col);
+      }
+      headerRows[row][col] = { ...cell, v };
+    }
+  }
+  const colWidths = (sheet.colWidths || []).filter((w) => !hiddenCols.has(w.col));
+  const designCol = remapColAfterYZ(BD_DESIGN_DEPT_COL_RAW);
+  fillDesignDeptInherited(sheet, designCol);
+  const prepared = {
+    ...sheet,
+    columns,
+    headers,
+    cells,
+    headerRows,
+    colWidths,
+  };
+  await yieldToMain();
+  return finalizeBdPrepared(prepared);
 }
 
 /** Fix legacy exports that stored shared-string indices as plain numbers. */
@@ -418,6 +502,70 @@ function resolveSynSheetValues(sheet) {
 }
 
 /** Synthesis grid: columns F… only in UI (A–E hidden), cell map keeps all cols for filters. */
+export async function transformSynthesisSheetAsync(sheet) {
+  sheet = resolveSynSheetValues(sheet);
+  await yieldToMain();
+  const columns = filterSynDisplayColumns(sheet.columns || []);
+  const headers = { ...(sheet.headers || {}) };
+  for (const col of columns) {
+    const raw = headers[col];
+    if (raw && HEADER_FR_EN[raw]) headers[col] = HEADER_FR_EN[raw];
+    else if (raw) headers[col] = translateValue(String(raw));
+  }
+  const cells = [];
+  for (const c of sheet.cells || []) {
+    if (c.r <= SYN_MAX_EXCEL_ROW) cells.push(c);
+  }
+  applySynRow25PresetCells(cells);
+  applySynRowsCjPresetCells(cells);
+  applySynRowsMaaPresetCells(cells);
+  applySynRowsAcanPresetCells(cells);
+  applySynRowsApbbPresetCells(cells);
+  sanitizeSynAdaptationSumCells(cells);
+  sanitizeSynLiveMassCells(cells);
+  await yieldToMain();
+  const headerRows = applySynRowsApbbPresetHeaderRows(
+    applySynRowsAcanPresetHeaderRows(
+      applySynRowsMaaPresetHeaderRows(
+        Object.fromEntries(
+          Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
+            row,
+            Object.fromEntries(
+              Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
+            ),
+          ])
+        )
+      )
+    )
+  );
+  const cellMap = buildCellMap(cells, headerRows);
+  const pillarMap = buildSynPillarColumns(sheet, cellMap);
+  for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {
+    pillarMap.set(col, { ...meta, ...pillarMap.get(col) });
+  }
+  const pillarColumns = Object.fromEntries(pillarMap);
+  const effectiveLastRow = Math.min(
+    computeSynEffectiveLastRow({ ...sheet, cells }, cellMap),
+    SYN_MAX_EXCEL_ROW
+  );
+  return {
+    ...sheet,
+    columns,
+    headers,
+    cells,
+    headerRows,
+    cellMap,
+    pillarColumns,
+    effectiveLastRow,
+    lastRow: effectiveLastRow,
+    dataStartRow: sheet.dataStartRow || 15,
+    filterRows: sheet.filterRows || [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+    rowBands: sheet.rowBands || {},
+    sectionHeaderRows: new Set(),
+    outlineRows: [],
+  };
+}
+
 export function transformSynthesisSheet(sheet) {
   sheet = resolveSynSheetValues(sheet);
   const columns = filterSynDisplayColumns(sheet.columns || []);

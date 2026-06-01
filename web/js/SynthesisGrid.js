@@ -168,13 +168,15 @@ import {
 import {
   ROW_H,
   synColOverscanPx,
-  rowOverscanForColCount,
-  shouldVirtualizeRows,
+  rowOverscan,
   shouldVirtualizeCols,
+  shouldVirtualizeRows,
   createScrollRafSync,
-  SYN_MAX_RENDERED_ROWS,
-  visibleRowRange,
-} from './gridScroll.js?v=grid-perf2';
+  createColScrollCache,
+  createRowScrollCache,
+  MAX_RENDERED_ROWS,
+  SYN_MAX_RENDERED_COLS,
+} from './gridScroll.js?v=grid-perf10';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -281,16 +283,38 @@ export default {
       shouldVirtualizeCols(tableWidth.value, viewportW.value)
     );
     const colBufferPx = computed(() => synColOverscanPx(viewportW.value));
-
-    const visibleScrollCols = computed(() => {
-      if (!virtualizeCols.value) return scrollableCols.value;
-      const buf = colBufferPx.value;
-      const min = scrollLeft.value - buf;
-      const max = scrollLeft.value + viewportW.value + buf;
-      return scrollableCols.value.filter(
-        (c) => c.left + c.width >= min && c.left <= max
-      );
+    /** Columns window — bounded span (no unbounded monotonic accumulation). */
+    const colScrollCache = createColScrollCache(SYN_MAX_RENDERED_COLS, {
+      monotonic: false,
     });
+    const colRangeStart = ref(0);
+    const colRangeEnd = ref(0);
+
+    watchEffect(() => {
+      if (!props.paneVisible) return;
+      const cols = scrollableCols.value;
+      if (!virtualizeCols.value) {
+        colRangeStart.value = 0;
+        colRangeEnd.value = cols.length;
+        return;
+      }
+      const range = colScrollCache.resolve(
+        cols,
+        scrollLeft.value,
+        viewportW.value,
+        colBufferPx.value
+      );
+      colRangeStart.value = range.start;
+      colRangeEnd.value = range.end;
+    });
+
+    const visibleScrollCols = computed(() =>
+      scrollableCols.value.slice(colRangeStart.value, colRangeEnd.value)
+    );
+
+    const scrollColKey = computed(() =>
+      visibleScrollCols.value.map((c) => c.col).join(',')
+    );
 
     const leftPad = computed(() => {
       if (!virtualizeCols.value) return 0;
@@ -329,43 +353,45 @@ export default {
       return m;
     });
 
+    const rowScrollCache = createRowScrollCache(MAX_RENDERED_ROWS, {
+      monotonic: false,
+    });
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
-    const rowBuffer = computed(() =>
-      rowOverscanForColCount(viewportH.value, displayColumns.value.length)
-    );
-    const visibleStart = ref(0);
-    const visibleEnd = ref(0);
+    const rowOverscanPx = computed(() => rowOverscan(viewportH.value));
+    const visibleRowStart = ref(0);
+    const visibleRowEnd = ref(0);
 
     watchEffect(() => {
+      if (!props.paneVisible) return;
       const count = rowCount.value;
       if (!virtualizeRows.value) {
-        visibleStart.value = 0;
-        visibleEnd.value = count;
+        visibleRowStart.value = 0;
+        visibleRowEnd.value = count;
         return;
       }
-      const range = visibleRowRange(
+      const range = rowScrollCache.resolve(
         scrollTop.value,
         viewportH.value,
         count,
-        rowBuffer.value,
-        SYN_MAX_RENDERED_ROWS
+        rowOverscanPx.value
       );
-      visibleStart.value = range.start;
-      visibleEnd.value = range.end;
+      visibleRowStart.value = range.start;
+      visibleRowEnd.value = range.end;
     });
 
     const visibleRows = computed(() =>
-      bodyRows.value.slice(visibleStart.value, visibleEnd.value)
+      bodyRows.value.slice(visibleRowStart.value, visibleRowEnd.value)
     );
     const topSpacer = computed(() =>
-      virtualizeRows.value ? visibleStart.value * ROW_H : 0
+      virtualizeRows.value ? visibleRowStart.value * ROW_H : 0
     );
     const bottomSpacer = computed(() => {
       if (!virtualizeRows.value) return 0;
-      const shown = visibleEnd.value - visibleStart.value;
-      return Math.max(0, (rowCount.value - visibleStart.value - shown) * ROW_H);
+      const shown = visibleRowEnd.value - visibleRowStart.value;
+      const remaining = rowCount.value - visibleRowStart.value - shown;
+      return Math.max(0, remaining * ROW_H);
     });
 
     function bodyTopForExcelRow(excelRow) {
@@ -446,16 +472,31 @@ export default {
     });
 
     const editEpoch = ref(0);
+    /** Defer SUMPRODUCT until after first paint — avoids multi-second freeze on mount. */
+    const liveCalcReady = ref(false);
     const selectedCell = ref(null);
     const calcRevision = computed(() => props.session?.revision?.value ?? 0);
+    const synCalcTick = computed(() => props.session?.synCalcTick?.value ?? 0);
     const displayCache = new Map();
     const scrollStyleCache = new Map();
+    const rowClassesCache = new Map();
     let displayCacheKey = '';
 
     function invalidateDisplayCache() {
       displayCache.clear();
       scrollStyleCache.clear();
+      rowClassesCache.clear();
       displayCacheKey = '';
+    }
+
+    function cachedEntryRowClasses(entry) {
+      const key = isGapEntry(entry)
+        ? `gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`
+        : String(entry.excelRow);
+      if (rowClassesCache.has(key)) return rowClassesCache.get(key);
+      const cls = entryRowClasses(entry);
+      rowClassesCache.set(key, cls);
+      return cls;
     }
 
     watch(
@@ -467,10 +508,32 @@ export default {
     );
 
     watch(
-      () => props.session?.revision?.value ?? 0,
+      () => props.session?.synCalcTick?.value ?? 0,
       () => {
         editEpoch.value += 1;
         invalidateDisplayCache();
+      }
+    );
+
+    watch(
+      () => props.session?.displayTick?.value ?? 0,
+      () => {
+        const dirty = props.session?.takeDisplayDirty?.();
+        if (!dirty || dirty.all) {
+          editEpoch.value += 1;
+          invalidateDisplayCache();
+          return;
+        }
+        if (dirty.keys?.size) {
+          for (const k of dirty.keys) {
+            displayCache.delete(k);
+            const [row, col] = k.split(':');
+            const needle = `:${row}:${col}:`;
+            for (const sk of scrollStyleCache.keys()) {
+              if (sk.includes(needle)) scrollStyleCache.delete(sk);
+            }
+          }
+        }
       }
     );
 
@@ -614,8 +677,24 @@ export default {
         : formatted;
     }
 
+    function cellDisplayStatic(row, col, cell, label, rowClass) {
+      let displayCell = cell;
+      if (isSynAdaptationSumCell(row, col)) {
+        displayCell = null;
+      }
+      const shown = synDisplayValue(
+        displayCell,
+        cellMap.value,
+        row,
+        col,
+        props.sheet,
+        pillarColumns.value
+      );
+      return isSynMetricRow(row) ? shown : formatVal(shown);
+    }
+
     function cellDisplay(row, col) {
-      const cacheKey = `${calcRevision.value}:${editEpoch.value}`;
+      const cacheKey = `${synCalcTick.value}:${editEpoch.value}:${liveCalcReady.value ? 1 : 0}`;
       if (cacheKey !== displayCacheKey) {
         invalidateDisplayCache();
         displayCacheKey = cacheKey;
@@ -645,11 +724,12 @@ export default {
         isSynAdaptationSumCell(row, col) ||
         isSynCalculatedMassCell(cell, row, col, props.sheet, label, rowClass);
 
-      if (isLiveCalc && props.session?.getDisplayValue) {
-        if (!props.session.ready?.value) {
-          displayCache.set(hitKey, '…');
-          return '…';
-        }
+      if (
+        isLiveCalc &&
+        liveCalcReady.value &&
+        props.session?.getDisplayValue &&
+        props.session.ready?.value
+      ) {
         const fromSession = props.session.getDisplayValue(
           'SYNTHESIS',
           row,
@@ -665,31 +745,7 @@ export default {
         }
       }
 
-      let displayCell = cell;
-      if (isSynAdaptationSumCell(row, col)) {
-        displayCell = null;
-      } else if (cell?.userEdited) {
-        displayCell = cell;
-      } else if (props.session?.getDisplayValue) {
-        const fromSession = props.session.getDisplayValue(
-          'SYNTHESIS',
-          row,
-          col,
-          cell
-        );
-        if (fromSession != null && !cell?.userEdited) {
-          displayCell = { ...(cell || {}), v: fromSession };
-        }
-      }
-      const shown = synDisplayValue(
-        displayCell,
-        cellMap.value,
-        row,
-        col,
-        props.sheet,
-        pillarColumns.value
-      );
-      const out = isSynMetricRow(row) ? shown : formatVal(shown);
+      const out = cellDisplayStatic(row, col, cell, label, rowClass);
       displayCache.set(hitKey, out);
       return out;
     }
@@ -1049,6 +1105,167 @@ export default {
       return withHdrPanelBold(row, col, synProjectCellClass(display, col), display);
     }
 
+    /** One pass for all scroll-column CSS classes (avoids 30+ template checks per cell). */
+    function scrollCellClassNames(entry, col, colIdx, colsLen, display) {
+      if (isGapEntry(entry)) {
+        return isGapGreenPillarCol(col) ? 'syn-panel-gap-pillar syn-pillar-col' : '';
+      }
+      const row = entry.excelRow;
+      const parts = [
+        cellExtraClass(row, col, display),
+        synPillarAccentClass(col),
+        synExcelColTraceClass(col),
+      ];
+      if (isPillarColForEntry(entry, col)) parts.push('syn-pillar-col');
+      if (usesPillarLetterOverlay(col)) parts.push('syn-pillar-overlay-host');
+      if (isSynProjHeaderGreenCol(row, col) || isSynTargetTextGreenCell(col, display)) {
+        parts.push('syn-proj-hdr-green');
+      }
+      if (isSynProjHeaderRedCol(row, col)) parts.push('syn-proj-hdr-red');
+      if (headerEdgeRight(row, colIdx, colsLen)) parts.push('syn-header-edge-right');
+      if (isSynSpacerDisplayExcelCol(col)) parts.push('syn-spacer-col-l');
+      if (isSynHdrCjDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-cj-right');
+      if (isSynHdrMaDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-ma-right');
+      if (isSynHdrLmDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-lm-right');
+      if (isSynHdrLmDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-lm-left');
+      if (isSynHdrAaDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-aa-right');
+      if (isSynAcAnTableCellEntry(entry, col)) parts.push('syn-ac-an-cell');
+      if (isSynHdrAcAnDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-acan-right');
+      if (isSynHdrAcAnDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-ac-left');
+      if (isSynHdrAcAnDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-an-right');
+      if (isSynApBbTableCellEntry(entry, col)) parts.push('syn-ap-bb-cell');
+      if (isSynHdrApBbDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-apbb-right');
+      if (isSynHdrApBbDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-ap-left');
+      if (isSynHdrApBbDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-bb-right');
+      if (isSynBsCeTableCellEntry(entry, col)) parts.push('syn-bs-ce-cell');
+      if (isSynHdrBsCeDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-bsce-right');
+      if (isSynHdrBsCeDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-bs-left');
+      if (isSynHdrBsCeDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-ce-right');
+      if (isSynBdBoTableCellEntry(entry, col)) parts.push('syn-bd-bo-cell');
+      if (isSynHdrBdBoDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-bdbo-right');
+      if (isSynHdrBdBoDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-bd-left');
+      if (isSynHdrBdBoDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-bo-right');
+      if (isSynCiCyTableCellEntry(entry, col)) parts.push('syn-ci-cy-cell');
+      if (isSynHdrCiCyDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-cicy-right');
+      if (isSynHdrCiCyDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-ci-left');
+      if (isSynHdrCiCyDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-cy-right');
+      if (isSynDaDpTableCellEntry(entry, col)) parts.push('syn-da-dp-cell');
+      if (isSynHdrDaDpDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-dadp-right');
+      if (isSynHdrDaDpDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-da-left');
+      if (isSynHdrDaDpDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-dp-right');
+      if (isSynDrEdTableCellEntry(entry, col)) parts.push('syn-dr-ed-cell');
+      if (isSynHdrDrEdDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-dred-right');
+      if (isSynHdrDrEdDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-dr-left');
+      if (isSynHdrDrEdDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-ed-right');
+      if (isSynEfEqTableCellEntry(entry, col)) parts.push('syn-ef-eq-cell');
+      if (isSynHdrEfEqDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-efeq-right');
+      if (isSynHdrEfEqDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-ef-left');
+      if (isSynHdrEfEqDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-eq-right');
+      if (isSynEsFeTableCellEntry(entry, col)) parts.push('syn-es-fe-cell');
+      if (isSynHdrEsFeDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-esfe-right');
+      if (isSynHdrEsFeDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-es-left');
+      if (isSynHdrEsFeDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-fe-right');
+      if (isSynFjFzTableCellEntry(entry, col)) parts.push('syn-fj-fz-cell');
+      if (isSynHdrFjFzDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-fjfz-right');
+      if (isSynHdrFjFzDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-fj-left');
+      if (isSynHdrFjFzDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-fz-right');
+      return parts.filter(Boolean).join(' ');
+    }
+
+    function buildPinnedCellModel(entry, colEntry) {
+      const col = colEntry.col;
+      const width = colEntry.width;
+      if (isGapEntry(entry)) {
+        return {
+          col,
+          width,
+          gap: true,
+          readonly: true,
+          display: '',
+          html: '',
+          classes: '',
+          style: [colStyle(col, width), stickyStyle(col)],
+        };
+      }
+      const row = entry.excelRow;
+      const display = cellDisplay(row, col);
+      const readonly = cellReadonly(row, col);
+      return {
+        col,
+        width,
+        row,
+        gap: false,
+        display,
+        html: cellDisplayHtml(row, col, display),
+        readonly,
+        classes: [
+          cellExtraClass(row, col, display),
+          { 'syn-header-edge-right': headerLabelEdgeRight(row) },
+        ],
+        style: [colStyle(col, width), stickyStyle(col), cellInlineStyle(row, col)],
+      };
+    }
+
+    function buildScrollCellModel(entry, colEntry, colIdx, colsLen) {
+      const col = colEntry.col;
+      const width = colEntry.width;
+      if (isGapEntry(entry)) {
+        return {
+          col,
+          width,
+          gap: true,
+          readonly: true,
+          display: '',
+          html: '',
+          classes: scrollCellClassNames(entry, col, colIdx, colsLen, ''),
+          style: scrollDataCellStyle(entry, col, width),
+        };
+      }
+      const row = entry.excelRow;
+      const display = cellDisplay(row, col);
+      const readonly = cellReadonly(row, col);
+      return {
+        col,
+        width,
+        row,
+        gap: false,
+        display,
+        html: cellDisplayHtml(row, col, display),
+        readonly,
+        classes: scrollCellClassNames(entry, col, colIdx, colsLen, display),
+        style: scrollDataCellStyle(entry, col, width),
+      };
+    }
+
+    const visibleRenderRows = computed(() => {
+      if (!props.paneVisible) return [];
+      void synCalcTick.value;
+      void liveCalcReady.value;
+      void editEpoch.value;
+      void scrollColKey.value;
+      const scrollCols = visibleScrollCols.value;
+      const colsLen = scrollCols.length;
+      const lp = leftPad.value;
+      const rp = rightPad.value;
+      return visibleRows.value.map((entry) => {
+        const rowKey = isGapEntry(entry)
+          ? `panel-gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`
+          : String(entry.excelRow);
+        return {
+          key: rowKey,
+          entry,
+          displayRow: entry.displayRow,
+          rowClasses: cachedEntryRowClasses(entry),
+          pinned: pinnedCols.value.map((p) => buildPinnedCellModel(entry, p)),
+          leftPad: lp,
+          leftPadStyle: lp > 0 ? { width: `${lp}px`, minWidth: `${lp}px` } : null,
+          scroll: scrollCols.map((c, i) => buildScrollCellModel(entry, c, i, colsLen)),
+          rightPad: rp,
+          rightPadStyle: rp > 0 ? { width: `${rp}px`, minWidth: `${rp}px` } : null,
+        };
+      });
+    });
+
     function cellDisplayHtml(row, col, displayed) {
       const value = cellShowValue(row, col, displayed);
       const bevHtml = synHdrBevDisplayHtml(row, value);
@@ -1070,7 +1287,13 @@ export default {
       () => props.outlineOnly,
       () => {
         scrollTop.value = 0;
-        if (scrollEl.value) scrollEl.value.scrollTop = 0;
+        scrollLeft.value = 0;
+        if (scrollEl.value) {
+          scrollEl.value.scrollTop = 0;
+          scrollEl.value.scrollLeft = 0;
+        }
+        colScrollCache.reset();
+        rowScrollCache.reset();
         invalidateDisplayCache();
       }
     );
@@ -1107,6 +1330,16 @@ export default {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
+      requestAnimationFrame(() => {
+        const enable = () => {
+          liveCalcReady.value = true;
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(enable, { timeout: 500 });
+        } else {
+          setTimeout(enable, 120);
+        }
+      });
     });
     onUnmounted(() => {
       window.removeEventListener('resize', updateViewport);
@@ -1328,7 +1561,7 @@ export default {
       pinnedCols,
       visibleScrollCols,
       tableWidth,
-      visibleRows,
+      visibleRenderRows,
       topSpacer,
       bottomSpacer,
       leftPad,
@@ -1437,275 +1670,76 @@ export default {
               <td :colspan="colspan" :style="{ height: topSpacer + 'px', border: 'none', padding: 0 }"></td>
             </tr>
             <tr
-              v-for="entry in visibleRows"
-              :key="isGapEntry(entry) ? ('panel-gap-' + (entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex))) : entry.excelRow"
-              :class="entryRowClasses(entry)"
+              v-for="row in visibleRenderRows"
+              :key="row.key"
+              class="grid-row-cv"
+              :class="row.rowClasses"
             >
-              <td class="row-num syn-row-num">{{ entry.displayRow }}</td>
+              <td class="row-num syn-row-num">{{ row.displayRow }}</td>
               <td
-                v-for="p in pinnedCols"
-                :key="(isGapEntry(entry) ? 'gap' : entry.excelRow) + '-p-' + p.col"
+                v-for="cell in row.pinned"
+                :key="row.key + '-p-' + cell.col"
                 class="data-cell col-sticky-label syn-label-col"
-                :class="[
-                  { readonly: cellReadonly(entry.excelRow, p.col) },
-                  isGapEntry(entry)
-                    ? ''
-                    : cellExtraClass(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col)),
-                  {
-                    'syn-header-edge-right':
-                      !isGapEntry(entry) && headerLabelEdgeRight(entry.excelRow),
-                  },
-                ]"
-                :style="[
-                  colStyle(p.col, p.width),
-                  stickyStyle(p.col),
-                  isGapEntry(entry) ? {} : cellInlineStyle(entry.excelRow, p.col),
-                ]"
+                :class="[{ readonly: cell.readonly }, cell.classes]"
+                :style="cell.style"
               >
-                <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, p.col)">
-                  <span @mousedown="onReadonlyCellSelect(entry.excelRow, p.col, $event)">{{ isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, p.col) }}</span>
+                <template v-if="cell.gap || cell.readonly">
+                  <span @mousedown="onReadonlyCellSelect(cell.row, cell.col, $event)">{{ cell.display }}</span>
                 </template>
                 <input
-                  v-else-if="isCellActive(entry.excelRow, p.col)"
+                  v-else-if="isCellActive(cell.row, cell.col)"
                   type="text"
                   class="grid-cell-input"
                   autocomplete="off"
                   spellcheck="false"
-                  :data-grid-row="entry.excelRow"
-                  :data-grid-col="p.col"
-                  @mousedown="onCellMouseDown(entry.excelRow, p.col, $event)"
-                  @focus="onCellFocus(entry.excelRow, p.col, $event)"
-                  @input="onCellInput(entry.excelRow, p.col, $event)"
-                  @blur="onCellBlur(entry.excelRow, p.col, $event)"
-                  @keydown="onCellKeydown(entry.excelRow, p.col, $event)"
+                  :data-grid-row="cell.row"
+                  :data-grid-col="cell.col"
+                  @mousedown="onCellMouseDown(cell.row, cell.col, $event)"
+                  @focus="onCellFocus(cell.row, cell.col, $event)"
+                  @input="onCellInput(cell.row, cell.col, $event)"
+                  @blur="onCellBlur(cell.row, cell.col, $event)"
+                  @keydown="onCellKeydown(cell.row, cell.col, $event)"
                 />
                 <span
                   v-else
                   class="grid-cell-display"
-                  @mousedown="onCellSpanMouseDown(entry.excelRow, p.col, $event)"
-                  v-html="cellDisplayHtml(entry.excelRow, p.col, cellDisplay(entry.excelRow, p.col))"
+                  @mousedown="onCellSpanMouseDown(cell.row, cell.col, $event)"
+                  v-html="cell.html"
                 ></span>
               </td>
-              <td v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></td>
+              <td v-if="row.leftPad > 0" class="syn-pad" :style="row.leftPadStyle"></td>
               <td
-                v-for="(colEntry, colIdx) in visibleScrollCols"
-                :key="(isGapEntry(entry) ? 'gap' : entry.excelRow) + '-' + colEntry.col"
+                v-for="cell in row.scroll"
+                :key="row.key + '-' + cell.col"
                 class="data-cell"
-                :class="[
-                  { readonly: cellReadonly(entry.excelRow, colEntry.col) },
-                  isGapEntry(entry)
-                    ? ''
-                    : cellExtraClass(
-                        entry.excelRow,
-                        colEntry.col,
-                        cellDisplay(entry.excelRow, colEntry.col)
-                      ),
-                  synPillarAccentClass(colEntry.col),
-                  synExcelColTraceClass(colEntry.col),
-                  {
-                    'syn-pillar-col': isGapEntry(entry)
-                      ? isGapGreenPillarCol(colEntry.col)
-                      : isPillarColForEntry(entry, colEntry.col),
-                    'syn-pillar-overlay-host':
-                      !isGapEntry(entry) &&
-                      usesPillarLetterOverlay(colEntry.col),
-                    'syn-panel-gap-pillar':
-                      isGapEntry(entry) && isGapGreenPillarCol(colEntry.col),
-                    'syn-proj-hdr-green':
-                      !isGapEntry(entry) &&
-                      (isSynProjHeaderGreenCol(entry.excelRow, colEntry.col) ||
-                        isSynTargetTextGreenCell(
-                          colEntry.col,
-                          cellDisplay(entry.excelRow, colEntry.col)
-                        )),
-                    'syn-proj-hdr-red':
-                      !isGapEntry(entry) &&
-                      isSynProjHeaderRedCol(entry.excelRow, colEntry.col),
-                    'syn-header-edge-right':
-                      !isGapEntry(entry) &&
-                      headerEdgeRight(entry.excelRow, colIdx, visibleScrollCols.length),
-                    'syn-spacer-col-l': isSynSpacerDisplayExcelCol(colEntry.col),
-                    'syn-hdr-edge-cj-right': isSynHdrCjDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ma-right': isSynHdrMaDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-lm-right': isSynHdrLmDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-lm-left': isSynHdrLmDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-aa-right': isSynHdrAaDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-ac-an-cell': isSynAcAnTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-acan-right': isSynHdrAcAnDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ac-left': isSynHdrAcAnDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-an-right': isSynHdrAcAnDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-ap-bb-cell': isSynApBbTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-apbb-right': isSynHdrApBbDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ap-left': isSynHdrApBbDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-bb-right': isSynHdrApBbDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-bs-ce-cell': isSynBsCeTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-bsce-right': isSynHdrBsCeDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-bs-left': isSynHdrBsCeDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ce-right': isSynHdrBsCeDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-bd-bo-cell': isSynBdBoTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-bdbo-right': isSynHdrBdBoDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-bd-left': isSynHdrBdBoDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-bo-right': isSynHdrBdBoDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-ci-cy-cell': isSynCiCyTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-cicy-right': isSynHdrCiCyDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ci-left': isSynHdrCiCyDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-cy-right': isSynHdrCiCyDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-da-dp-cell': isSynDaDpTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-dadp-right': isSynHdrDaDpDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-da-left': isSynHdrDaDpDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-dp-right': isSynHdrDaDpDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-dr-ed-cell': isSynDrEdTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-dred-right': isSynHdrDrEdDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-dr-left': isSynHdrDrEdDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ed-right': isSynHdrDrEdDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-ef-eq-cell': isSynEfEqTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-efeq-right': isSynHdrEfEqDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-ef-left': isSynHdrEfEqDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-eq-right': isSynHdrEfEqDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-es-fe-cell': isSynEsFeTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-esfe-right': isSynHdrEsFeDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-es-left': isSynHdrEsFeDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-fe-right': isSynHdrEsFeDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-fj-fz-cell': isSynFjFzTableCellEntry(entry, colEntry.col),
-                    'syn-hdr-edge-fjfz-right': isSynHdrFjFzDividerRightEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-fj-left': isSynHdrFjFzDividerLeftEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                    'syn-hdr-edge-fz-right': isSynHdrFjFzDividerRightEdgeEntry(
-                      entry,
-                      colEntry.col
-                    ),
-                  },
-                ]"
-                :style="scrollDataCellStyle(entry, colEntry.col, colEntry.width)"
+                :class="[{ readonly: cell.readonly }, cell.classes]"
+                :style="cell.style"
               >
-                <template v-if="isGapEntry(entry) || cellReadonly(entry.excelRow, colEntry.col)">
-                  <span @mousedown="onReadonlyCellSelect(entry.excelRow, colEntry.col, $event)">{{
-                    isGapEntry(entry) ? '' : cellDisplay(entry.excelRow, colEntry.col)
-                  }}</span>
+                <template v-if="cell.gap || cell.readonly">
+                  <span @mousedown="onReadonlyCellSelect(cell.row, cell.col, $event)">{{ cell.display }}</span>
                 </template>
                 <input
-                  v-else-if="isCellActive(entry.excelRow, colEntry.col)"
+                  v-else-if="isCellActive(cell.row, cell.col)"
                   type="text"
                   class="grid-cell-input"
                   autocomplete="off"
                   spellcheck="false"
-                  :data-grid-row="entry.excelRow"
-                  :data-grid-col="colEntry.col"
-                  @mousedown="onCellMouseDown(entry.excelRow, colEntry.col, $event)"
-                  @focus="onCellFocus(entry.excelRow, colEntry.col, $event)"
-                  @input="onCellInput(entry.excelRow, colEntry.col, $event)"
-                  @blur="onCellBlur(entry.excelRow, colEntry.col, $event)"
-                  @keydown="onCellKeydown(entry.excelRow, colEntry.col, $event)"
+                  :data-grid-row="cell.row"
+                  :data-grid-col="cell.col"
+                  @mousedown="onCellMouseDown(cell.row, cell.col, $event)"
+                  @focus="onCellFocus(cell.row, cell.col, $event)"
+                  @input="onCellInput(cell.row, cell.col, $event)"
+                  @blur="onCellBlur(cell.row, cell.col, $event)"
+                  @keydown="onCellKeydown(cell.row, cell.col, $event)"
                 />
                 <span
                   v-else
                   class="grid-cell-display"
-                  @mousedown="onCellSpanMouseDown(entry.excelRow, colEntry.col, $event)"
-                  v-html="cellDisplayHtml(entry.excelRow, colEntry.col, cellDisplay(entry.excelRow, colEntry.col))"
+                  @mousedown="onCellSpanMouseDown(cell.row, cell.col, $event)"
+                  v-html="cell.html"
                 ></span>
               </td>
-              <td v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></td>
+              <td v-if="row.rightPad > 0" class="syn-pad" :style="row.rightPadStyle"></td>
             </tr>
             <tr v-if="bottomSpacer > 0" class="bd-spacer-bottom">
               <td :colspan="colspan" :style="{ height: bottomSpacer + 'px', border: 'none', padding: 0 }"></td>

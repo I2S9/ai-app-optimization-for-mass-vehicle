@@ -153,6 +153,20 @@ body {
   z-index: 1000;
   font-size: 14px;
 }
+.loading-overlay-subtle {
+  position: absolute;
+  inset: auto 12px 12px auto;
+  width: auto;
+  height: auto;
+  padding: 8px 14px;
+  background: rgba(30, 58, 95, 0.92);
+  color: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
 
 .syn-formula-bar {
   display: flex;

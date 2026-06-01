@@ -1,13 +1,21 @@
-import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, KeepAlive } from 'vue';
-import BdGrid from './BdGrid.js?v=grid-perf2';
-import SynthesisGrid from './SynthesisGrid.js?v=grid-perf2';
+import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, nextTick } from 'vue';
+import BdGrid from './BdGrid.js?v=grid-perf9';
+import SynthesisGrid from './SynthesisGrid.js?v=grid-perf10';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix12';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheet, transformSynthesisSheet } from './sheetTransform.js?v=grid-perf2';
-import { createWorkbookSession } from './workbookSession.js?v=grid-perf2';
+import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf7';
+import { createWorkbookSession } from './workbookSession.js?v=grid-perf9';
+import { createPerfBench } from './perfBench.js?v=1';
+import { yieldToMain, deferHeavy } from './yieldMain.js?v=2';
+import {
+  fetchPrecomputedPack,
+  resolveGridSheet,
+  hasSheetEdits,
+} from './gridBoot.js?v=1';
+import { loadSheetRaw, probeSheetApi } from './sheetDataApi.js?v=chunk1';
 import {
   buildMatrixState,
   applyMatrixSave,
@@ -20,13 +28,19 @@ import {
   clearLocalSnapshot,
   createAutoSave,
   applySheetEdits,
-} from './sessionPersistence.js?v=persist-v3';
+  saveSheetTransform,
+  rawFingerprint,
+} from './sessionPersistence.js?v=persist-v5';
 
 const App = {
-  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal, KeepAlive },
+  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
   setup() {
-    const bdLoading = ref(true);
+    const bdLoading = ref(false);
+    const gridPreparing = ref(false);
     const synthesisLoading = ref(false);
+    /** @type {import('vue').Ref<{ sheetId: string, pct: number } | null>} */
+    const dataLoadProgress = ref(null);
+    const chunkedApi = ref(false);
     const error = ref(null);
     const bdSheet = ref(null);
     const synthesisSheet = ref(null);
@@ -111,12 +125,9 @@ const App = {
 
     const showContentOverlay = computed(() => {
       if (error.value) return false;
-      if (isDatabase.value) {
-        return bdLoading.value || !bdSheet.value;
-      }
+      if (isDatabase.value) return false;
       if (isSynthesis.value) {
-        if (synthesisSheet.value) return false;
-        return synthesisLoading.value || bdLoading.value;
+        return !synthesisSheet.value && synthesisLoading.value;
       }
       return false;
     });
@@ -129,16 +140,17 @@ const App = {
         headerRows: sheet.headerRows,
         sectionHeaderRows: sheet.sectionHeaderRows,
         canonicalSectionByLabel: sheet.canonicalSectionByLabel,
+        cellMap: sheet.cellMap,
       };
     }
 
     function scheduleEngine() {
       if (engineStarted || !bdSheet.value || !isGridPage.value) return;
-      engineStarted = true;
       let engineLoaded = false;
       const run = () => {
-        if (engineLoaded) return;
+        if (engineLoaded || engineStarted) return;
         engineLoaded = true;
+        engineStarted = true;
         window.removeEventListener('pointerdown', onInteract, true);
         window.removeEventListener('keydown', onInteract, true);
         void session
@@ -148,27 +160,83 @@ const App = {
           });
       };
       const onInteract = () => run();
-      run();
       window.addEventListener('pointerdown', onInteract, true);
       window.addEventListener('keydown', onInteract, true);
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => run(), { timeout: 4000 });
+      } else {
+        setTimeout(() => run(), 3000);
+      }
     }
 
-    function applyBdFromRaw(force = false) {
-      if (!bdRaw.value) return;
+    async function applyBdFromRaw(force = false) {
+      if (!bdRaw.value) {
+        if (!force) {
+          const pre = await fetchPrecomputedPack('bd');
+          if (pre?.sheet) {
+            await yieldToMain();
+            bdSheet.value = pre.sheet;
+            bdSheetBuiltAt = bdSheetRevision.value;
+            return;
+          }
+        }
+        return;
+      }
       if (!force && bdSheet.value && bdSheetBuiltAt === bdSheetRevision.value) {
         return;
       }
-      bdSheet.value = transformBdSheet(bdRaw.value);
+      const resolved = await resolveGridSheet('bd', bdRaw.value, { force });
+      if (resolved) {
+        await yieldToMain();
+        bdSheet.value = resolved;
+        bdSheetBuiltAt = bdSheetRevision.value;
+        return;
+      }
+      await yieldToMain();
+      const transformed = await transformBdSheetAsync(bdRaw.value);
+      await yieldToMain();
+      bdSheet.value = transformed;
       bdSheetBuiltAt = bdSheetRevision.value;
+      const fp = rawFingerprint(bdRaw.value);
+      const pre = await fetchPrecomputedPack('bd');
+      void saveSheetTransform('bd', fp, bdSheet.value, {
+        skipIfPrecomputed: pre?.fingerprint === fp,
+      });
     }
 
-    function applySynFromRaw(force = false) {
-      if (!synRaw.value) return;
+    async function applySynFromRaw(force = false) {
+      if (!synRaw.value) {
+        if (!force) {
+          const pre = await fetchPrecomputedPack('syn');
+          if (pre?.sheet) {
+            await yieldToMain();
+            synthesisSheet.value = pre.sheet;
+            synSheetBuiltAt = synSheetRevision.value;
+            return;
+          }
+        }
+        return;
+      }
       if (!force && synthesisSheet.value && synSheetBuiltAt === synSheetRevision.value) {
         return;
       }
-      synthesisSheet.value = transformSynthesisSheet(synRaw.value);
+      const resolved = await resolveGridSheet('syn', synRaw.value, { force });
+      if (resolved) {
+        await yieldToMain();
+        synthesisSheet.value = resolved;
+        synSheetBuiltAt = synSheetRevision.value;
+        return;
+      }
+      await yieldToMain();
+      const transformed = await transformSynthesisSheetAsync(synRaw.value);
+      await yieldToMain();
+      synthesisSheet.value = transformed;
       synSheetBuiltAt = synSheetRevision.value;
+      const fp = rawFingerprint(synRaw.value);
+      const pre = await fetchPrecomputedPack('syn');
+      void saveSheetTransform('syn', fp, synthesisSheet.value, {
+        skipIfPrecomputed: pre?.fingerprint === fp,
+      });
     }
 
     function bumpBdSheetRevision() {
@@ -179,47 +247,131 @@ const App = {
       synSheetRevision.value += 1;
     }
 
-    /** Defer 7MB synthesis fetch/transform until the browser is idle (keeps BD snappy). */
-    function scheduleSynBackgroundPrepare() {
-      if (synthesisSheet.value || synthesisPreparePromise) return;
-      const run = () => {
-        if (synthesisSheet.value || synthesisPreparePromise) return;
-        void startSynBackgroundPrepare();
-      };
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(run, { timeout: 12000 });
-      } else {
-        setTimeout(run, 3000);
-      }
-    }
-
-    /** Fetch + transform Synthesis in background (no grid mount until user opens the page). */
+    /** Fetch + transform Synthesis when user opens the page (never while on Database). */
     function startSynBackgroundPrepare() {
       if (synthesisSheet.value) return Promise.resolve();
       if (synthesisPreparePromise) return synthesisPreparePromise;
       synthesisPreparePromise = (async () => {
-        if (!synRaw.value) await fetchSynFromServer();
+        const pre = await fetchPrecomputedPack('syn');
+        if (!synRaw.value) {
+          if (pre?.sheet) {
+            await yieldToMain();
+            synthesisSheet.value = pre.sheet;
+            synSheetBuiltAt = synSheetRevision.value;
+            void fetchSynFromServer();
+            return;
+          }
+          await fetchSynFromServer();
+        }
+        if (pre?.sheet) {
+          const fp = rawFingerprint(synRaw.value);
+          if (pre.fingerprint === fp) {
+            await yieldToMain();
+            synthesisSheet.value = pre.sheet;
+            synSheetBuiltAt = synSheetRevision.value;
+            return;
+          }
+        }
         bumpSynSheetRevision();
-        applySynFromRaw(true);
+        await applySynFromRaw(false);
       })().catch((e) => {
         synthesisPreparePromise = null;
-        console.warn('Synthesis background prepare failed:', e);
+        console.warn('Synthesis prepare failed:', e);
         throw e;
       });
       return synthesisPreparePromise;
     }
 
+    function mergeExtraCellsIntoBd(fullRaw) {
+      const sheet = bdSheet.value;
+      if (!sheet || !fullRaw?.cells?.length) return;
+      const map = sheet.cellMap instanceof Map ? sheet.cellMap : null;
+      if (!map) {
+        bumpBdSheetRevision();
+        return applyBdFromRaw(false);
+      }
+      let added = 0;
+      for (const c of fullRaw.cells) {
+        const k = `${c.r}:${c.c}`;
+        if (!map.has(k)) {
+          sheet.cells.push(c);
+          map.set(k, c);
+          added++;
+        }
+      }
+      if (added > 0) externalEditTick.value += 1;
+    }
+
+    /**
+     * Load BD raw — chunked API when available (meta + row windows), else full JSON.
+     * @param {{ progressive?: boolean }} opts progressive=true → show grid after 1st chunk
+     */
+    async function loadBdFromServer({ progressive = true } = {}) {
+      bdLoading.value = true;
+      let earlyRender = false;
+      try {
+        const full = await loadSheetRaw('bd', {
+          onProgress(info) {
+            if (info.lastRow > 0) {
+              dataLoadProgress.value = {
+                sheetId: 'bd',
+                pct: Math.min(
+                  100,
+                  Math.round((info.rowMax / info.lastRow) * 100)
+                ),
+              };
+            }
+          },
+          async onFirstChunk(partial) {
+            if (!progressive || earlyRender) return;
+            earlyRender = true;
+            bdRaw.value = partial;
+            bumpBdSheetRevision();
+            await applyBdFromRaw(false);
+            gridPreparing.value = false;
+            scheduleEngine();
+          },
+        });
+        bdRaw.value = full;
+        if (!earlyRender) {
+          bumpBdSheetRevision();
+          await applyBdFromRaw(false);
+          gridPreparing.value = false;
+          scheduleEngine();
+        } else {
+          mergeExtraCellsIntoBd(full);
+        }
+      } finally {
+        bdLoading.value = false;
+        dataLoadProgress.value = null;
+      }
+    }
+
     async function fetchBdFromServer() {
-      const bdRes = await fetch('/public/data/bd-sheet.json');
-      if (!bdRes.ok) throw new Error(`Failed to load BD data (${bdRes.status})`);
-      bdRaw.value = await bdRes.json();
+      await loadBdFromServer({ progressive: false });
     }
 
     async function fetchSynFromServer() {
-      const res = await fetch('/public/data/synthesis-sheet.json');
-      if (!res.ok) throw new Error(`Synthesis data (${res.status})`);
-      synRaw.value = await res.json();
-      preservedSynRaw = synRaw.value;
+      synthesisLoading.value = true;
+      try {
+        synRaw.value = await loadSheetRaw('synthesis', {
+          onProgress(info) {
+            if (info.lastRow > 0) {
+              dataLoadProgress.value = {
+                sheetId: 'syn',
+                pct: Math.min(
+                  100,
+                  Math.round((info.rowMax / info.lastRow) * 100)
+                ),
+              };
+            }
+          },
+        });
+        preservedSynRaw = synRaw.value;
+      } finally {
+        dataLoadProgress.value = null;
+        synthesisLoading.value = false;
+      }
     }
 
     function loadSynthesis() {
@@ -245,24 +397,55 @@ const App = {
       return false;
     });
 
-    onMounted(async () => {
+    onMounted(() => {
       document.title = 'WGHT Dashboard';
       const routeParam = new URLSearchParams(location.search).get('route');
       if (routeParam && NAV_ITEMS.some((n) => n.id === routeParam)) {
         route.value = routeParam;
       }
+      const bench = createPerfBench(() => ({
+        session,
+        bdSheet: bdSheet.value,
+        synthesisSheet: synthesisSheet.value,
+        applyBdFromRaw,
+        applySynFromRaw,
+      }));
+      if (typeof window !== 'undefined') {
+        window.__runPerfBench = () => bench.run();
+      }
+      void bootApp();
+      window.addEventListener('beforeunload', onBeforeUnload);
+      window.addEventListener('pagehide', onBeforeUnload);
+      window.addEventListener('keydown', onGlobalKeydown, true);
+    });
+
+    async function bootApp() {
       const wantSynthesis = route.value === 'synthesis';
 
       try {
-        const snapshot = await loadLocalSnapshot({ timeoutMs: 15000 });
+        await nextTick();
+        const [snapshot, apiCfg, preBd] = await Promise.all([
+          loadLocalSnapshot({ timeoutMs: 1500 }),
+          probeSheetApi(),
+          fetchPrecomputedPack('bd'),
+        ]);
+        chunkedApi.value = Boolean(apiCfg?.chunkedLoad);
+
+        const bdHasEdits =
+          (snapshot?.version === 3 && hasSheetEdits(snapshot.bdEdits)) ||
+          (snapshot?.version === 2 && hasSheetEdits(snapshot.bdEdits));
+        const synHasEdits =
+          (snapshot?.version === 3 && hasSheetEdits(snapshot.synEdits)) ||
+          (snapshot?.version === 2 && hasSheetEdits(snapshot.synEdits));
+        const hasBdFull = snapshot?.version === 3 && snapshot.bdFull;
+        const hasSynFull = snapshot?.version === 3 && snapshot.synFull;
+
         if (snapshot?.version === 3) {
           if (snapshot.bdFull) {
             bdRaw.value = snapshot.bdFull;
-          } else {
+          } else if (bdHasEdits) {
             await fetchBdFromServer();
-            if (snapshot.bdEdits) {
-              applySheetEdits(bdRaw.value, snapshot.bdEdits);
-            }
+            applySheetEdits(bdRaw.value, snapshot.bdEdits);
           }
           if (snapshot.synFull) {
             synRaw.value = snapshot.synFull;
@@ -275,8 +458,8 @@ const App = {
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
         } else if (snapshot?.version === 2) {
-          await fetchBdFromServer();
           if (snapshot.bdEdits) {
+            await fetchBdFromServer();
             applySheetEdits(bdRaw.value, snapshot.bdEdits);
           }
           if (snapshot.synEdits) {
@@ -293,37 +476,42 @@ const App = {
           }
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
-        } else {
-          await fetchBdFromServer();
         }
 
-        bumpBdSheetRevision();
-        applyBdFromRaw(true);
+        gridPreparing.value = true;
+
+        if (!bdRaw.value && preBd?.sheet) {
+          await yieldToMain();
+          bdSheet.value = preBd.sheet;
+          bdSheetBuiltAt = 0;
+          gridPreparing.value = false;
+          scheduleEngine();
+          void loadSheetRaw('bd').then((raw) => {
+            if (raw && !bdRaw.value) bdRaw.value = raw;
+          });
+        } else if (bdRaw.value) {
+          bumpBdSheetRevision();
+          await applyBdFromRaw(false);
+          gridPreparing.value = false;
+          scheduleEngine();
+        } else {
+          await loadBdFromServer({ progressive: chunkedApi.value });
+        }
 
         if (wantSynthesis) {
-          if (synRaw.value) {
-            bumpSynSheetRevision();
-            applySynFromRaw(true);
-          } else {
+          synthesisLoading.value = true;
+          try {
             await loadSynthesis();
+          } finally {
+            synthesisLoading.value = false;
           }
-        } else {
-          synthesisLoading.value = false;
         }
-
-        scheduleEngine();
-        void startSynBackgroundPrepare();
       } catch (e) {
         error.value = e.message;
+        gridPreparing.value = false;
         console.error('Startup failed:', e);
-      } finally {
-        bdLoading.value = false;
       }
-
-      window.addEventListener('beforeunload', onBeforeUnload);
-      window.addEventListener('pagehide', onBeforeUnload);
-      window.addEventListener('keydown', onGlobalKeydown, true);
-    });
+    }
 
     function onBeforeUnload() {
       void autoSave.saveNow();
@@ -363,12 +551,12 @@ const App = {
       if (!bd) return;
       bdRaw.value = cloneRawSheet(bd);
       bumpBdSheetRevision();
-      applyBdFromRaw(true);
+      await applyBdFromRaw(true);
       if (syn) {
         synRaw.value = cloneRawSheet(syn);
         preservedSynRaw = synRaw.value;
         bumpSynSheetRevision();
-        applySynFromRaw(true);
+        await applySynFromRaw(true);
       }
       externalEditTick.value += 1;
       if (engineStarted && bdSheet.value) {
@@ -502,18 +690,18 @@ const App = {
       synthesisLoadPromise = null;
       synthesisPreparePromise = null;
       synthesisSheet.value = null;
-      bdLoading.value = true;
+      bdLoading.value = false;
       try {
         await fetchBdFromServer();
         bumpBdSheetRevision();
-        applyBdFromRaw(true);
+        await applyBdFromRaw(true);
         synRaw.value = null;
         synthesisSheet.value = null;
         synSheetBuiltAt = -1;
         if (route.value === 'synthesis') {
           await fetchSynFromServer();
           bumpSynSheetRevision();
-          applySynFromRaw(true);
+          await applySynFromRaw(true);
         }
         await session.loadSheets([
           { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
@@ -528,19 +716,36 @@ const App = {
       }
     }
 
-    function navigate(id) {
+    function closeMenu() {
       menuOpen.value = false;
+    }
+
+    function toggleMenu() {
+      menuOpen.value = !menuOpen.value;
+    }
+
+    function navigate(id) {
+      closeMenu();
+      if (id === route.value) return;
       route.value = id;
-      if (id === 'synthesis') {
-        void loadSynthesis();
+      requestAnimationFrame(() => {
+        if (id === 'synthesis' && !synthesisSheet.value) {
+          void loadSynthesis();
+        }
         scheduleEngine();
-      } else if (id === 'database') {
-        scheduleEngine();
-      }
+      });
     }
 
     function toggleOutline() {
-      outlineOnly.value = !outlineOnly.value;
+      requestAnimationFrame(() => {
+        outlineOnly.value = !outlineOnly.value;
+      });
+    }
+
+    function deferClick(fn) {
+      requestAnimationFrame(() => {
+        void deferHeavy(fn);
+      });
     }
 
     async function openMatrix() {
@@ -598,12 +803,12 @@ const App = {
         );
         bdRaw.value = result.bdRaw;
         bumpBdSheetRevision();
-        applyBdFromRaw(true);
+        await applyBdFromRaw(true);
         if (result.synRaw) {
           synRaw.value = result.synRaw;
           preservedSynRaw = result.synRaw;
           bumpSynSheetRevision();
-          applySynFromRaw(true);
+          await applySynFromRaw(true);
         }
         externalEditTick.value += 1;
         if (engineStarted && bdSheet.value) {
@@ -676,13 +881,19 @@ const App = {
       saveNow,
       resetFromServerFiles,
       route,
+      gridPreparing,
+      dataLoadProgress,
+      chunkedApi,
       menuOpen,
+      toggleMenu,
+      closeMenu,
       outlineOnly,
       currentNav,
       session,
       onCellChange,
       navigate,
       toggleOutline,
+      deferClick,
       matrixOpen,
       matrixState,
       matrixSaving,
@@ -702,7 +913,7 @@ const App = {
         :current="route"
         :open="menuOpen"
         @navigate="navigate"
-        @close="menuOpen = false"
+        @close="closeMenu"
       />
       <header class="app-topbar">
         <div class="topbar-left">
@@ -710,7 +921,7 @@ const App = {
             type="button"
             class="burger"
             aria-label="Open menu"
-            @click="menuOpen = !menuOpen"
+            @click="toggleMenu"
           >
             <span></span><span></span><span></span>
           </button>
@@ -763,7 +974,7 @@ const App = {
               class="icon-btn icon-btn-sm"
               title="Bookmark Matrix — reorder sections and sub-sections"
               aria-label="Open Bookmark Matrix"
-              @click="openMatrix"
+              @click="deferClick(openMatrix)"
             >
               <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                 <rect x="1" y="1" width="6" height="6" fill="currentColor"/>
@@ -788,10 +999,12 @@ const App = {
           </template>
         </div>
         <div class="topbar-right">
-          <span class="status" v-if="bdLoading && isDatabase">Loading…</span>
-          <span class="status" v-else-if="isSynthesis && (synthesisLoading || (bdLoading && !synthesisSheet))">Loading synthesis…</span>
+          <span class="status" v-if="dataLoadProgress">
+            Données {{ dataLoadProgress.sheetId === 'syn' ? 'Synthesis' : 'Database' }}
+            {{ dataLoadProgress.pct }}%
+          </span>
+          <span class="status" v-else-if="isSynthesis && synthesisLoading && !synthesisSheet">Préparation Synthesis…</span>
           <span class="status error-text" v-else-if="error">{{ error }}</span>
-          <span class="status" v-else-if="isGridPage && session.loading">Calculating…</span>
           <span class="status" v-else-if="isGridPage && saveStatus === 'saving'">Enregistrement…</span>
           <span class="status saved-status" v-else-if="isGridPage && saveStatus === 'saved'">
             Modifications enregistrées (ce navigateur)
@@ -815,40 +1028,48 @@ const App = {
       </header>
       <div class="app-body">
         <main class="app-content">
-          <KeepAlive>
-            <BdGrid
-              v-if="bdSheet && isDatabase"
-              key="bd-grid"
-              :sheet="bdSheet"
-              sheet-name="BD"
-              :session="session"
-              :raw-bd="bdRaw"
-              :outline-only="outlineOnly"
-              :pane-visible="isDatabase"
-              :external-edit-tick="externalEditTick"
-              @cell-change="onCellChange"
-            />
-          </KeepAlive>
-          <KeepAlive>
-            <SynthesisGrid
-              v-if="synthesisSheet && isSynthesis"
-              key="syn-grid"
-              :sheet="synthesisSheet"
-              :session="session"
-              :raw-syn="synRaw"
-              :outline-only="outlineOnly"
-              :pane-visible="isSynthesis"
-              :external-edit-tick="externalEditTick"
-              @cell-change="onCellChange"
-            />
-          </KeepAlive>
+          <BdGrid
+            v-if="bdSheet && isDatabase"
+            key="bd-grid"
+            :sheet="bdSheet"
+            sheet-name="BD"
+            :session="session"
+            :raw-bd="bdRaw"
+            :outline-only="outlineOnly"
+            :pane-visible="isDatabase"
+            :external-edit-tick="externalEditTick"
+            @cell-change="onCellChange"
+          />
+          <SynthesisGrid
+            v-if="synthesisSheet && isSynthesis"
+            key="syn-grid"
+            :sheet="synthesisSheet"
+            :session="session"
+            :raw-syn="synRaw"
+            :outline-only="outlineOnly"
+            :pane-visible="isSynthesis"
+            :external-edit-tick="externalEditTick"
+            @cell-change="onCellChange"
+          />
+          <div
+            v-if="gridPreparing && isDatabase && !bdSheet"
+            class="loading-overlay loading-overlay-subtle"
+          >
+            Préparation de la grille…
+          </div>
+          <div
+            v-if="isSynthesis && synthesisLoading && !synthesisSheet"
+            class="loading-overlay"
+          >
+            Chargement Synthesis…
+          </div>
           <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
           <div
-            v-else-if="isSynthesis && !synthesisSheet"
+            v-else-if="isSynthesis && !synthesisSheet && !synthesisLoading"
             class="loading-overlay error-text"
           >
-            Missing synthesis-sheet.json
+            Données Synthesis indisponibles
           </div>
           <EmptyPage
             v-else-if="!isDatabase && !isSynthesis"

@@ -28,17 +28,16 @@ import {
   bdColMetaClass,
   bdMassCol,
   bdTitleCol,
-  shouldDisplayBodyRow,
 } from './bdStore.js?v=edit-fix2';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import {
   ROW_H,
   rowOverscan,
   shouldVirtualizeRows,
-  visibleRowRange,
   createScrollRafSync,
+  createRowScrollCache,
   MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=grid-perf2';
+} from './gridScroll.js?v=grid-perf6';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
@@ -82,11 +81,11 @@ export default {
 
     const bodyRows = computed(() => {
       if (props.outlineOnly) {
-        const map = cellMap.value;
-        let displayRow = BD_BODY_DISPLAY_ROW_START;
-        return (props.sheet.outlineRows || [])
-          .filter((r) => shouldDisplayBodyRow(map, r, props.sheet))
-          .map((excelRow) => ({ excelRow, displayRow: displayRow++ }));
+        return (
+          props.sheet.outlineBodyDisplayRows ??
+          props.sheet.bodyDisplayRows ??
+          computeBodyDisplayRows(props.sheet)
+        );
       }
       return props.sheet.bodyDisplayRows ?? computeBodyDisplayRows(props.sheet);
     });
@@ -96,22 +95,23 @@ export default {
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
     const rowOverscanPx = computed(() => rowOverscan(viewportH.value));
+    const rowScrollCache = createRowScrollCache(MAX_RENDERED_ROWS, { monotonic: false });
     const visibleStart = ref(0);
     const visibleEnd = ref(0);
 
     watchEffect(() => {
+      if (!props.paneVisible) return;
       const count = rowCount.value;
       if (!virtualizeRows.value) {
         visibleStart.value = 0;
         visibleEnd.value = count;
         return;
       }
-      const range = visibleRowRange(
+      const range = rowScrollCache.resolve(
         scrollTop.value,
         viewportH.value,
         count,
-        rowOverscanPx.value,
-        MAX_RENDERED_ROWS
+        rowOverscanPx.value
       );
       visibleStart.value = range.start;
       visibleEnd.value = range.end;
@@ -170,6 +170,21 @@ export default {
       scrollTop,
       getScrollEl: () => scrollEl.value,
     });
+
+    watch(
+      () => props.session?.displayTick?.value ?? 0,
+      () => {
+        const dirty = props.session?.takeDisplayDirty?.();
+        if (!dirty || dirty.all) {
+          editEpoch.value += 1;
+          invalidateDisplayCache();
+          return;
+        }
+        if (dirty.keys?.size) {
+          for (const k of dirty.keys) displayCache.delete(k);
+        }
+      }
+    );
 
     watch(
       () => props.externalEditTick,
@@ -375,6 +390,8 @@ export default {
       visibleRows,
       topSpacer,
       bottomSpacer,
+      visibleStart,
+      outlineOnly: computed(() => props.outlineOnly),
       calcRevision,
       colStyle,
       isStickyDateCol,
@@ -446,6 +463,8 @@ export default {
             <tr
               v-for="entry in visibleRows"
               :key="entry.excelRow"
+              v-memo="[entry.excelRow, externalEditTick, calcRevision, outlineOnly, visibleStart]"
+              class="grid-row-cv"
               :class="rowStyleClass(entry.excelRow)"
             >
               <td class="row-num">{{ entry.displayRow }}</td>

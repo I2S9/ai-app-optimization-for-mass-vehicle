@@ -1,10 +1,10 @@
 /**
  * Main-thread facade: HyperFormula runs in workbookEngine.worker.js.
+ * Worker is lazy — not spawned until first formula load (faster boot).
  */
-import { HyperFormula } from 'hyperformula';
-import { WorkbookEngine } from './workbookEngineCore.js?v=hf-worker2';
+import { WorkbookEngine } from './workbookEngineCore.js?v=hf-worker3';
 
-const WORKER_URL = '/js/workbookEngine.worker.js?v=hf-worker2';
+const WORKER_URL = '/js/workbookEngine.worker.js?v=hf-worker3';
 
 export class WorkbookEngineClient {
   constructor() {
@@ -17,7 +17,13 @@ export class WorkbookEngineClient {
     /** @type {Map<string, Set<string>>} */
     this.formulaKeysBySheet = new Map();
     this._fallback = null;
-    this._initWorker();
+    this._initPromise = null;
+  }
+
+  _ensureWorker() {
+    if (this._initPromise) return this._initPromise;
+    this._initPromise = Promise.resolve().then(() => this._initWorker());
+    return this._initPromise;
   }
 
   _initWorker() {
@@ -31,7 +37,9 @@ export class WorkbookEngineClient {
     } catch (err) {
       console.warn('Web Worker unavailable, using main-thread engine:', err);
       this._useWorker = false;
-      this._fallback = new WorkbookEngine(HyperFormula);
+      return import('hyperformula').then(({ HyperFormula }) => {
+        this._fallback = new WorkbookEngine(HyperFormula);
+      });
     }
   }
 
@@ -62,7 +70,8 @@ export class WorkbookEngineClient {
     pending.resolve(values ?? {});
   }
 
-  _call(type, payload) {
+  async _call(type, payload) {
+    await this._ensureWorker();
     if (!this._useWorker) {
       return this._callFallback(type, payload);
     }

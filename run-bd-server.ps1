@@ -68,4 +68,45 @@ Stop-UserListenerOnPort $Port
 Stop-UserListenerOnPort 5174
 
 $openBrowser = -not $NoBrowser
+
+function Open-InMicrosoftEdge([string]$url) {
+    $edgePaths = @(
+        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+        "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+    )
+    $edge = $edgePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if ($edge) {
+        Start-Process -FilePath $edge -ArgumentList $url
+    } else {
+        Start-Process $url
+    }
+}
+
+$nodeExe = Get-Command node -ErrorAction SilentlyContinue
+$serverMjs = Join-Path $root "web\server.mjs"
+if ($nodeExe -and (Test-Path $serverMjs)) {
+    $env:PORT = "$Port"
+    $url = "http://127.0.0.1:$Port/"
+    Set-Content -Path $pidFile -Value $PID -Encoding ASCII -NoNewline
+    Write-Host ""
+    Write-Host "BD page: $url" -ForegroundColor Green
+    Write-Host "API progressive (Node): meta + cellules par blocs" -ForegroundColor Cyan
+    Write-Host "Ctrl+C pour arreter." -ForegroundColor Gray
+    Write-Host ""
+    if ($openBrowser) {
+        Open-InMicrosoftEdge $url
+    }
+    Push-Location (Join-Path $root "web")
+    try {
+        & node server.mjs
+    } finally {
+        Pop-Location
+        if (Test-Path $pidFile) { Remove-Item $pidFile -Force -ErrorAction SilentlyContinue }
+    }
+    exit $LASTEXITCODE
+}
+
+Write-Host "Node.js absent — serveur statique (sans API chunks)." -ForegroundColor Yellow
+Write-Host "Installez Node ou lancez: node web/server.mjs" -ForegroundColor Yellow
+
 & (Join-Path $root "scripts\serve-web.ps1") -Port $Port -WebRoot $webRoot -OpenBrowser:$openBrowser

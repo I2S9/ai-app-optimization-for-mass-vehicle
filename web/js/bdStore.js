@@ -300,8 +300,12 @@ function asSectionRowSet(sectionHeaderRows) {
 /**
  * One yellow row per L1 section (column AP only + CA bands 5/139 + first _Unassigned).
  */
-export function computeSectionHeaderRows(sheet) {
-  const map = buildCellMap(sheet.cells, sheet.headerRows);
+export function computeSectionHeaderRows(sheet, cellMap = null) {
+  const map =
+    cellMap ??
+    (sheet.cellMap instanceof Map
+      ? sheet.cellMap
+      : buildCellMap(sheet.cells, sheet.headerRows));
   const l1Col = bdSubsystemL1Col(sheet);
   const l2Col = bdSubsystemL2Col(sheet);
   const rows = new Set();
@@ -620,11 +624,15 @@ export function isOutlineRow(map, row, sectionHeaderRows) {
   );
 }
 /** Outline = ADAPTATION/ADTH on rows 5/139 + structure rows. */
-export function computeOutlineRows(sheet) {
-  const map = buildCellMap(sheet.cells, sheet.headerRows);
+export function computeOutlineRows(sheet, cellMap = null) {
+  const map =
+    cellMap ??
+    (sheet.cellMap instanceof Map
+      ? sheet.cellMap
+      : buildCellMap(sheet.cells, sheet.headerRows));
   const sectionRows = asSectionRowSet(
-    sheet.sectionHeaderRows ||
-      computeSectionHeaderRows(sheet).rows
+    sheet.sectionHeaderRows ??
+      computeSectionHeaderRows(sheet, map).rows
   );
   const rows = [];
   for (let r = 2; r <= sheet.lastRow; r++) {

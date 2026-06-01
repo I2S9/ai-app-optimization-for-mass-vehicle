@@ -10,8 +10,13 @@
   min-height: 0;
   overflow: auto;
   position: relative;
-  /* Avoid browser scroll anchoring when virtual rows mount/unmount */
   overflow-anchor: none;
+}
+
+/** Off-screen rows stay in DOM but skip layout/paint until scrolled near. */
+.bd-table tbody tr.grid-row-cv {
+  content-visibility: auto;
+  contain-intrinsic-size: 21px;
 }
 .bd-table {
   border-collapse: collapse;

@@ -1,35 +1,24 @@
-# Golden cells — tests calcul & sauvegarde
+# Golden cells — bench recalcul BD → Synthesis
 
-Remplir après edit dans l’app. Repères : **colonne Excel** + **ligne Excel** (`excelRow` dans la grille si affiché).
+5 cas témoin à valider après chaque changement moteur / perf.
 
-**Formules BD** : lues depuis `bd-sheet.json` (champ `f` à l’export). Vous n’avez pas à les saisir ici sauf **exception** (nouvelle règle web ≠ Excel) — dans ce cas, une ligne « règle » suffit, pas tout le classeur.
+| # | Action | Cellule à vérifier | Attendu | Cible perf |
+|---|--------|-------------------|---------|------------|
+| 1 | Edit masse BD ligne 50 col masse | Syn ligne blue ~50, col H | Masse recalculée (SUMPRODUCT) | < 100 ms |
+| 2 | Edit filtre Syn row 15 col H | Syn row 15 col H | Filtre appliqué, masses blue mises à jour | < 100 ms |
+| 3 | Edit Syn adaptation row 30 col D | Syn row 25 col C (somme) | Total bande ADAPTATION | < 100 ms |
+| 4 | F5 cold start | BD visible | Grille BD sans freeze | < 3 s |
+| 5 | Menu BD → Synthesis (2e fois) | Syn scroll row 1 | Navigation instantanée | < 200 ms |
 
-## Calcul BD → Synthesis
+## Console bench
 
-| # | Action | Cellule BD | Cellule Syn à vérifier | Excel attendu | App actuel | OK ? |
-|---|--------|------------|------------------------|---------------|------------|------|
-| 1 | Edit masse | ex. O47 = | ex. T14 = | | | |
-| 2 | Edit filtre Syn | — | ex. ligne filtre col G | | | |
-| 3 | | | | | | |
+Après chargement de l'app (Ctrl+F5) :
 
-## Formules BD (HyperFormula)
+```js
+await window.__runPerfBench?.()
+```
 
-| # | Cellule (col + row) | Excel | App après edit dépendance | OK ? |
-|---|---------------------|-------|---------------------------|------|
-| 4 | | | | |
-| 5 | | | | |
+## Notes
 
-## Sauvegarde (après API Databricks)
-
-| # | Action | Résultat attendu | OK ? |
-|---|--------|------------------|------|
-| 6 | Edit + Enregistrer + F5 | Valeur identique | |
-| 7 | Deux onglets même projet | Pas d’écrasement (revision) | |
-
-## Synthesis affichage (hors moteur)
-
-Colonnes A–J : valeurs OK sur beaucoup de lignes — noter ici seulement les **écarts restants** (K+, couleurs).
-
-| Zone | Colonnes | Lignes | Problème | Priorité |
-|------|----------|--------|----------|----------|
-| ex. véhicules | K–P | 10–20 | couleur | P2 |
+- Colonnes **K+** : valeurs preset / JSON — pas encore recalcul live moteur complet.
+- Si un cas échoue, noter machine + navigateur + temps perçu.

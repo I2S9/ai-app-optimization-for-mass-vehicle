@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { WorkbookEngineClient } from './workbookEngineClient.js?v=hf-worker2';
+import { WorkbookEngineClient } from './workbookEngineClient.js?v=hf-worker3';
 import {
   displayValue,
   formatMassDisplayValue,
@@ -8,7 +8,8 @@ import {
   bdSubsystemL1Col,
   bdSubsystemL2Col,
 } from './bdStore.js';
-import { BD_MASS_COL } from './bdColumnConfig.js';
+import { BD_MASS_COL, BD_SUBSYSTEM_L2_COL } from './bdColumnConfig.js';
+import { canonicalL2MatchKey } from './bdTranslate.js';
 import {
   buildBdColumnIndex,
   buildSumproductL2Index,
@@ -33,12 +34,18 @@ import {
   describeSynCellFormula,
   synVehicleMassExcelCol,
   affectsAdaptationSum,
-} from './synthesisCalc.js?v=grid-perf2';
+} from './synthesisCalc.js?v=grid-perf9';
 import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=grid-perf2';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
   const revision = ref(0);
+  /** Grid display invalidation — decoupled from full revision bumps. */
+  const displayTick = ref(0);
+  /** Synthesis live-calc invalidation (BD edit → Syn SUMPRODUCT only). */
+  const synCalcTick = ref(0);
+  let displayDirtyAll = true;
+  const displayDirtyKeys = new Set();
   const ready = ref(false);
   const loading = ref(false);
   const error = ref(null);
@@ -49,6 +56,8 @@ export function createWorkbookSession() {
   let bdL1Col = null;
   let bdL2Col = null;
   let sumproductL2Index = null;
+  /** @type {Map<number, string>} BD row → canonical L2 key for O(1) index patch */
+  let bdRowToL2Key = new Map();
   /** @type {Map<string, number[]>} lazy BD row filter per vehicle column */
   let vehColFilterIndex = new Map();
   let synGridGetter = null;
@@ -57,6 +66,25 @@ export function createWorkbookSession() {
   let synRowClassGetter = null;
   let synSectionRows = [];
   const sumproductCache = new Map();
+
+  function bumpDisplay(all = true, keys = []) {
+    if (all) {
+      displayDirtyAll = true;
+      displayDirtyKeys.clear();
+    } else {
+      if (displayDirtyAll) return;
+      for (const k of keys) displayDirtyKeys.add(k);
+    }
+    displayTick.value += 1;
+  }
+
+  function takeDisplayDirty() {
+    const all = displayDirtyAll;
+    const keys = displayDirtyAll ? null : new Set(displayDirtyKeys);
+    displayDirtyAll = false;
+    displayDirtyKeys.clear();
+    return { all, keys };
+  }
 
   function rebuildBdDisplayContext(data) {
     if (!data) {
@@ -67,7 +95,10 @@ export function createWorkbookSession() {
       return;
     }
     bdSheetMeta = data;
-    bdCellMap = buildCellMap(data.cells, data.headerRows);
+    bdCellMap =
+      data.cellMap instanceof Map
+        ? data.cellMap
+        : buildCellMap(data.cells, data.headerRows);
     bdL1Col = bdSubsystemL1Col(data);
     bdL2Col = bdSubsystemL2Col(data);
   }
@@ -118,9 +149,68 @@ export function createWorkbookSession() {
   function rebuildSumproductIndex() {
     if (!bdCols) {
       sumproductL2Index = null;
+      bdRowToL2Key = new Map();
       return;
     }
     sumproductL2Index = buildSumproductL2Index(bdCols, getBdValue);
+    bdRowToL2Key = new Map();
+    for (const [key, rows] of sumproductL2Index) {
+      for (const r of rows) bdRowToL2Key.set(r, key);
+    }
+  }
+
+  function patchSumproductL2IndexForRow(row) {
+    if (!sumproductL2Index) return;
+    const oldKey = bdRowToL2Key.get(row);
+    if (oldKey) {
+      const arr = sumproductL2Index.get(oldKey);
+      if (arr) {
+        const i = arr.indexOf(row);
+        if (i >= 0) arr.splice(i, 1);
+      }
+    }
+    const q = String(getBdValue(row, 'Q') ?? bdCols?.Q?.[row] ?? '').trim();
+    if (q !== 'S') {
+      bdRowToL2Key.delete(row);
+      return;
+    }
+    const l2Raw =
+      getBdValue(row, BD_SUBSYSTEM_L2_COL) ??
+      bdCols?.[BD_SUBSYSTEM_L2_COL]?.[row] ??
+      '';
+    const newKey = canonicalL2MatchKey(l2Raw);
+    if (!newKey) {
+      bdRowToL2Key.delete(row);
+      return;
+    }
+    if (!sumproductL2Index.has(newKey)) sumproductL2Index.set(newKey, []);
+    sumproductL2Index.get(newKey).push(row);
+    bdRowToL2Key.set(row, newKey);
+  }
+
+  function bdL2KeyAtRow(row) {
+    const l2Raw =
+      getBdValue(row, BD_SUBSYSTEM_L2_COL) ??
+      bdCols?.[BD_SUBSYSTEM_L2_COL]?.[row] ??
+      '';
+    return canonicalL2MatchKey(l2Raw);
+  }
+
+  /** Drop SUMPRODUCT cache entries for one L2 label (O(cache), not O(all Syn cells)). */
+  function invalidateSumproductForL2(l2Key, { sectionSums = false } = {}) {
+    if (!l2Key) return;
+    for (const k of [...sumproductCache.keys()]) {
+      if (!k.startsWith('b:')) continue;
+      const synRow = parseInt(k.split(':')[1], 10);
+      if (!Number.isFinite(synRow)) continue;
+      const labelKey = canonicalL2MatchKey(getSynCell(synRow, 'F'));
+      if (labelKey === l2Key) sumproductCache.delete(k);
+    }
+    if (sectionSums) {
+      for (const k of [...sumproductCache.keys()]) {
+        if (k.startsWith('g:')) sumproductCache.delete(k);
+      }
+    }
   }
 
   function getVehColFilterRows(col) {
@@ -146,13 +236,43 @@ export function createWorkbookSession() {
   }
 
   function invalidateSumproductCaches(vehCol = null) {
-    sumproductCache.clear();
+    for (const k of sumproductCache.keys()) {
+      if (k.startsWith('b:') || k.startsWith('g:') || k.startsWith('d:')) {
+        sumproductCache.delete(k);
+      }
+    }
     if (vehCol) {
       vehColFilterIndex.delete(synVehicleMassExcelCol(vehCol));
     } else {
       vehColFilterIndex.clear();
     }
     rebuildSynSectionRows();
+  }
+
+  function invalidateAfterBdEdit(row, col) {
+    revision.value += 1;
+    bumpDisplay(false, [`${row}:${col}`]);
+  }
+
+  function applyBdEditInvalidation(row, col) {
+    const isMass = col === BD_MASS_COL;
+    const isFilter = col === 'O' || col === 'P';
+    const isIndexCol = col === 'Q' || col === BD_SUBSYSTEM_L2_COL;
+    if (!isMass && !isFilter && !isIndexCol) return;
+
+    if (isIndexCol) {
+      patchSumproductL2IndexForRow(row);
+      invalidateSumproductForL2(bdL2KeyAtRow(row), { sectionSums: true });
+      vehColFilterIndex.clear();
+    } else if (isMass) {
+      invalidateSumproductForL2(bdL2KeyAtRow(row), { sectionSums: true });
+    } else if (isFilter) {
+      vehColFilterIndex.clear();
+      for (const k of [...sumproductCache.keys()]) {
+        if (k.startsWith('b:') || k.startsWith('g:')) sumproductCache.delete(k);
+      }
+    }
+    synCalcTick.value += 1;
   }
 
   function getBlueMaaValue(row, col) {
@@ -279,6 +399,7 @@ export function createWorkbookSession() {
         invalidateSumproductCaches();
         ready.value = true;
         revision.value += 1;
+        bumpDisplay(true);
         loading.value = false;
         void engine
           .loadSheetData('BD', bdEntry.data)
@@ -290,6 +411,7 @@ export function createWorkbookSession() {
           })
           .finally(() => {
             revision.value += 1;
+            bumpDisplay(true);
           });
         return;
       }
@@ -300,6 +422,7 @@ export function createWorkbookSession() {
     } finally {
       loading.value = false;
       revision.value += 1;
+      bumpDisplay(true);
     }
   }
 
@@ -316,6 +439,7 @@ export function createWorkbookSession() {
     synSheetMeta = sheet;
     invalidateSumproductCaches();
     revision.value += 1;
+    bumpDisplay(true);
   }
 
   function getSynCell(row, col) {
@@ -369,9 +493,8 @@ export function createWorkbookSession() {
           cell.userEdited = true;
           delete cell.f;
         }
-        rebuildSumproductIndex();
+        applyBdEditInvalidation(row, col);
       }
-      invalidateSumproductCaches();
       if (ready.value && engine.hasFormula(sheetName, row, col)) {
         try {
           await engine.setCellValue(sheetName, row, col, value);
@@ -379,7 +502,7 @@ export function createWorkbookSession() {
           console.warn('HyperFormula setCellValue failed:', e);
         }
       }
-      revision.value += 1;
+      invalidateAfterBdEdit(row, col);
       return;
     } else if (sheetName === 'SYNTHESIS' && synGridGetter) {
       const cell = synGridGetter(row, col);
@@ -388,18 +511,24 @@ export function createWorkbookSession() {
         delete cell.f;
       }
       if (affectsAdaptationSum(row, col)) {
-        sumproductCache.clear();
+        for (const k of sumproductCache.keys()) {
+          if (k.startsWith('d:')) sumproductCache.delete(k);
+        }
+        synCalcTick.value += 1;
       }
       if (isSynFilterEdit(row, col)) {
         invalidateSumproductCaches(col);
+        synCalcTick.value += 1;
       } else if (
         col === 'F' &&
         row >= (synSheetMeta?.dataStartRow ?? 15)
       ) {
         invalidateSumproductCaches();
+        synCalcTick.value += 1;
       }
     }
     revision.value += 1;
+    bumpDisplay(false, [`${row}:${col}`]);
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
@@ -546,6 +675,9 @@ export function createWorkbookSession() {
 
   return {
     revision,
+    displayTick,
+    synCalcTick,
+    takeDisplayDirty,
     ready,
     loading,
     error,
