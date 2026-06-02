@@ -303,9 +303,16 @@ export function caChapterDateLabel(row) {
 export function isSectionBandRow(map, row) {
   return isCaBandRow(map, row);
 }
+/** Cache Array→Set so per-row render lookups don't rebuild the Set every call. */
+const _sectionRowSetCache = new WeakMap();
 function asSectionRowSet(sectionHeaderRows) {
   if (sectionHeaderRows instanceof Set) return sectionHeaderRows;
-  return new Set(sectionHeaderRows || []);
+  if (!sectionHeaderRows) return new Set();
+  const cached = _sectionRowSetCache.get(sectionHeaderRows);
+  if (cached) return cached;
+  const set = new Set(sectionHeaderRows);
+  _sectionRowSetCache.set(sectionHeaderRows, set);
+  return set;
 }
 /**
  * One yellow row per L1 section (column AP only + CA bands 5/139 + first _Unassigned).

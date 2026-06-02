@@ -38,7 +38,11 @@ import {
 } from './synStore.js?v=syn-apbb8';
 import { runInChunks, yieldToMain } from './yieldMain.js?v=2';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
-import { sanitizeSynAdaptationSumCells, sanitizeSynLiveMassCells } from './synthesisCalc.js?v=syn-apbb8';
+import {
+  sanitizeSynAdaptationSumCells,
+  sanitizeSynAdaptBandExcelCells,
+  sanitizeSynLiveMassCells,
+} from './synthesisCalc.js?v=syn-apbb8';
 import { findSynAdaptationRow } from './synStore.js';
 
 const POSITION_INSERT_AFTER = 'AD';
@@ -522,6 +526,7 @@ export async function transformSynthesisSheetAsync(sheet) {
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
   applySynRowsApbbPresetCells(cells);
+  sanitizeSynAdaptBandExcelCells(cells);
   sanitizeSynLiveMassCells(cells);
   await yieldToMain();
   const headerRows = applySynRowsApbbPresetHeaderRows(
@@ -552,7 +557,7 @@ export async function transformSynthesisSheetAsync(sheet) {
   /** Totals on “-ADAPTATION” row; row below (_ADDBLUE) keeps its own C..J values. */
   const adaptationSumRow = adaptationHeaderRow;
   const adaptationSumFromRow = adaptationHeaderRow + 2;
-  const adaptationSumToRow = Math.min(41, effectiveLastRow);
+  const adaptationSumToRow = Math.min(40, effectiveLastRow);
   const adaptationMeta = {
     adaptationHeaderRow,
     adaptationSumRow,
@@ -601,6 +606,7 @@ export function transformSynthesisSheet(sheet) {
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
   applySynRowsApbbPresetCells(cells);
+  sanitizeSynAdaptBandExcelCells(cells);
   sanitizeSynLiveMassCells(cells);
   const headerRows = applySynRowsApbbPresetHeaderRows(
     applySynRowsAcanPresetHeaderRows(
@@ -630,7 +636,7 @@ export function transformSynthesisSheet(sheet) {
   /** Totals on “-ADAPTATION” row; row below (_ADDBLUE) keeps its own C..J values. */
   const adaptationSumRow = adaptationHeaderRow;
   const adaptationSumFromRow = adaptationHeaderRow + 2;
-  const adaptationSumToRow = Math.min(41, effectiveLastRow);
+  const adaptationSumToRow = Math.min(40, effectiveLastRow);
   const adaptationMeta = {
     adaptationHeaderRow,
     adaptationSumRow,

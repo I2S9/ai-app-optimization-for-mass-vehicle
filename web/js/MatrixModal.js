@@ -8,7 +8,7 @@ import {
   archiveSubsection,
   restoreSubsection,
   sortModelArchiveToEnd,
-} from './structureModel.js?v=matrix14';
+} from './structureModel.js?v=matrix16';
 
 const DEFAULT_SECTION_COLOR = '#ffff00';
 const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
@@ -669,6 +669,16 @@ export default {
       };
     }
 
+    function openAddSection() {
+      itemEditor.value = {
+        kind: 'add-section',
+        sectionId: null,
+        label: 'NEW SECTION',
+        color: DEFAULT_SECTION_COLOR,
+        title: 'Add section',
+      };
+    }
+
     function closeItemEditor() {
       itemEditor.value = null;
     }
@@ -696,6 +706,25 @@ export default {
         subAnchorId.value = id;
         closeItemEditor();
         scrollToSub(id);
+        notifyChange();
+      } else if (ed.kind === 'add-section') {
+        const id = `sec-${Date.now()}`;
+        const activeCount = model.value.sections.filter((s) => !s.archived).length;
+        model.value.sections.splice(activeCount, 0, {
+          id,
+          label: formatSectionLabel(label) || 'NEW SECTION',
+          color: color || DEFAULT_SECTION_COLOR,
+          headerRow: null,
+          endRow: null,
+          subsections: [],
+          customLines: [],
+          isNew: true,
+        });
+        selectedIds.value =
+          selectedIds.value.length >= 1
+            ? [selectedIds.value[selectedIds.value.length - 1], id]
+            : [id];
+        closeItemEditor();
         notifyChange();
       }
     }
@@ -808,6 +837,7 @@ export default {
       closeColorPick,
       applyPaletteColor,
       openAddSubsection,
+      openAddSection,
       closeItemEditor,
       applyItemEditor,
       sectionStyle,
@@ -884,6 +914,13 @@ export default {
                   @dragover.prevent="onSecSlotOver(model.sections.length)"
                   @drop.prevent="onDropSection(model.sections.length)"
                 ></div>
+                <button
+                  type="button"
+                  class="matrix-sec-add"
+                  title="Add section"
+                  aria-label="Add section"
+                  @click="openAddSection"
+                >+ Section</button>
               </aside>
               <div class="matrix-columns">
                 <div

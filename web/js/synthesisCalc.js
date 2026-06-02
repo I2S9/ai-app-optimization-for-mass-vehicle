@@ -252,7 +252,7 @@ function isSynCalcRow(row, sheet) {
 /** ADAPTATION block — default Excel rows (overridden per sheet via adaptationSumRow). */
 export const SYN_ADAPTATION_SUM_ROW = 25;
 export const SYN_ADAPTATION_SUM_FROM_ROW = 27;
-export const SYN_ADAPTATION_SUM_TO_ROW = 41;
+export const SYN_ADAPTATION_SUM_TO_ROW = 40;
 
 /** Excel row for ADAPTATION total (= row after “-ADAPTATION” label). */
 export function synAdaptationSumRow(sheet) {
@@ -286,24 +286,19 @@ function colToNumLocal(col) {
   return n;
 }
 
-/** Row 26 total column — display C…J only (not label F, pillars, spacers). */
-export function isSynRow26SumCol(col) {
-  if (!col || col === 'F') return false;
-  if (isSynSpacerDisplayExcelCol(col)) return false;
-  if (isSynSp2DisplayExcelCol(col)) return false;
-  if (isSynSp2RestartDisplayExcelCol(col)) return false;
-  if (isSynBuiltinPillarExcelCol(col)) return false;
-  const displayCol = excelToDisplayCol(String(col));
-  // User requirement: row 26 is the SUM of rows 27..41 for the same column,
-  // but only for the main vehicle columns displayed as C..J.
-  if (!displayCol) return false;
-  const n = colToNumLocal(String(displayCol));
-  return n >= colToNumLocal('C') && n <= colToNumLocal('J');
+/** Excel H…O (UI display C…J) — adaptation numeric band; never BD SUMPRODUCT. */
+export function isSynAdaptBandExcelCol(col) {
+  return isSynHeaderPanelVehicleCol(col);
 }
 
-/** @deprecated alias */
+/** @deprecated use {@link isSynAdaptBandExcelCol} */
+export function isSynRow26SumCol(col) {
+  return isSynAdaptBandExcelCol(col);
+}
+
+/** ADAPTATION total row — Excel H…O only (same band as rows 27–40). */
 export function isSynAdaptationSumCol(col) {
-  return isSynRow26SumCol(col);
+  return isSynAdaptBandExcelCol(col);
 }
 
 export function isSynAdaptationSumCell(row, col, sheet = null) {
@@ -648,6 +643,7 @@ export function isSynSumproductDataCell(
   rowClass = ''
 ) {
   if (cell && cell.userEdited) return false;
+  if (isSynAdaptBandExcelCol(col)) return false;
   if (!isSynVehicleMassCol(col)) return false;
   if (!isSynCalcRow(row, sheet)) return false;
   if (Number(row) === synAdaptationSumRow(sheet)) return false;
@@ -665,15 +661,37 @@ export function isSynCalculatedMassCell(
   synLabel = '',
   rowClass = ''
 ) {
-  if (cell && cell.f && /SUMPRODUCT/i.test(cell.f)) return true;
+  const r = Number(row);
+  if (row != null && col != null && sheet) {
+    if (isSynAdaptationSumCell(r, col, sheet)) return true;
+    if (
+      isSynAdaptBandExcelCol(col) &&
+      Number.isFinite(r) &&
+      r >= synAdaptationSumFromRow(sheet) &&
+      r !== synAdaptationSumRow(sheet)
+    ) {
+      return false;
+    }
+  }
+  if (cell && cell.f && /SUMPRODUCT/i.test(cell.f)) {
+    if (
+      row != null &&
+      col != null &&
+      isSynAdaptBandExcelCol(col) &&
+      Number.isFinite(r) &&
+      r >= SYN_ADAPTATION_SUM_FROM_ROW
+    ) {
+      return false;
+    }
+    return true;
+  }
   if (row == null || col == null || !sheet) {
     return Boolean(cell && cell.f && /SUMPRODUCT/i.test(cell.f));
   }
   return (
     isSynSectionSumDataCell(row, col, sheet, cell, synLabel, rowClass) ||
     isSynSumproductDataCell(row, col, sheet, cell, synLabel, rowClass) ||
-    isSynAbDiffCell(row, col, sheet) ||
-    isSynAdaptationSumCell(row, col)
+    isSynAbDiffCell(row, col, sheet)
   );
 }
 
@@ -715,7 +733,20 @@ export function sanitizeSynLiveMassCells(cells = []) {
   return cells;
 }
 
-/** Drop stale export values on the ADAPTATION total row so live SUM(27:41) wins. */
+/** Strip export SUMPRODUCT / mat on Excel H…O rows 27+ (presets + userEdited only). */
+export function sanitizeSynAdaptBandExcelCells(cells = []) {
+  for (const cell of cells) {
+    const r = Number(cell.r);
+    if (!Number.isFinite(r) || r < SYN_ADAPTATION_SUM_FROM_ROW) continue;
+    if (!isSynAdaptBandExcelCol(cell.c)) continue;
+    if (cell.userEdited) continue;
+    if (cell.f && /SUMPRODUCT/i.test(cell.f)) delete cell.f;
+    if (cell.mat) delete cell.mat;
+  }
+  return cells;
+}
+
+/** Drop stale export values on the ADAPTATION total row so live SUM(27:40) wins. */
 export function sanitizeSynAdaptationSumCells(cells = [], sheet = null) {
   for (let i = cells.length - 1; i >= 0; i--) {
     const cell = cells[i];
@@ -754,7 +785,9 @@ export function describeSynCellFormula(
   const colRef = dispCol;
 
   if (isSynAdaptationSumCell(r, col)) {
-    return `=SOMME(${colRef}${SYN_ADAPTATION_SUM_FROM_ROW}:${colRef}${SYN_ADAPTATION_SUM_TO_ROW}) — total colonne (lignes bleues + SOMMEPROD BD)`;
+    const from = synAdaptationSumFromRow(sheet);
+    const to = synAdaptationSumToRow(sheet);
+    return `=SOMME(${colRef}${from}:${colRef}${to}) — total colonne (lignes ${from}–${to})`;
   }
 
   if (

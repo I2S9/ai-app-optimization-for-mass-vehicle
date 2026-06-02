@@ -501,9 +501,6 @@ export function createWorkbookSession() {
   }
 
   function getAdaptationBlockNumeric(row, col) {
-    if (isSynVehicleMassCol(col) || isSynAbDiffExcelCol(col)) {
-      return resolveSynNumericAt(row, col);
-    }
     if (!synGridGetter) return 0;
     return getSynAdaptBandNumeric(synGridGetter, row, col);
   }
@@ -569,7 +566,9 @@ export function createWorkbookSession() {
       const cell = synGridGetter(row, col);
       if (cell) {
         cell.v = value;
+        cell.userEdited = true;
         delete cell.f;
+        delete cell.mat;
       }
       if (affectsAdaptationSum(row, col, synSheetMeta)) {
         adaptationSumTick.value += 1;
@@ -602,7 +601,7 @@ export function createWorkbookSession() {
 
   function getDisplayValue(sheetName, row, col, cell) {
     if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col, synSheetMeta)) {
-      if (!synGridGetter) return '0';
+      if (!synGridGetter) return '';
       const n = computeAdaptationRowSum(
         getAdaptationBlockNumeric,
         col,

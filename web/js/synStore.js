@@ -44,6 +44,7 @@ import {
 } from './synthesisPerf.js';
 import {
   isSynAdaptationSumCell,
+  isSynAdaptBandExcelCol,
   isSynSumproductDataCell,
   isSynSectionSumDataCell,
   isSynAbDiffCell,
@@ -283,25 +284,8 @@ function synPresetCellIndex(cells) {
   return index;
 }
 
-/** Seed row 25 C–J when sheet cells are empty (keeps user edits). */
+/** Row 25 vehicle cols are live SUM(27:40) — no static presets (see adaptationSumLocal). */
 export function applySynRow25PresetCells(cells = []) {
-  const index = synPresetCellIndex(cells);
-  const row = SYN_ZERO_FILL_FIRST_ROW;
-  for (const [display, value] of SYN_ROW_25_DISPLAY_VALUES) {
-    if (value == null) continue;
-    const col = displayToExcelCol(display);
-    let cell = index.get(`${row}:${col}`);
-    if (!cell) {
-      cell = { r: row, c: col, v: String(value) };
-      cells.push(cell);
-      index.set(`${row}:${col}`, cell);
-    } else if (
-      !cell.userEdited &&
-      (!cell.v || String(cell.v).trim() === '')
-    ) {
-      cell.v = String(value);
-    }
-  }
   return cells;
 }
 
@@ -321,14 +305,6 @@ export function getSynAdaptBandNumeric(getCell, row, col) {
   if (preset !== undefined) {
     if (preset == null || preset === '') return 0;
     return Number(preset);
-  }
-  // M…AA / AC…AN body rows — live SOMMEPROD from Database, never static Excel presets.
-  if (isSynVehicleMassCol(col) && row >= SYN_ADAPTATION_SUM_FROM_ROW) {
-    const raw = cell ? displayValue(cell) : '';
-    if (raw && isSynNumericRaw(raw)) {
-      return parseSynBandNum(raw);
-    }
-    return 0;
   }
   const maaPreset = synRowMaaPresetRaw(row, col);
   if (maaPreset !== undefined) {
@@ -3466,6 +3442,32 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {
     const rowClass = synRowStyleClass(map, row, sheet);
     const label = synLabel(map, row);
+    if (
+      isSynAdaptBandExcelCol(col) &&
+      row >= SYN_ADAPTATION_SUM_FROM_ROW &&
+      !isSynAdaptationSumCell(row, col, sheet)
+    ) {
+      if (cell && cell.userEdited) {
+        const rawEdited = displayValue(cell);
+        if (isSynNumericRaw(rawEdited)) {
+          return synTranslateText(formatSynNumericDisplay(rawEdited), col);
+        }
+        return synTranslateText(rawEdited, col);
+      }
+      const cjPreset = synRowCjPresetRaw(row, col);
+      if (cjPreset !== undefined) {
+        if (cjPreset == null || cjPreset === '') return '';
+        return synTranslateText(formatSynNumericDisplay(String(cjPreset)), col);
+      }
+      const raw = cell ? displayValue(cell) : '';
+      if (raw && String(raw).trim() !== '') {
+        if (isSynNumericRaw(raw)) {
+          return synTranslateText(formatSynNumericDisplay(raw), col);
+        }
+        return synTranslateText(String(raw).trim(), col);
+      }
+      return '';
+    }
     const liveMassCell = isSynCalculatedMassCell(
       cell,
       row,

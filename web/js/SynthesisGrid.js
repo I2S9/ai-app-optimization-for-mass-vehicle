@@ -17,9 +17,7 @@ import {
   isSynAdaptationSumCell,
   affectsAdaptationSum,
   synAdaptationSumRow,
-  isSynSumproductDataCell,
-  isSynSectionSumDataCell,
-  isSynAbDiffCell,
+  computeAdaptationRowSum,
   isSynCalculatedMassCell,
 } from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
@@ -163,6 +161,7 @@ import {
   SYN_SP2_RESTART_BG,
   isSynSp2RestartDisplayExcelCol,
   synLabel,
+  getSynAdaptBandNumeric,
 } from './synStore.js?v=grid-perf2';
 import {
   SYN_STICKY_COL,
@@ -633,6 +632,39 @@ export default {
       bumpCellModelCache();
     }
 
+    /** SUM(ADAPTATION) cols C..J — local, instant (rows adaptationSumFrom..To on sheet). */
+    function adaptationSumLocal(col) {
+      const sheet = props.sheet;
+      const from =
+        sheet && sheet.adaptationSumFromRow != null ? sheet.adaptationSumFromRow : 27;
+      const to =
+        sheet && sheet.adaptationSumToRow != null ? sheet.adaptationSumToRow : 40;
+      const map = cellMap.value;
+      const getAt = (r, c) => getCell(map, r, c);
+      const n = computeAdaptationRowSum(
+        (r, c) => getSynAdaptBandNumeric(getAt, r, c),
+        col,
+        from,
+        to
+      );
+      return formatVal(String(n));
+    }
+
+    function previewAdaptationBandInput(row, col, raw) {
+      const key = `${row}:${col}`;
+      let cell = cellMap.value.get(key);
+      if (!cell) {
+        cell = { r: row, c: col, v: raw, userEdited: true };
+        props.sheet.cells.push(cell);
+        cellMap.value.set(key, cell);
+      } else {
+        cell.v = raw;
+        cell.userEdited = true;
+      }
+      invalidateAdaptationSumCol(col);
+      editEpoch.value += 1;
+    }
+
     function commitCellInput(row, col, value, previousValue) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
@@ -679,7 +711,7 @@ export default {
       onCellMouseDown,
       onCellSpanMouseDown: onCellSpanMouseDownBase,
       onCellFocus: onCellFocusBase,
-      onCellInput,
+      onCellInput: onCellInputBase,
       onCellBlur,
       onCellKeydown: onCellKeydownBase,
       prepareNavigate,
@@ -698,25 +730,14 @@ export default {
       onCellFocusBase(row, col, event);
     }
 
-    /** Formula-driven cells (SUMPRODUCT, adaptation totals) are not manually editable. */
+    /**
+     * Only the ADAPTATION total row (=SOMME(...)) stays locked. Every other cell —
+     * including blue SUMPRODUCT, green section sums and the AB diff — is editable in
+     * real time; typing a value overrides the live formula (userEdited path).
+     */
     function cellReadonly(row, col) {
       if (row == null) return true;
-      if (isSynAdaptationSumCell(row, col, props.sheet)) return true;
-      const cell = getCell(cellMap.value, row, col);
-      if (
-        props.session &&
-        props.session.isReadonlySynCell &&
-        props.session.isReadonlySynCell(row, col, cell)
-      ) {
-        return true;
-      }
-      const label = synLabel(cellMap.value, row);
-      const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
-      return (
-        isSynAbDiffCell(row, col, props.sheet) ||
-        isSynSectionSumDataCell(row, col, props.sheet, cell, label, rowClass) ||
-        isSynSumproductDataCell(row, col, props.sheet, cell, label, rowClass)
-      );
+      return isSynAdaptationSumCell(row, col, props.sheet);
     }
 
     const cellNavigation = createGridCellNavigation({
@@ -744,6 +765,14 @@ export default {
       activateCell,
       setNavigationLock
     );
+
+    function onCellInputLive(row, col, event) {
+      onCellInputBase(row, col, event);
+      if (!affectsAdaptationSum(row, col, props.sheet)) return;
+      const el = event.target;
+      if (!el) return;
+      previewAdaptationBandInput(row, col, el.value);
+    }
 
     function selectCell(row, col) {
       if (row == null || !col) return;
@@ -781,12 +810,11 @@ export default {
     }
 
     function cellDisplayStatic(row, col, cell, label, rowClass) {
-      let displayCell = cell;
       if (isSynAdaptationSumCell(row, col, props.sheet)) {
-        displayCell = null;
+        return adaptationSumLocal(col);
       }
       const shown = synDisplayValue(
-        displayCell,
+        cell,
         cellMap.value,
         row,
         col,
@@ -813,20 +841,11 @@ export default {
       if (row == null) return '';
       const hitKey = `${row}:${col}`;
       if (displayCache.has(hitKey)) return displayCache.get(hitKey);
-      // ADAPTATION total row — engine only (SUM rows adaptationSumFrom..To, cols C..J).
+      // ADAPTATION total row — SUM(rows adaptationSumFrom..adaptationSumTo), cols C..J.
       if (isSynAdaptationSumCell(row, col, props.sheet)) {
-        const cellForSum = getCell(cellMap.value, row, col);
-        if (props.session && props.session.getDisplayValue) {
-          const raw = props.session.getDisplayValue(
-            'SYNTHESIS',
-            row,
-            col,
-            cellForSum
-          );
-          const out = isSynMetricRow(row) ? raw : formatVal(raw);
-          displayCache.set(hitKey, out);
-          return out;
-        }
+        const out = adaptationSumLocal(col);
+        displayCache.set(hitKey, out);
+        return out;
       }
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         if (usesPillarLetterOverlay(col)) {
@@ -1516,6 +1535,18 @@ export default {
       return rp > 0 ? { width: `${rp}px`, minWidth: `${rp}px` } : null;
     });
 
+    /**
+     * Displayed row number. The blank "between-18-19" gap takes number 19, so
+     * every Excel row from 19 onward is shown shifted by +1 (old 19 → 20, …).
+     */
+    function synRowNumberLabel(entry) {
+      if (!entry) return '';
+      if (entry.gapKey === 'between-18-19') return 19;
+      const r = entry.excelRow;
+      if (r == null) return '';
+      return r >= 19 ? r + 1 : r;
+    }
+
     /** Row metadata — stable when only horizontal scroll changes. */
     const visibleRowMeta = computed(() => {
       if (!props.paneVisible) return [];
@@ -1525,6 +1556,7 @@ export default {
         key: rowEntryKey(entry),
         entry,
         excelRow: entry.excelRow != null ? entry.excelRow : null,
+        rowNum: synRowNumberLabel(entry),
         displayRow: entry.displayRow,
         rowLabel:
           entry.excelRow != null ? synLabel(map, entry.excelRow) : '',
@@ -1621,19 +1653,12 @@ export default {
       (sheet) => {
         if (!sheet || !props.session || !props.session.bindSynthesisGrid) return;
         const map = cellMap.value;
-        const bind = () => {
-          props.session.bindSynthesisGrid(
-            (row, col) => getCell(map, row, col),
-            sheet,
-            (row) => synLabel(map, row),
-            (row) => synRowStyleClass(map, row, sheet)
-          );
-        };
-        if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(bind, { timeout: 400 });
-        } else {
-          setTimeout(bind, 0);
-        }
+        props.session.bindSynthesisGrid(
+          (row, col) => getCell(map, row, col),
+          sheet,
+          (row) => synLabel(map, row),
+          (row) => synRowStyleClass(map, row, sheet)
+        );
       },
       { immediate: true }
     );
@@ -1914,7 +1939,7 @@ export default {
       onCellMouseDown,
       onCellSpanMouseDown,
       onCellFocus,
-      onCellInput,
+      onCellInput: onCellInputLive,
       onCellBlur,
       onCellKeydown,
       selectedCell,
@@ -2000,7 +2025,7 @@ export default {
                 :class="{ 'syn-adaptation-sum-row-num': row.isAdaptationSumRow }"
                 :title="row.rowLabel || ''"
               >
-                {{ row.excelRow != null ? row.excelRow : '' }}
+                {{ row.rowNum }}
               </td>
               <td
                 v-for="cell in pinnedCellsByRowKey[row.key]"
@@ -2029,7 +2054,7 @@ export default {
                   :data-grid-col="cell.col"
                   @mousedown="onCellMouseDown(cell.row, cell.col, $event)"
                   @focus="onCellFocus(cell.row, cell.col, $event)"
-                  @input="onCellInput(cell.row, cell.col, $event)"
+                  @input="onCellInputLive(cell.row, cell.col, $event)"
                   @blur="onCellBlur(cell.row, cell.col, $event)"
                   @keydown="onCellKeydown(cell.row, cell.col, $event)"
                 />
@@ -2068,7 +2093,7 @@ export default {
                   :data-grid-col="cell.col"
                   @mousedown="onCellMouseDown(cell.row, cell.col, $event)"
                   @focus="onCellFocus(cell.row, cell.col, $event)"
-                  @input="onCellInput(cell.row, cell.col, $event)"
+                  @input="onCellInputLive(cell.row, cell.col, $event)"
                   @blur="onCellBlur(cell.row, cell.col, $event)"
                   @keydown="onCellKeydown(cell.row, cell.col, $event)"
                 />

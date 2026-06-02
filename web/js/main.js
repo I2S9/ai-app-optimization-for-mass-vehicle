@@ -1,6 +1,7 @@
 import {
   createApp,
   ref,
+  shallowRef,
   computed,
   watch,
   onMounted,
@@ -9,11 +10,11 @@ import {
   nextTick,
 } from 'vue';
 import BdGrid from './BdGrid.js?v=grid-perf9';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-p2';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-p3';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MatrixModal from './MatrixModal.js?v=matrix13';
+import MatrixModal from './MatrixModal.js?v=matrix16';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf7';
 import { createWorkbookSession } from './workbookSession.js?v=grid-perf9';
@@ -30,7 +31,7 @@ import {
   applyMatrixSave,
   alignSynModelToBd,
   cloneStructure,
-} from './structureModel.js?v=matrix14';
+} from './structureModel.js?v=matrix16';
 import {
   upsertRawCell,
   loadLocalSnapshot,
@@ -52,10 +53,14 @@ const App = {
     const chunkedApi = ref(false);
     const serverCalc = ref(false);
     const error = ref(null);
-    const bdSheet = ref(null);
-    const synthesisSheet = ref(null);
-    const bdRaw = ref(null);
-    const synRaw = ref(null);
+    // Large data objects (149k+ cells + cellMap): shallowRef avoids Vue deep-proxying
+    // every cell, which otherwise blocks the main thread for seconds on load and on
+    // every edit. Reassigning .value still triggers re-render; internal cell mutations
+    // are signaled via dedicated tick refs (bdSheetRevision, externalEditTick, etc.).
+    const bdSheet = shallowRef(null);
+    const synthesisSheet = shallowRef(null);
+    const bdRaw = shallowRef(null);
+    const synRaw = shallowRef(null);
     const matrixOpen = ref(false);
     const matrixState = ref(null);
     const matrixSaving = ref(false);
@@ -1333,35 +1338,37 @@ const App = {
       </header>
       <div class="app-body">
         <main class="app-content">
-          <BdGrid
-            v-if="bdSheet && isDatabase"
-            key="bd-grid"
-            :sheet="bdSheet"
-            sheet-name="BD"
-            :session="session"
-            :raw-bd="bdRaw"
-            :outline-only="outlineOnly"
-            :pane-visible="isDatabase"
-            :external-edit-tick="externalEditTick"
-            :search-cmd="gridSearchCmd"
-            @cell-change="onCellChange"
-            @search-navigated="onSearchNavigated"
-            @search-row-hidden="onSearchRowHidden"
-          />
-          <SynthesisGrid
-            v-if="synthesisSheet && isSynthesis"
-            key="syn-grid"
-            :sheet="synthesisSheet"
-            :session="session"
-            :raw-syn="synRaw"
-            :outline-only="outlineOnly"
-            :pane-visible="isSynthesis"
-            :external-edit-tick="externalEditTick"
-            :search-cmd="gridSearchCmd"
-            @cell-change="onCellChange"
-            @search-navigated="onSearchNavigated"
-            @search-row-hidden="onSearchRowHidden"
-          />
+          <div v-if="bdSheet" v-show="isDatabase" class="grid-route-pane">
+            <BdGrid
+              key="bd-grid"
+              :sheet="bdSheet"
+              sheet-name="BD"
+              :session="session"
+              :raw-bd="bdRaw"
+              :outline-only="outlineOnly"
+              :pane-visible="isDatabase"
+              :external-edit-tick="externalEditTick"
+              :search-cmd="gridSearchCmd"
+              @cell-change="onCellChange"
+              @search-navigated="onSearchNavigated"
+              @search-row-hidden="onSearchRowHidden"
+            />
+          </div>
+          <div v-if="synthesisSheet" v-show="isSynthesis" class="grid-route-pane">
+            <SynthesisGrid
+              key="syn-grid"
+              :sheet="synthesisSheet"
+              :session="session"
+              :raw-syn="synRaw"
+              :outline-only="outlineOnly"
+              :pane-visible="isSynthesis"
+              :external-edit-tick="externalEditTick"
+              :search-cmd="gridSearchCmd"
+              @cell-change="onCellChange"
+              @search-navigated="onSearchNavigated"
+              @search-row-hidden="onSearchRowHidden"
+            />
+          </div>
           <div
             v-if="gridPreparing && isDatabase && !bdSheet"
             class="loading-overlay loading-overlay-subtle"

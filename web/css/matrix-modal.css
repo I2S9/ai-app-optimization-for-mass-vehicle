@@ -194,6 +194,26 @@
   white-space: nowrap;
 }
 
+.matrix-sec-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px dashed #1e3a5f;
+  border-radius: 4px;
+  background: #fff;
+  color: #1e3a5f;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.matrix-sec-add:hover {
+  background: #eef3f9;
+}
+
 .matrix-col-title,
 .matrix-sub-label {
   flex: 1;

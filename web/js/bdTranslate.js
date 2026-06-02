@@ -316,9 +316,14 @@ export function translateValue(raw) {
   }
   return translateFrenchPhrase(v);
 }
+/** Memoize pure phrase translation — same label recurs across thousands of rows. */
+const _frenchPhraseCache = new Map();
 /** Rule-based translation for remaining French phrases. */
 export function translateFrenchPhrase(text) {
-  let s = String(text);
+  const cacheKey = String(text);
+  const cached = _frenchPhraseCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  let s = cacheKey;
   const rules = [
     [/Non affecté/gi, 'Unassigned'],
     [/ancien process/gi, 'old process'],
@@ -480,6 +485,7 @@ export function translateFrenchPhrase(text) {
     s = s.replace(re, rep);
   }
   s = s.replace(/\s{2,}/g, ' ').trim();
+  _frenchPhraseCache.set(cacheKey, s);
   return s;
 }
 /** Sub-system L1 / L2 / Design Dpt — always surface English in the grid. */

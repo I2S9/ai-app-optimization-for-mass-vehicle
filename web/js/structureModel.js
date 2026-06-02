@@ -261,6 +261,10 @@ function insertNewBdRows(sheet, model) {
   const l1Col = bdSubsystemL1Col(sheet);
   const l2Col = bdSubsystemL2Col(sheet);
   for (const sec of model.sections) {
+    if (sec.isNew && sec.headerRow != null) {
+      setCell(sheet, sec.headerRow, l1Col, sec.label);
+      setCell(sheet, sec.headerRow, 'A', sec.label);
+    }
     for (const sub of sec.subsections) {
       if (!sub.isNew || sub.startRow == null) continue;
       const lbl = formatBlueBandLabel(sub.label);
@@ -338,6 +342,13 @@ function buildBdRowMap(raw, model) {
   }
   let insertAt = next;
   for (const sec of model.sections) {
+    const isNewSec = sec.isNew || sec.headerRow == null;
+    if (isNewSec) {
+      sec.headerRow = insertAt;
+      sec.endRow = insertAt;
+      oldToNew.set(`newsec:${sec.id}`, insertAt);
+      insertAt++;
+    }
     for (const sub of sec.subsections) {
       if (!sub.isNew) continue;
       sub.startRow = insertAt;
@@ -345,6 +356,7 @@ function buildBdRowMap(raw, model) {
       oldToNew.set(`new:${sub.id}`, insertAt);
       insertAt++;
     }
+    if (isNewSec) sec.endRow = insertAt - 1;
   }
   return { oldToNew, newLastRow: insertAt - 1 };
 }
@@ -558,53 +570,31 @@ export function restoreSubsection(model, subId) {
   ];
 }
 
+/**
+ * Synthesis row ordering mirrors the BD approach: each section is moved as one
+ * contiguous band (header → endRow). This keeps EVERY body row of a section,
+ * including the ~95% of sections that have no L2 sub-sections, so applying a
+ * matrix change never drops synthesis data. Section order follows synModel
+ * (already aligned to the BD/matrix order); archived sections move to the end.
+ */
 function buildSynBlocks(synModel, bdModel) {
   syncSynToBdLabels(synModel, bdModel);
   const blocks = [];
   const prefixEnd = synModel.prefixEndRow != null ? synModel.prefixEndRow : 22;
   blocks.push({ type: 'prefix', rows: rowRange(1, prefixEnd) });
-  const bdOrder = [];
-  for (const sec of bdModel.sections) {
-    if (sec.archived) continue;
-    for (const sub of sec.subsections) {
-      if (sub.archived) continue;
-      bdOrder.push({ secLabel: sec.label, subLabel: sub.label });
-    }
-  }
-  const synBySub = new Map();
+  const active = [];
+  const archived = [];
   for (const sec of synModel.sections) {
-    for (const sub of sec.subsections) {
-      synBySub.set(normalizeKey(sub.label), { sec, sub });
-    }
-  }
-  for (const sec of synModel.sections) {
-    if (sec.archived) continue;
-    blocks.push({ type: 'section', rows: [sec.headerRow], meta: sec });
-  }
-  for (const { secLabel, subLabel } of bdOrder) {
-    const hit = synBySub.get(normalizeKey(subLabel));
-    if (!hit) continue;
-    const { sub } = hit;
-    if (sub._placed) continue;
-    sub._placed = true;
-    blocks.push({
-      type: 'subsection',
-      rows: rowRange(sub.startRow, sub.endRow),
-      meta: sub,
+    if (sec.headerRow == null) continue; // brand-new section — appended later
+    const start = sec.headerRow;
+    const end = sec.endRow != null && sec.endRow >= start ? sec.endRow : start;
+    (sec.archived ? archived : active).push({
+      type: 'section-band',
+      rows: rowRange(start, end),
+      meta: sec,
     });
   }
-  for (const sec of synModel.sections) {
-    if (sec.archived) continue;
-    for (const sub of sec.subsections) {
-      if (sub.archived || sub._placed) continue;
-      blocks.push({
-        type: 'subsection',
-        rows: rowRange(sub.startRow, sub.endRow),
-        meta: sub,
-      });
-    }
-  }
-  return blocks;
+  return [...blocks, ...active, ...archived];
 }
 
 function applySynRowOrder(synRaw, synModel, bdModel) {
@@ -612,14 +602,7 @@ function applySynRowOrder(synRaw, synModel, bdModel) {
   const oldToNew = new Map();
   let next = 1;
   for (const block of blocks) {
-    for (const oldR of block.rows) {
-      oldToNew.set(oldR, next++);
-    }
-    if (block.type === 'section') block.meta.headerRow = oldToNew.get(block.rows[0]);
-    if (block.type === 'subsection') {
-      block.meta.startRow = oldToNew.get(block.rows[0]);
-      block.meta.endRow = oldToNew.get(block.rows[block.rows.length - 1]);
-    }
+    for (const oldR of block.rows) oldToNew.set(oldR, next++);
   }
   const skipped = new Set(synModel.skippedRows || []);
   let gap = 0;
@@ -629,15 +612,51 @@ function applySynRowOrder(synRaw, synModel, bdModel) {
     }
     gap++;
   }
-  const sheet = remapSheetRows(synRaw, oldToNew, next - 1 + gap);
+  // Re-map each section / sub-section to its FINAL new row (after skip gaps).
+  for (const sec of synModel.sections) {
+    if (sec.headerRow != null && oldToNew.has(sec.headerRow)) {
+      const newEnd = oldToNew.has(sec.endRow)
+        ? oldToNew.get(sec.endRow)
+        : oldToNew.get(sec.headerRow);
+      sec.headerRow = oldToNew.get(sec.headerRow);
+      sec.endRow = newEnd;
+      for (const sub of sec.subsections) {
+        if (sub.startRow != null && oldToNew.has(sub.startRow)) {
+          sub.endRow = oldToNew.has(sub.endRow)
+            ? oldToNew.get(sub.endRow)
+            : oldToNew.get(sub.startRow);
+          sub.startRow = oldToNew.get(sub.startRow);
+        }
+      }
+    }
+  }
+  // Append rows ONLY for items the user just added in the matrix. Sections /
+  // sub-sections that exist in BD but not in synthesis (headerRow/startRow null
+  // without isNew) stay absent — synthesis is a summary, not a 1:1 mirror.
+  let tail = next - 1 + gap;
+  for (const sec of synModel.sections) {
+    if (sec.headerRow == null) {
+      if (!sec.isNew) continue;
+      sec.headerRow = ++tail;
+      sec.endRow = sec.headerRow;
+    }
+    for (const sub of sec.subsections) {
+      if (sub.startRow != null || !sub.isNew) continue;
+      sub.startRow = ++tail;
+      sub.endRow = sub.startRow;
+      if (sub.startRow > (sec.endRow || 0)) sec.endRow = sub.startRow;
+    }
+  }
+  const sheet = remapSheetRows(synRaw, oldToNew, tail);
   applySynLabels(sheet, synModel);
   return sheet;
 }
 
 function applySynLabels(sheet, model) {
   for (const sec of model.sections) {
-    setCell(sheet, sec.headerRow, 'F', sec.label);
+    if (sec.headerRow != null) setCell(sheet, sec.headerRow, 'F', sec.label);
     for (const sub of sec.subsections) {
+      if (sub.startRow == null) continue;
       const lbl = formatBlueBandLabel(sub.label);
       setCell(sheet, sub.startRow, 'F', lbl);
     }
@@ -685,10 +704,12 @@ export function alignSynModelToBd(synModel, bdModel) {
     synSecById.set(sec.id, sec);
   }
   const sections = [];
+  const consumed = new Set();
   for (const bdSec of bdModel.sections) {
     let synSec =
       (bdSec.synLinkId && synSecById.get(bdSec.synLinkId)) ||
       synBySec.get(normalizeKey(bdSec.label));
+    if (synSec) consumed.add(synSec.id);
     const sec = synSec
       ? {
           ...synSec,
@@ -708,6 +729,10 @@ export function alignSynModelToBd(synModel, bdModel) {
           archiveRestoreIndex: bdSec.archiveRestoreIndex,
           subsections: [],
           customLines: [],
+          // Only sections the user just added in the matrix are materialised as
+          // new synthesis rows; BD-only sections stay absent (synthesis is a
+          // summary and must not gain hundreds of blank rows).
+          isNew: Boolean(bdSec.isNew),
         };
     const synSubs = new Map();
     const synSubById = new Map();
@@ -736,13 +761,22 @@ export function alignSynModelToBd(synModel, bdModel) {
               color: bdSub.color,
               archived: bdSub.archived,
               archiveRestoreIndex: bdSub.archiveRestoreIndex,
-              isNew: true,
+              // Materialise only sub-sections the user added in this session;
+              // pre-existing BD sub-sections absent from synthesis stay absent.
+              isNew: Boolean(bdSub.isNew),
               startRow: null,
               endRow: null,
             }
       );
     }
     sections.push(sec);
+  }
+  // Preserve synthesis-only sections (no BD counterpart) so their rows are
+  // never dropped on apply. They keep their original rows / order and are
+  // appended after the BD-aligned sections.
+  for (const synSec of synModel.sections) {
+    if (consumed.has(synSec.id)) continue;
+    sections.push({ ...synSec, subsections: [...(synSec.subsections || [])] });
   }
   return { ...synModel, sections };
 }
@@ -772,6 +806,12 @@ export function applyStructureToBdRaw(bdRaw, model) {
   sheet = attachBdStructureMeta(sheet, m);
   sheet.structureArchive = structureArchiveFromModel(m);
   sheet.archivedRowBands = collectArchivedRowBands(m);
+  // New rows are now materialised — drop the "new" flag so re-applying the
+  // same session model does not allocate duplicate rows.
+  for (const sec of m.sections) {
+    delete sec.isNew;
+    for (const sub of sec.subsections) delete sub.isNew;
+  }
   return { sheet, model: m };
 }
 
