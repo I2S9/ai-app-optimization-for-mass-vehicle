@@ -62,7 +62,7 @@ export const L1_SECTION_EN = {
   BATTERIE: 'BATTERY',
   'BATTERIE TRACTION': 'HIGH-VOLTAGE BATTERY',
   'BOUCLIER AR': 'REAR BUMPER',
-  'BOUCLIER AV': 'FRONT BUMPER',
+  'BOUCLIER AV': 'FRONT',
   BV: 'GEARBOX',
   'CAISSE EN BLANC': 'BODY IN WHITE',
   CAPOT: 'HOOD',
@@ -105,6 +105,12 @@ export const L1_SECTION_EN = {
 export const SECTION_ALLOWLIST = new Set([
   ...Object.keys(L1_SECTION_EN),
   ...Object.values(L1_SECTION_EN),
+  // Legacy EN section titles still present in some templates / snapshots.
+  // Keep them here so Database/Synthesis/Matrix detect the same bookmark rows.
+  'WINGS',
+  'FRONT END',
+  'FRONT BUMPER',
+  'TRACTION BATTERY',
   '-Non affecté',
   '-Unassigned',
   '_Non affecté',
@@ -142,10 +148,11 @@ export const CELL_VALUE_EN = {
   TT: 'TT',
   'STLA/S': 'STLA/S',
   'STLA-S': 'STLA-S',
-  'Ailes avant': 'Front fenders',
-  'Ailes arrière': 'Rear fenders',
-  'Avant gauche (ancien process)': 'Front left (legacy process)',
-  'Avant droite (ancien process)': 'Front right (legacy process)',
+  'Ailes avant': 'FRONT FENDERS',
+  'Ailes arrière': 'REAR FENDERS',
+  // FENDERS: last two sub-sections use "OLD PROCESS" wording (not "legacy").
+  'Avant gauche (ancien process)': 'FRONT LEFT (OLD PROCESS)',
+  'Avant droite (ancien process)': 'FRONT RIGHT (OLD PROCESS)',
   'Système batterie 12V': '12V battery system',
   'Système batterie traction': 'Battery system',
   'Caisse en blanc (avec peinture)': 'Body in white (with paint)',
@@ -212,7 +219,7 @@ export const CELL_VALUE_EN = {
   'Support porte pièces': 'Parts door support',
   Aérateur: 'Vent',
   Arrière: 'Rear',
-  'Ailes arrière': 'Rear fenders',
+  'Ailes arrière': 'REAR FENDERS',
 };
 const LABEL_COLS = new Set(['A', 'AP', 'AS', 'AR', 'AU', 'W']);
 // Canonical overrides for already-English labels (used by bookmark/matrix text).
@@ -226,6 +233,10 @@ const ENGLISH_LABEL_OVERRIDES = {
   // Some sources use uppercase section titles.
   'FRONT WINGS': 'FRONT FENDERS',
   'REAR WINGS': 'REAR FENDERS',
+  'Front fenders': 'FRONT FENDERS',
+  'Rear fenders': 'REAR FENDERS',
+  'Front left (legacy process)': 'FRONT LEFT (OLD PROCESS)',
+  'Front right (legacy process)': 'FRONT RIGHT (OLD PROCESS)',
 
   'Coolant circuit': 'Water circuit',
   'Thermal shields': 'Thermal screens',
@@ -310,7 +321,7 @@ export function translateFrenchPhrase(text) {
   let s = String(text);
   const rules = [
     [/Non affecté/gi, 'Unassigned'],
-    [/ancien process/gi, 'legacy process'],
+    [/ancien process/gi, 'old process'],
     [/Système/g, 'System'],
     [/système/g, 'system'],
     [/Arrière/gi, 'Rear'],
@@ -362,6 +373,8 @@ export function translateFrenchPhrase(text) {
     [/Circuit/gi, 'Circuit'],
     [/Réservoir/gi, 'Tank'],
     [/Commande/gi, 'Control'],
+    [/Calandre/gi, 'GRILLE'],
+    [/calandre/gi, 'grille'],
     [/Vitesse/gi, 'Speed'],
     [/Échappement/gi, 'Exhaust'],
     [/Echappement/gi, 'Exhaust'],
@@ -472,7 +485,9 @@ export function translateFrenchPhrase(text) {
 /** Sub-system L1 / L2 / Design Dpt — always surface English in the grid. */
 export function translateSubsystemLabel(raw) {
   if (raw == null || raw === '') return raw;
-  return translateValue(String(raw).trim());
+  // IMPORTANT: Bookmark breakdown (sections + sub-sections) must be identical
+  // across BD, Synthesis and Bookmark Matrix. Business convention: ALL CAPS.
+  return translateValue(String(raw).trim()).toUpperCase();
 }
 
 /**

@@ -24,7 +24,7 @@ import {
   SYN_SKIPPED_ROWS,
   SYN_MAX_EXCEL_ROW,
 } from './synStore.js?v=syn-cicy1';
-import { translateValue } from './bdTranslate.js';
+import { translateSubsystemLabel, translateValue } from './bdTranslate.js';
 
 /** Same as bd-grid.css row-section / row-subsection */
 const DEFAULT_SECTION_COLOR = '#ffff00';
@@ -47,10 +47,10 @@ function getBdSectionLabel(map, row, sheet) {
   }
   const l1Col = bdSubsystemL1Col(sheet);
   const ap = displayValue(getCell(map, row, l1Col));
-  if (ap) return translateValue(String(ap).trim());
+  if (ap) return translateSubsystemLabel(String(ap).trim());
   const a = displayValue(getCell(map, row, 'A'));
   if (a && String(a).trim().startsWith('-')) {
-    return translateValue(String(a).trim());
+    return translateSubsystemLabel(String(a).trim());
   }
   return `Section ${row}`;
 }
@@ -149,7 +149,7 @@ export function extractSynStructure(sheet) {
         j + 1 < subStarts.length ? subStarts[j + 1] - 1 : endRow;
       subsections.push({
         id: uid('sub'),
-        label: synLabel(map, startRow) || `_Row ${startRow}`,
+        label: translateSubsystemLabel(synLabel(map, startRow) || `_Row ${startRow}`),
         startRow,
         endRow: subEnd,
         color: colors[startRow] || DEFAULT_SUBSECTION_COLOR,
@@ -158,7 +158,7 @@ export function extractSynStructure(sheet) {
     }
     sections.push({
       id: uid('sec'),
-      label: synLabel(map, headerRow) || `Section ${headerRow}`,
+      label: translateSubsystemLabel(synLabel(map, headerRow) || `Section ${headerRow}`),
       headerRow,
       endRow,
       color: colors[headerRow] || DEFAULT_SECTION_COLOR,

@@ -80,6 +80,12 @@ function formatSubLabel(name) {
   return t.startsWith('_') ? t.toUpperCase() : `_${t.toUpperCase()}`;
 }
 
+function formatSectionLabel(name) {
+  const t = String(name || '').trim();
+  if (!t) return '';
+  return t.toUpperCase().replace(/\s+/g, ' ');
+}
+
 function subSortIndex(model, subId) {
   let i = 0;
   for (const sec of model.sections) {
@@ -342,7 +348,7 @@ export default {
 
       if (e.kind === 'section') {
         const sec = findSection(model.value, e.sectionId);
-        if (sec) sec.label = val;
+        if (sec) sec.label = formatSectionLabel(val) || val;
       } else if (e.kind === 'subsection') {
         const hit = findSubsection(model.value, e.subId);
         if (hit) hit.subsection.label = formatSubLabel(val) || val;

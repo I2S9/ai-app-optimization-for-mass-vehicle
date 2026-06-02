@@ -296,8 +296,8 @@ export function isCaBandRow(map, row) {
 }
 /** Label in Date column on yellow CA band rows only (one row per chapter). */
 export function caChapterDateLabel(row) {
-  if (row === 5) return 'ADAPTATION';
-  if (row === 139) return 'ADTH';
+  if (row === 5) return translateSubsystemLabel('ADAPTATION');
+  if (row === 139) return translateSubsystemLabel('ADTH');
   return '';
 }
 export function isSectionBandRow(map, row) {
@@ -734,14 +734,15 @@ function structureBookmarkDisplay(
     return '';
   }
   if (isSectionRow(map, row, sectionHeaderRows)) {
-    const title = getRowLabel(
+    const rawTitle = getRowLabel(
       map,
       row,
       sectionHeaderRows,
       canonicalByLabel,
       l1Col
     );
-    if (!title) return '';
+    if (!rawTitle) return '';
+    const title = translateSubsystemLabel(rawTitle);
     /* CA bands 5 / 139: Date (A) + W; row 5 sans contenu projet (TT…) */
     if (isCaBandRow(map, row)) {
       if (col === 'A') return caChapterDateLabel(row);
@@ -749,8 +750,8 @@ function structureBookmarkDisplay(
       return '';
     }
     if (col === 'A') return title;
-    if (col === l1Col && canonicalByLabel.get(title) === row) return title;
-    if (col === l2Col && isUnassignedSectionLabel(title)) return title;
+    if (col === l1Col && canonicalByLabel.get(rawTitle) === row) return title;
+    if (col === l2Col && isUnassignedSectionLabel(rawTitle)) return title;
     return '';
   }
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
