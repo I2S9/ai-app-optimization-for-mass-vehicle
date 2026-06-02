@@ -92,11 +92,11 @@ export function createGridCellNavigation(opts) {
     );
   }
 
-  function scrollCellIntoView(row, col) {
+  function scrollCellIntoView(row, col, { force = false } = {}) {
     const scrollEl = getScrollEl();
     if (!scrollEl) return;
 
-    if (findInput(scrollEl, row, col)) return;
+    if (!force && findInput(scrollEl, row, col)) return;
 
     const rows = getRows();
     const ri = rows.indexOf(row);
@@ -142,7 +142,7 @@ export function createGridCellNavigation(opts) {
         onDone();
         return;
       }
-      scrollCellIntoView(row, col);
+      scrollCellIntoView(row, col, { force: false });
       nextTick(() => {
         if (attempt()) {
           onDone();
@@ -154,6 +154,10 @@ export function createGridCellNavigation(opts) {
         });
       });
     });
+  }
+
+  function scrollCellIntoViewForced(row, col) {
+    scrollCellIntoView(row, col, { force: true });
   }
 
   function wrapKeydown(
@@ -182,5 +186,12 @@ export function createGridCellNavigation(opts) {
 
   rebuildIndex();
 
-  return { move, focusCell, wrapKeydown, rebuildIndex };
+  return {
+    move,
+    focusCell,
+    wrapKeydown,
+    rebuildIndex,
+    scrollCellIntoView,
+    scrollCellIntoViewForced,
+  };
 }

@@ -57,6 +57,13 @@ const App = {
     const route = ref(DEFAULT_ROUTE);
     const menuOpen = ref(false);
     const outlineOnly = ref(false);
+    const searchOpen = ref(false);
+    const searchQuery = ref('');
+    const searchInputRef = ref(null);
+    const gridSearchCmd = ref(null);
+    const searchStatus = ref('');
+    let searchHiddenRetry = false;
+    let searchDebounceTimer = 0;
     const session = createWorkbookSession();
     const editHistory = createEditHistory();
     const historyTick = ref(0);
@@ -758,6 +765,7 @@ const App = {
 
     function navigate(id) {
       closeMenu();
+      closeSearch();
       if (id === route.value) return;
       route.value = id;
       requestAnimationFrame(() => {
@@ -772,6 +780,117 @@ const App = {
       requestAnimationFrame(() => {
         outlineOnly.value = !outlineOnly.value;
       });
+    }
+
+    function closeSearch() {
+      searchOpen.value = false;
+      searchQuery.value = '';
+      searchStatus.value = '';
+      gridSearchCmd.value = { q: '', step: 0, t: Date.now() };
+    }
+
+    function toggleSearch() {
+      if (searchOpen.value) closeSearch();
+      else {
+        searchOpen.value = true;
+        nextTick(() => searchInputRef.value?.focus());
+      }
+    }
+
+    function updateSearchStatus(result) {
+      if (!searchQuery.value.trim()) {
+        searchStatus.value = '';
+        return;
+      }
+      if (result?.searching) {
+        searchStatus.value = 'Recherche…';
+        return;
+      }
+      if (!result?.count) searchStatus.value = 'Aucun résultat';
+      else searchStatus.value = `${result.index + 1} / ${result.count}`;
+    }
+
+    function dispatchGridSearch(step = 0) {
+      const q = searchQuery.value.trim();
+      gridSearchCmd.value = { q, step, t: Date.now() };
+    }
+
+    function runGridSearch(step = 0) {
+      if (!searchQuery.value.trim()) {
+        searchStatus.value = '';
+        gridSearchCmd.value = { q: '', step: 0, t: Date.now() };
+        return;
+      }
+      // Immediately reflect that a search is in progress for better UX.
+      if (step === 0) searchStatus.value = 'Recherche…';
+      dispatchGridSearch(step);
+    }
+
+    function onSearchNavigated(result) {
+      if (!searchQuery.value.trim()) {
+        searchStatus.value = '';
+        return;
+      }
+      if (result?.hidden && !searchHiddenRetry) {
+        searchHiddenRetry = true;
+        if (outlineOnly.value) {
+          outlineOnly.value = false;
+          nextTick(() => dispatchGridSearch(0));
+          return;
+        }
+        searchHiddenRetry = false;
+      } else {
+        searchHiddenRetry = false;
+      }
+      updateSearchStatus(result);
+    }
+
+    function onSearchInput() {
+      const q = searchQuery.value.trim();
+      if (!q) {
+        searchStatus.value = '';
+        gridSearchCmd.value = { q: '', step: 0, t: Date.now() };
+        return;
+      }
+
+      // Auto-search as you type (debounced) to avoid misleading "no results"
+      // and to keep the UI responsive on large grids.
+      searchStatus.value = 'Recherche…';
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        searchDebounceTimer = 0;
+        // step=0 => recompute matches + scroll to first hit (if any)
+        runGridSearch(0);
+      }, 180);
+    }
+
+    function onSearchKeydown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (searchDebounceTimer) {
+          clearTimeout(searchDebounceTimer);
+          searchDebounceTimer = 0;
+        }
+        const step = e.shiftKey ? -1 : 1;
+        runGridSearch(step);
+      } else if (e.key === 'F3') {
+        e.preventDefault();
+        if (searchDebounceTimer) {
+          clearTimeout(searchDebounceTimer);
+          searchDebounceTimer = 0;
+        }
+        runGridSearch(e.shiftKey ? -1 : 1);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearch();
+      }
+    }
+
+    function onSearchRowHidden() {
+      if (outlineOnly.value) {
+        outlineOnly.value = false;
+        nextTick(() => dispatchGridSearch(0));
+      }
     }
 
     function deferClick(fn) {
@@ -941,6 +1060,16 @@ const App = {
       onCellChange,
       navigate,
       toggleOutline,
+      searchOpen,
+      searchQuery,
+      searchInputRef,
+      gridSearchCmd,
+      searchStatus,
+      toggleSearch,
+      onSearchInput,
+      onSearchKeydown,
+      onSearchNavigated,
+      onSearchRowHidden,
       deferClick,
       matrixOpen,
       matrixState,
@@ -1044,6 +1173,40 @@ const App = {
                 <circle cx="8" cy="8" r="2" fill="currentColor"/>
               </svg>
             </button>
+            <button
+              type="button"
+              class="icon-btn icon-btn-sm"
+              :class="{ active: searchOpen }"
+              title="Rechercher dans la grille"
+              aria-label="Rechercher dans la grille"
+              @click="toggleSearch"
+            >
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                <circle cx="7" cy="7" r="4.25" fill="none" stroke="currentColor" stroke-width="1.25"/>
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.25"
+                  stroke-linecap="round"
+                  d="M10.2 10.2 14 14"
+                />
+              </svg>
+            </button>
+            <div v-if="searchOpen" class="topbar-search" role="search">
+              <input
+                ref="searchInputRef"
+                v-model="searchQuery"
+                type="text"
+                class="topbar-search-input"
+                placeholder="Texte puis Entree"
+                aria-label="Rechercher dans la grille"
+                autocomplete="off"
+                spellcheck="false"
+                @input="onSearchInput"
+                @keydown="onSearchKeydown"
+              />
+              <span v-if="searchStatus" class="topbar-search-status">{{ searchStatus }}</span>
+            </div>
           </template>
         </div>
         <div class="topbar-right">
@@ -1054,9 +1217,6 @@ const App = {
           <span class="status" v-else-if="isSynthesis && synthesisLoading && !synthesisSheet">Préparation Synthesis…</span>
           <span class="status error-text" v-else-if="error">{{ error }}</span>
           <span class="status" v-else-if="isGridPage && saveStatus === 'saving'">Enregistrement…</span>
-          <span class="status saved-status" v-else-if="isGridPage && saveStatus === 'saved'">
-            Modifications enregistrées (ce navigateur)
-          </span>
           <span class="status" v-else-if="isGridPage && saveStatus === 'dirty'">Enregistrement automatique…</span>
           <span class="status error-text" v-else-if="isGridPage && saveStatus === 'error'">
             Erreur — {{ saveError }}
@@ -1086,7 +1246,10 @@ const App = {
             :outline-only="outlineOnly"
             :pane-visible="isDatabase"
             :external-edit-tick="externalEditTick"
+            :search-cmd="gridSearchCmd"
             @cell-change="onCellChange"
+            @search-navigated="onSearchNavigated"
+            @search-row-hidden="onSearchRowHidden"
           />
           <SynthesisGrid
             v-if="synthesisSheet && isSynthesis"
@@ -1097,7 +1260,10 @@ const App = {
             :outline-only="outlineOnly"
             :pane-visible="isSynthesis"
             :external-edit-tick="externalEditTick"
+            :search-cmd="gridSearchCmd"
             @cell-change="onCellChange"
+            @search-navigated="onSearchNavigated"
+            @search-row-hidden="onSearchRowHidden"
           />
           <div
             v-if="gridPreparing && isDatabase && !bdSheet"

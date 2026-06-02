@@ -45,7 +45,11 @@ import {
   isBdNumericEntryCell,
 } from './bdColumnConfig.js?v=input-fix1';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
-import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
+import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-search4';
+import {
+  buildSearchIndex,
+  createGridSearchController,
+} from './gridSearch.js?v=grid-search4';
 
 export default {
   name: 'BdGrid',
@@ -57,8 +61,9 @@ export default {
     outlineOnly: { type: Boolean, default: false },
     paneVisible: { type: Boolean, default: true },
     externalEditTick: { type: Number, default: 0 },
+    searchCmd: { type: Object, default: null },
   },
-  emits: ['cell-change'],
+  emits: ['cell-change', 'search-row-hidden', 'search-navigated'],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -273,6 +278,66 @@ export default {
       setNavigationLock
     );
 
+    let searchIndex = null;
+    let searchIndexEpoch = -1;
+    let searchIndexPromise = null;
+
+    function getSearchIndexForGrid() {
+      const epoch = editEpoch.value;
+      if (searchIndex && searchIndexEpoch === epoch) {
+        return Promise.resolve(searchIndex);
+      }
+      if (searchIndexPromise && searchIndexEpoch === epoch) {
+        return searchIndexPromise;
+      }
+      searchIndexEpoch = epoch;
+      searchIndex = null;
+      searchIndexPromise = buildSearchIndex(
+        cellMap.value,
+        props.sheet,
+        columns.value
+      ).then((idx) => {
+        searchIndex = idx;
+        searchIndexPromise = null;
+        return idx;
+      });
+      return searchIndexPromise;
+    }
+
+    const gridSearch = createGridSearchController({
+      getSearchIndex: getSearchIndexForGrid,
+      getBodyExcelRows: () => bodyRows.value.map((e) => e.excelRow),
+      getScrollEl: () => scrollEl.value,
+      scrollCellIntoView: (row, col) =>
+        cellNavigation.scrollCellIntoViewForced(row, col),
+      flushScroll: () => scrollSync.flush(),
+      getRowTop: (rowIndex) => BD_HEADER_H + rowIndex * ROW_H,
+      getViewportH: () => viewportH.value,
+      rowHeight: ROW_H,
+      onRowHidden: (match) => emit('search-row-hidden', match),
+    });
+
+    watch(
+      () => props.searchCmd,
+      (cmd) => {
+        if (!props.paneVisible || !cmd) return;
+        if (!cmd.q) {
+          gridSearch.clearSearch();
+          searchIndex = null;
+          searchIndexEpoch = -1;
+          searchIndexPromise = null;
+          emit('search-navigated', { count: 0, index: 0 });
+          return;
+        }
+        if (cmd.step === 0) emit('search-navigated', { searching: true });
+        void gridSearch
+          .searchAndScroll(cmd.q, { step: cmd.step ?? 0 })
+          .then((result) => {
+            if (!result?.cancelled) emit('search-navigated', result);
+          });
+      }
+    );
+
     /** Row 1 = Excel headers only; all body rows editable. */
     function cellReadonly(row, col) {
       return row < 2;
@@ -426,6 +491,8 @@ export default {
           sectionHeaderRows.value,
           props.sheet.matrixColors
         ),
+      isSearchHit: gridSearch.isSearchHit,
+      isSearchFocus: gridSearch.isSearchFocus,
       onScroll: scrollSync.onScroll,
       isCellActive,
       cellShowValue,
@@ -484,6 +551,8 @@ export default {
                     readonly: cellReadonly(entry.excelRow, col),
                     'col-sticky-date': isStickyDateCol(col),
                     'col-free-field': col === BD_FREE_FIELD_COL,
+                    'grid-search-hit': isSearchHit(entry.excelRow, col),
+                    'grid-search-focus': isSearchFocus(entry.excelRow, col),
                   },
                   bdColMetaClass(col),
                   projectCellClass(cellDisplay(entry.excelRow, col), col),

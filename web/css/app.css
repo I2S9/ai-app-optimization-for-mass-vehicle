@@ -101,6 +101,41 @@ body {
   gap: 4px;
   margin-left: 6px;
 }
+.topbar-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 2px;
+}
+.topbar-search-input {
+  width: min(220px, 36vw);
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  cursor: text;
+  appearance: none;
+}
+.topbar-search-input::-webkit-search-cancel-button,
+.topbar-search-input::-webkit-search-decoration {
+  display: none;
+}
+.topbar-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+.topbar-search-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.65);
+  background: rgba(0, 0, 0, 0.32);
+}
+.topbar-search-status {
+  font-size: 10px;
+  opacity: 0.85;
+  white-space: nowrap;
+}
 .topbar-right {
   margin-left: auto;
   display: flex;
@@ -112,10 +147,6 @@ body {
   font-size: 10px;
   opacity: 0.85;
   white-space: nowrap;
-}
-.app-topbar .saved-status {
-  color: #b8f5d0;
-  opacity: 1;
 }
 .topbar-save-btn {
   font-size: 10px;

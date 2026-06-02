@@ -21,7 +21,11 @@ import {
   isSynCalculatedMassCell,
 } from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
-import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-nav4';
+import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-search4';
+import {
+  buildSearchIndex,
+  createGridSearchController,
+} from './gridSearch.js?v=grid-search4';
 import {
   computeSynBodyRows,
   isSynPanelGapEntry,
@@ -189,8 +193,9 @@ export default {
     outlineOnly: { type: Boolean, default: false },
     paneVisible: { type: Boolean, default: true },
     externalEditTick: { type: Number, default: 0 },
+    searchCmd: { type: Object, default: null },
   },
-  emits: ['cell-change', 'cell-select'],
+  emits: ['cell-change', 'cell-select', 'search-row-hidden', 'search-navigated'],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -772,6 +777,70 @@ export default {
       displayCache.set(hitKey, out);
       return out;
     }
+
+    let searchIndex = null;
+    let searchIndexEpoch = -1;
+    let searchIndexPromise = null;
+
+    function getSearchIndexForGrid() {
+      const epoch = editEpoch.value;
+      if (searchIndex && searchIndexEpoch === epoch) {
+        return Promise.resolve(searchIndex);
+      }
+      if (searchIndexPromise && searchIndexEpoch === epoch) {
+        return searchIndexPromise;
+      }
+      searchIndexEpoch = epoch;
+      searchIndex = null;
+      searchIndexPromise = buildSearchIndex(
+        cellMap.value,
+        props.sheet,
+        displayColumns.value
+      ).then((idx) => {
+        searchIndex = idx;
+        searchIndexPromise = null;
+        return idx;
+      });
+      return searchIndexPromise;
+    }
+
+    const gridSearch = createGridSearchController({
+      getSearchIndex: getSearchIndexForGrid,
+      getBodyExcelRows: () =>
+        bodyRows.value
+          .filter((e) => !isSynPanelGapEntry(e))
+          .map((e) => e.excelRow)
+          .filter((r) => r != null),
+      getScrollEl: () => scrollEl.value,
+      scrollCellIntoView: (row, col) =>
+        cellNavigation.scrollCellIntoViewForced(row, col),
+      flushScroll: () => scrollSync.flush(),
+      getRowTop: (_rowIndex, excelRow) => bodyTopForExcelRow(excelRow),
+      getViewportH: () => viewportH.value,
+      rowHeight: ROW_H,
+      onRowHidden: (match) => emit('search-row-hidden', match),
+    });
+
+    watch(
+      () => props.searchCmd,
+      (cmd) => {
+        if (!props.paneVisible || !cmd) return;
+        if (!cmd.q) {
+          gridSearch.clearSearch();
+          searchIndex = null;
+          searchIndexEpoch = -1;
+          searchIndexPromise = null;
+          emit('search-navigated', { count: 0, index: 0 });
+          return;
+        }
+        if (cmd.step === 0) emit('search-navigated', { searching: true });
+        void gridSearch
+          .searchAndScroll(cmd.q, { step: cmd.step ?? 0 })
+          .then((result) => {
+            if (!result?.cancelled) emit('search-navigated', result);
+          });
+      }
+    );
 
     function headerEdgeRight(row, colIdx, colsLen) {
       return isSynHeaderPanelRow(row) && colsLen > 0 && colIdx === colsLen - 1;
@@ -1701,6 +1770,8 @@ export default {
       usesPillarLetterOverlay,
       synExcelColTraceClass,
       onScroll: onGridScroll,
+      isSearchHit: gridSearch.isSearchHit,
+      isSearchFocus: gridSearch.isSearchFocus,
       isCellActive,
       cellShowValue,
       cellDisplayHtml,
@@ -1793,7 +1864,14 @@ export default {
                 v-for="cell in pinnedCellsByRowKey[row.key]"
                 :key="row.key + '-p-' + cell.col"
                 class="data-cell col-sticky-label syn-label-col"
-                :class="[{ readonly: cell.readonly }, cell.classes]"
+                :class="[
+                  { readonly: cell.readonly },
+                  cell.classes,
+                  {
+                    'grid-search-hit': isSearchHit(cell.row, cell.col),
+                    'grid-search-focus': isSearchFocus(cell.row, cell.col),
+                  },
+                ]"
                 :style="cell.style"
               >
                 <template v-if="cell.gap || cell.readonly">
@@ -1825,7 +1903,14 @@ export default {
                 v-for="cell in scrollCellsByRowKey[row.key]"
                 :key="row.key + '-' + cell.col"
                 class="data-cell"
-                :class="[{ readonly: cell.readonly }, cell.classes]"
+                :class="[
+                  { readonly: cell.readonly },
+                  cell.classes,
+                  {
+                    'grid-search-hit': isSearchHit(cell.row, cell.col),
+                    'grid-search-focus': isSearchFocus(cell.row, cell.col),
+                  },
+                ]"
                 :style="cell.style"
               >
                 <template v-if="cell.gap || cell.readonly">
