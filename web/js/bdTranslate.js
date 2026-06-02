@@ -51,11 +51,11 @@ export const HEADER_FR_EN = {
 /** CA chapter bands only (yellow). */
 export const CA_BAND_EN = {
   '-ADAPTATION': '-ADAPTATION',
-  '-ADTH': '-ADTH',
+  '-ADTH': '-CABIN CLIMATE TREATMENT SYSTEM',
 };
 /** Sub-system L1 labels (blue) — column AP / W / A. */
 export const L1_SECTION_EN = {
-  AILES: 'WINGS',
+  AILES: 'FENDERS',
   ALTERNATEUR: 'ALTERNATOR',
   ASSISES: 'SEATS',
   ATTELAGE: 'TOWING',
@@ -117,13 +117,13 @@ export const L2_SECTION_EN = {
   '_CIRCUIT AIR': '_AIR CIRCUIT',
   '_CIRCUIT EAU': '_WATER CIRCUIT',
   '_COMMANDE VITESSE': '_SPEED CONTROL',
-  '_COMPRESSEUR CLIM': '_AC COMPRESSOR',
-  '_DIVERS ADTH': '_ADTH MISC',
+  '_COMPRESSEUR CLIM': '_AIR CONDITIONING COMPRESSOR',
+  '_DIVERS ADTH': '_MISCELLANEOUS CABIN CLIMATE TREATMENT SYSTEM',
   _ECHAPPEMENT: '_EXHAUST',
   '_ECRANS THERMIQUE': '_THERMAL SCREENS',
   _FACADE: '_FACADE',
-  '_GROUP CLIM': '_HVAC GROUP',
-  '_GROUPE ADDITIONNEL': '_ADD-ON GROUP',
+  '_GROUP CLIM': '_AIR CONDITIONING GROUP',
+  '_GROUPE ADDITIONNEL': '_ADDITIONAL GROUP',
   '_LIQUIDE ADDITIF': '_ADDITIVE LIQUID',
   '_LIQUIDE REFROIDISSEMENT': '_COOLING LIQUID',
   _PEDALIER: '_PEDAL',
@@ -142,8 +142,8 @@ export const CELL_VALUE_EN = {
   TT: 'TT',
   'STLA/S': 'STLA/S',
   'STLA-S': 'STLA-S',
-  'Ailes avant': 'Front wings',
-  'Ailes arrière': 'Rear wings',
+  'Ailes avant': 'Front fenders',
+  'Ailes arrière': 'Rear fenders',
   'Avant gauche (ancien process)': 'Front left (legacy process)',
   'Avant droite (ancien process)': 'Front right (legacy process)',
   'Système batterie 12V': '12V battery system',
@@ -212,12 +212,21 @@ export const CELL_VALUE_EN = {
   'Support porte pièces': 'Parts door support',
   Aérateur: 'Vent',
   Arrière: 'Rear',
-  'Ailes arrière': 'Rear wings',
+  'Ailes arrière': 'Rear fenders',
 };
 const LABEL_COLS = new Set(['A', 'AP', 'AS', 'AR', 'AU', 'W']);
 // Canonical overrides for already-English labels (used by bookmark/matrix text).
 // Keep these aligned with the expected English terminology.
 const ENGLISH_LABEL_OVERRIDES = {
+  // Legacy EN labels → canonical EN labels (keeps BD/SYN/Matrix identical).
+  WINGS: 'FENDERS',
+  Wings: 'Fenders',
+  'Front wings': 'Front fenders',
+  'Rear wings': 'Rear fenders',
+  // Some sources use uppercase section titles.
+  'FRONT WINGS': 'FRONT FENDERS',
+  'REAR WINGS': 'REAR FENDERS',
+
   'Coolant circuit': 'Water circuit',
   'Thermal shields': 'Thermal screens',
   'Front end': 'Facade',
@@ -238,6 +247,14 @@ const ENGLISH_LABEL_OVERRIDES = {
   'HV Charging module system (idcm)': 'High-voltage charge module system (IDCM)',
   'High-voltage charge module system (idcm)':
     'High-voltage charge module system (IDCM)',
+
+  ADTH: 'Cabin climate treatment system',
+  'ADTH MISC': 'Miscellaneous cabin climate treatment system',
+  'HVAC Group': 'Air conditioning group',
+  'AC Compressor': 'Air conditioning compressor',
+  'ADD6on group': 'Additional group',
+  'ADD-on group': 'Additional group',
+  'ADD-ON GROUP': 'ADDITIONAL GROUP',
 
   // Explicit underscore labels (often appear in bookmark/matrix structure rows).
   _DURITE_DE_VENTILATION_MODULE_CHARGE_HT:
@@ -328,7 +345,7 @@ export function translateFrenchPhrase(text) {
     [/Alternateur/gi, 'Alternator'],
     [/Démarreur/gi, 'Starter'],
     [/Colonne/gi, 'Column'],
-    [/Ailes/gi, 'Wings'],
+    [/Ailes/gi, 'Fenders'],
     [/Assise/gi, 'Seat'],
     [/Assises/gi, 'Seats'],
     [/Fixation/gi, 'Mounting'],
