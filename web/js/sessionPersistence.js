@@ -50,7 +50,7 @@ export function extractSheetEdits(raw) {
   const headerRows = {};
   for (const [rowKey, cols] of Object.entries(raw.headerRows || {})) {
     for (const [col, cell] of Object.entries(cols)) {
-      if (!cell?.userEdited) continue;
+      if (!cell || !cell.userEdited) continue;
       const row = Number(rowKey);
       if (!headerRows[row]) headerRows[row] = {};
       headerRows[row][col] = {
@@ -96,8 +96,8 @@ export function buildPersistRecord({
 
   const record = {
     version: PERSIST_VERSION,
-    revision: revision ?? 0,
-    structureRevision: structureRevision ?? 0,
+    revision: revision != null ? revision : 0,
+    structureRevision: structureRevision != null ? structureRevision : 0,
     savedAt: new Date().toISOString(),
   };
 
@@ -164,20 +164,22 @@ export function upsertRawCell(raw, row, col, value) {
   const strVal = value == null ? '' : String(value);
   const idx = ensureRawCellIndex(raw);
 
-  let cell = idx?.get(`${r}:${c}`);
+  let cell = idx ? idx.get(`${r}:${c}`) : null;
   if (!cell) {
     cell = { r, c, v: strVal, userEdited: true };
     if (!raw.cells) raw.cells = [];
     raw.cells.push(cell);
-    idx?.set(`${r}:${c}`, cell);
+    if (idx) idx.set(`${r}:${c}`, cell);
   } else {
     cell.v = strVal;
     cell.userEdited = true;
     delete cell.f;
   }
 
-  const rowHdr = raw.headerRows?.[String(r)] ?? raw.headerRows?.[r];
-  if (rowHdr?.[c]) {
+  const rowHdr =
+    (raw.headerRows && raw.headerRows[String(r)]) ||
+    (raw.headerRows && raw.headerRows[r]);
+  if (rowHdr && rowHdr[c]) {
     rowHdr[c].v = strVal;
     rowHdr[c].userEdited = true;
     delete rowHdr[c].f;
@@ -193,7 +195,7 @@ export async function loadLocalSnapshot(
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE, 'readonly');
       const req = tx.objectStore(STORE).get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
+      req.onsuccess = () => resolve(req.result != null ? req.result : null);
       req.onerror = () => reject(req.error);
     });
   };
@@ -276,19 +278,19 @@ export function createAutoSave(getPayload, { debounceMs = 1500, onStatus } = {})
 
   async function flush() {
     const data = getPayload();
-    if (!data?.bd && !data?.syn) return;
+    if (!data || (!data.bd && !data.syn)) return;
     if (saving) {
       pending = true;
       return;
     }
     saving = true;
-    onStatus?.('saving');
+    if (onStatus) onStatus('saving');
     try {
       await saveLocalSnapshot(data);
-      onStatus?.('saved');
+      if (onStatus) onStatus('saved');
     } catch (e) {
       console.error('Auto-save failed:', e);
-      onStatus?.('error', e);
+      if (onStatus) onStatus('error', e);
     } finally {
       saving = false;
       if (pending) {
@@ -299,7 +301,7 @@ export function createAutoSave(getPayload, { debounceMs = 1500, onStatus } = {})
   }
 
   function schedule() {
-    onStatus?.('dirty');
+    if (onStatus) onStatus('dirty');
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
@@ -326,9 +328,9 @@ export function createAutoSave(getPayload, { debounceMs = 1500, onStatus } = {})
 /** Stable id for raw JSON — detects project file updates. */
 export function rawFingerprint(raw) {
   if (!raw) return '';
-  const cells = raw.cells?.length ?? 0;
-  const cols = raw.columns?.length ?? 0;
-  const lastRow = raw.lastRow ?? 0;
+  const cells = raw.cells && raw.cells.length ? raw.cells.length : 0;
+  const cols = raw.columns && raw.columns.length ? raw.columns.length : 0;
+  const lastRow = raw.lastRow != null ? raw.lastRow : 0;
   let edited = 0;
   for (const c of raw.cells || []) {
     if (c.userEdited) edited++;
@@ -363,7 +365,7 @@ export async function loadSheetTransform(sheetId, fingerprint) {
       const req = tx.objectStore(STORE_TRANSFORMS).get(sheetId);
       req.onsuccess = () => {
         const rec = req.result;
-        if (rec?.fingerprint === fingerprint && rec.sheet) {
+        if (rec && rec.fingerprint === fingerprint && rec.sheet) {
           resolve(hydrateTransformSheet(rec.sheet));
         } else resolve(null);
       };
@@ -378,9 +380,20 @@ export async function saveSheetTransform(sheetId, fingerprint, sheet, { skipIfPr
   if (skipIfPrecomputed) return false;
   try {
     const db = await openDb();
+    // IndexedDB uses the structured clone algorithm. In some environments, objects that
+    // look like plain arrays/objects can still fail to clone (e.g. proxies / exotic arrays).
+    // Normalize through JSON to guarantee cloneability for cached transforms.
+    const normalizedSheet = (() => {
+      const data = serializeTransformSheet(sheet);
+      try {
+        return JSON.parse(JSON.stringify(data));
+      } catch {
+        return data;
+      }
+    })();
     const payload = {
       fingerprint,
-      sheet: serializeTransformSheet(sheet),
+      sheet: normalizedSheet,
       savedAt: new Date().toISOString(),
     };
     return new Promise((resolve, reject) => {

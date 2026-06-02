@@ -104,8 +104,8 @@ export function createWorkbookSession() {
   }
 
   function getBdValue(r, c) {
-    const cell = bdCellMap?.get(`${r}:${c}`);
-    if (cell?.userEdited) {
+    const cell = bdCellMap ? bdCellMap.get(`${r}:${c}`) : null;
+    if (cell && cell.userEdited) {
       return cell.v != null && cell.v !== '' ? String(cell.v) : '';
     }
     if (ready.value && engine.hasFormula('BD', r, c)) {
@@ -124,7 +124,7 @@ export function createWorkbookSession() {
       );
       if (displayed !== '') return displayed;
     }
-    const raw = bdCols?.[c]?.[r];
+    const raw = bdCols && bdCols[c] ? bdCols[c][r] : undefined;
     return raw != null && raw !== '' ? String(raw) : '';
   }
 
@@ -169,15 +169,23 @@ export function createWorkbookSession() {
         if (i >= 0) arr.splice(i, 1);
       }
     }
-    const q = String(getBdValue(row, 'Q') ?? bdCols?.Q?.[row] ?? '').trim();
+    const qRaw =
+      getBdValue(row, 'Q') != null
+        ? getBdValue(row, 'Q')
+        : bdCols && bdCols.Q
+          ? bdCols.Q[row]
+          : '';
+    const q = String(qRaw != null ? qRaw : '').trim();
     if (q !== 'S') {
       bdRowToL2Key.delete(row);
       return;
     }
     const l2Raw =
-      getBdValue(row, BD_SUBSYSTEM_L2_COL) ??
-      bdCols?.[BD_SUBSYSTEM_L2_COL]?.[row] ??
-      '';
+      getBdValue(row, BD_SUBSYSTEM_L2_COL) != null
+        ? getBdValue(row, BD_SUBSYSTEM_L2_COL)
+        : bdCols && bdCols[BD_SUBSYSTEM_L2_COL]
+          ? bdCols[BD_SUBSYSTEM_L2_COL][row]
+          : '';
     const newKey = canonicalL2MatchKey(l2Raw);
     if (!newKey) {
       bdRowToL2Key.delete(row);
@@ -190,9 +198,11 @@ export function createWorkbookSession() {
 
   function bdL2KeyAtRow(row) {
     const l2Raw =
-      getBdValue(row, BD_SUBSYSTEM_L2_COL) ??
-      bdCols?.[BD_SUBSYSTEM_L2_COL]?.[row] ??
-      '';
+      getBdValue(row, BD_SUBSYSTEM_L2_COL) != null
+        ? getBdValue(row, BD_SUBSYSTEM_L2_COL)
+        : bdCols && bdCols[BD_SUBSYSTEM_L2_COL]
+          ? bdCols[BD_SUBSYSTEM_L2_COL][row]
+          : '';
     return canonicalL2MatchKey(l2Raw);
   }
 
@@ -308,7 +318,11 @@ export function createWorkbookSession() {
       synSectionRows,
       isBlueSubsectionRow,
       getBlueMaaValue,
-      synSheetMeta?.effectiveLastRow ?? synSheetMeta?.lastRow ?? 422
+      synSheetMeta && synSheetMeta.effectiveLastRow != null
+        ? synSheetMeta.effectiveLastRow
+        : synSheetMeta && synSheetMeta.lastRow != null
+          ? synSheetMeta.lastRow
+          : 422
     );
     sumproductCache.set(cacheKey, String(n));
     return n;
@@ -321,11 +335,11 @@ export function createWorkbookSession() {
   }
 
   function resolveSynNumericAt(row, col) {
-    const cell = synGridGetter?.(row, col) ?? null;
+    const cell = synGridGetter ? synGridGetter(row, col) : null;
     if (isSynAdaptationSumCell(row, col)) {
       return computeAdaptationRowSum(getAdaptationBlockNumeric, col);
     }
-    if (cell?.userEdited) {
+    if (cell && cell.userEdited) {
       return parseSynNum(displayValue(cell));
     }
     if (
@@ -418,7 +432,7 @@ export function createWorkbookSession() {
       }
       ready.value = false;
     } catch (e) {
-      error.value = e?.message || String(e);
+      error.value = (e && e.message) || String(e);
       console.error('Workbook session load failed:', e);
     } finally {
       loading.value = false;
@@ -452,7 +466,7 @@ export function createWorkbookSession() {
       }
     }
     const cell = synGridGetter(row, col);
-    return cell?.v != null && cell.v !== '' ? String(cell.v) : '';
+    return cell && cell.v != null && cell.v !== '' ? String(cell.v) : '';
   }
 
   function getAdaptationBlockNumeric(row, col) {
@@ -465,7 +479,7 @@ export function createWorkbookSession() {
 
   function getSynFormula(row, col) {
     if (!synSheetMeta) return '';
-    const cell = synGridGetter?.(row, col) ?? null;
+    const cell = synGridGetter ? synGridGetter(row, col) : null;
     const label = getSynLabel(row);
     const rowClass = getSynRowClass(row);
     return describeSynCellFormula(
@@ -522,7 +536,7 @@ export function createWorkbookSession() {
         synCalcTick.value += 1;
       } else if (
         col === 'F' &&
-        row >= (synSheetMeta?.dataStartRow ?? 15)
+        row >= (synSheetMeta && synSheetMeta.dataStartRow != null ? synSheetMeta.dataStartRow : 15)
       ) {
         invalidateSumproductCaches();
         synCalcTick.value += 1;
@@ -533,7 +547,7 @@ export function createWorkbookSession() {
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
-    if (sheetName === 'SYNTHESIS' && cell?.mat && !cell?.userEdited) {
+    if (sheetName === 'SYNTHESIS' && cell && cell.mat && !cell.userEdited) {
       return displayValue(cell);
     }
     if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
@@ -541,7 +555,7 @@ export function createWorkbookSession() {
       const n = computeAdaptationRowSum(getAdaptationBlockNumeric, col);
       return String(n);
     }
-    if (cell?.userEdited && !isSynAdaptationSumCell(row, col)) {
+    if (cell && cell.userEdited && !isSynAdaptationSumCell(row, col)) {
       return displayValue(cell);
     }
     if (
@@ -642,7 +656,7 @@ export function createWorkbookSession() {
       return true;
     }
     if (sheetName === 'BD') {
-      if (!cell?.f) return false;
+      if (!cell || !cell.f) return false;
       if (ready.value) return engine.hasFormula(sheetName, row, col);
       return true;
     }

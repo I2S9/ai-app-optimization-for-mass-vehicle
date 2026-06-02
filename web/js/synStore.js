@@ -141,7 +141,8 @@ export const SYN_BUILTIN_PILLAR_META = {
 };
 
 export function getSynPillarMeta(col, pillarColumns) {
-  return pillarColumns?.get(col) ?? SYN_BUILTIN_PILLAR_META[col] ?? null;
+  if (pillarColumns && pillarColumns.has(col)) return pillarColumns.get(col);
+  return SYN_BUILTIN_PILLAR_META[col] != null ? SYN_BUILTIN_PILLAR_META[col] : null;
 }
 export const SYN_METRIC_ROW_LABELS = {
   15: '',
@@ -311,7 +312,7 @@ function parseSynBandNum(v) {
 /** Numeric value for ADAPTATION band rows 27–41 (presets unless userEdited). */
 export function getSynAdaptBandNumeric(getCell, row, col) {
   const cell = getCell(row, col);
-  if (cell?.userEdited) {
+  if (cell && cell.userEdited) {
     return parseSynBandNum(displayValue(cell));
   }
   const preset = synRowCjPresetRaw(row, col);
@@ -336,7 +337,7 @@ export function getSynAdaptBandNumeric(getCell, row, col) {
   if (raw && isSynNumericRaw(raw)) {
     return parseSynBandNum(raw);
   }
-  if (cell?.v != null && cell.v !== '') {
+  if (cell && cell.v != null && cell.v !== '') {
     return parseSynBandNum(cell.v);
   }
   return 0;
@@ -641,7 +642,7 @@ export function applySynRowsCjPresetCells(cells = []) {
       const col = displayToExcelCol(display);
       const key = `${row}:${col}`;
       let cell = index.get(key);
-      if (cell?.userEdited) continue;
+      if (cell && cell.userEdited) continue;
       if (value == null) {
         if (cell) {
           cell.v = '';
@@ -983,7 +984,7 @@ export function applySynRowsAcanPresetCells(cells = []) {
       const col = displayToExcelCol(display);
       const key = `${row}:${col}`;
       let cell = index.get(key);
-      if (cell?.userEdited) continue;
+      if (cell && cell.userEdited) continue;
       if (value == null) {
         if (cell) {
           cell.v = '';
@@ -1019,7 +1020,7 @@ export function applySynRowsAcanPresetHeaderRows(headerRows = {}) {
     for (const [display, value] of rowMap) {
       const col = displayToExcelCol(display);
       const existing = headerRows[rowKey][col];
-      if (existing?.userEdited) continue;
+      if (existing && existing.userEdited) continue;
       headerRows[rowKey][col] = {
         ...(existing || {}),
         v: value == null ? '' : String(value),
@@ -1193,7 +1194,7 @@ export function applySynRowsApbbPresetCells(cells = []) {
       const col = displayToExcelCol(display);
       const key = `${row}:${col}`;
       let cell = index.get(key);
-      if (cell?.userEdited) continue;
+      if (cell && cell.userEdited) continue;
       if (value == null) {
         if (cell) {
           cell.v = '';
@@ -1229,7 +1230,7 @@ export function applySynRowsApbbPresetHeaderRows(headerRows = {}) {
     for (const [display, value] of rowMap) {
       const col = displayToExcelCol(display);
       const existing = headerRows[rowKey][col];
-      if (existing?.userEdited) continue;
+      if (existing && existing.userEdited) continue;
       headerRows[rowKey][col] = {
         ...(existing || {}),
         v: value == null ? '' : String(value),
@@ -1450,7 +1451,7 @@ export function applySynRowsMaaPresetCells(cells = []) {
       const col = displayToExcelCol(display);
       const key = `${row}:${col}`;
       let cell = index.get(key);
-      if (cell?.userEdited) continue;
+      if (cell && cell.userEdited) continue;
       if (value == null) {
         if (cell) {
           cell.v = '';
@@ -1484,7 +1485,7 @@ export function applySynRowsMaaPresetHeaderRows(headerRows = {}) {
     for (const [display, value] of rowMap) {
       const col = displayToExcelCol(display);
       const existing = headerRows[rowKey][col];
-      if (existing?.userEdited) continue;
+      if (existing && existing.userEdited) continue;
       headerRows[rowKey][col] = {
         ...(existing || {}),
         v: value == null ? '' : String(value),
@@ -1500,7 +1501,7 @@ export function applySynRowsMaaPresetHeaderRows(headerRows = {}) {
 
 /** First -ADAPTATION section row. */
 export function findSynAdaptationRow(map, sheet) {
-  const last = sheet?.lastRow || SYN_MAX_EXCEL_ROW;
+  const last = (sheet && sheet.lastRow) || SYN_MAX_EXCEL_ROW;
   for (let r = 2; r <= last; r++) {
     const raw =
       synLabel(map, r) || displayValue(getCell(map, r, SYN_LABEL_COL)) || '';
@@ -1512,7 +1513,7 @@ export function findSynAdaptationRow(map, sheet) {
 
 /** First _ÉCHAPPEMENT row — vertical SP1 / SP2 label starts here. */
 export function findSynEchappementRow(map, sheet) {
-  const last = sheet?.lastRow || SYN_MAX_EXCEL_ROW;
+  const last = (sheet && sheet.lastRow) || SYN_MAX_EXCEL_ROW;
   for (let r = 2; r <= last; r++) {
     const raw =
       synLabel(map, r) || displayValue(getCell(map, r, SYN_LABEL_COL)) || '';
@@ -1531,7 +1532,7 @@ export function findSynEchappementRow(map, sheet) {
 
 /** "SP1 Target" → "SP1 TARGET"; "SP2 Restart" → "SP2 RESTART". */
 export function normalizeSynPillarTitle(raw) {
-  const t = String(raw ?? '')
+  const t = String(raw != null ? raw : '')
     .trim()
     .toUpperCase()
     .replace(/\s+/g, ' ');
@@ -1582,11 +1583,15 @@ function numToCol(n) {
 }
 
 export function isMergeCovered(mergeMaps, row, col) {
-  return mergeMaps?.covered?.has(`${row}:${col}`) ?? false;
+  return Boolean(
+    mergeMaps &&
+      mergeMaps.covered &&
+      mergeMaps.covered.has(`${row}:${col}`)
+  );
 }
 
 export function getMergeSpan(mergeMaps, row, col) {
-  const m = mergeMaps?.master?.get(`${row}:${col}`);
+  const m = mergeMaps && mergeMaps.master ? mergeMaps.master.get(`${row}:${col}`) : null;
   if (!m) return null;
   // Large vertical merges break virtualized tables — keep layout value in master cell only.
   if (m.rowspan > 3 || m.colspan > 8) return null;
@@ -1607,7 +1612,7 @@ export function synLabel(map, row) {
 }
 
 export function synFilterRowLabel(map, row) {
-  const fallback = SYN_FILTER_ROW_LABELS[row] ?? '';
+  const fallback = SYN_FILTER_ROW_LABELS[row] != null ? SYN_FILTER_ROW_LABELS[row] : '';
   const fromCell = synLabel(map, row);
   if (fromCell) {
     const t = fromCell.trim();
@@ -1648,7 +1653,7 @@ export function synHeaderPanelLabel(map, row) {
 
 /** True when the cell value is a plain number (not text like P1X). */
 export function isSynNumericRaw(raw) {
-  const s = String(raw ?? '').trim();
+  const s = String(raw != null ? raw : '').trim();
   if (!s) return false;
   return /^-?\d+([.,]\d+)?([eE][+-]?\d+)?$/.test(s);
 }
@@ -1691,7 +1696,7 @@ export function formatSynNumericDisplay(raw) {
 
 /** AP…BB — curb mass rows 16–18; control/portfolio variance rows 19–20. */
 function formatSynHdrApbbMetricDisplay(row, raw) {
-  const s = String(raw ?? '').trim();
+  const s = String(raw != null ? raw : '').trim();
   if (!s) return s;
   if (!isSynNumericRaw(s)) return s;
   const n = parseFloat(s.replace(',', '.'));
@@ -1711,7 +1716,7 @@ function formatSynHdrApbbMetricDisplay(row, raw) {
 
 /** Header panel M…AA — mass rows with kg; control/portfolio with 1 decimal, no kg. */
 function formatSynHdrMaaMetricDisplay(row, raw, col) {
-  const s = String(raw ?? '').trim();
+  const s = String(raw != null ? raw : '').trim();
   if (!s) return s;
   if (!isSynNumericRaw(s)) return s;
   const n = parseFloat(s.replace(',', '.'));
@@ -1734,7 +1739,7 @@ function formatSynHdrMaaMetricDisplay(row, raw, col) {
 
 /** Excel serial date → display (PM pre-target row). */
 export function formatSynMetricValue(row, col, raw) {
-  const s = String(raw ?? '').trim();
+  const s = String(raw != null ? raw : '').trim();
   if (!s || colToNum(col) < colToNum(SYN_VEHICLE_COL_START)) return s;
   if (row === 17 || row === 18) {
     const n = parseFloat(s.replace(',', '.'));
@@ -1770,7 +1775,7 @@ export function formatSynMetricValue(row, col, raw) {
 /** Metric data cells — Control green/red, Portfolio red, etc. */
 export function synMetricCellClass(row, col, display) {
   if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START)) return '';
-  const s = String(display ?? '').trim();
+  const s = String(display != null ? display : '').trim();
   if (!s) return '';
   if (isSynApBbTableCol(col)) {
     if (row === 19) {
@@ -1808,10 +1813,10 @@ export function buildSynPillarColumns(sheet, cellMap) {
   for (const [col, meta] of Object.entries(SYN_BUILTIN_PILLAR_META)) {
     pillars.set(col, { ...meta });
   }
-  for (const m of sheet?.merges || []) {
+  for (const m of (sheet && sheet.merges) || []) {
     if (m.colspan !== 1 || m.endRow - m.startRow < 50) continue;
     const cell = getCell(cellMap, m.startRow, m.startCol);
-    const raw = String(cell?.v ?? '').trim();
+    const raw = String(cell && cell.v != null ? cell.v : '').trim();
     if (!raw || !/target|restart/i.test(raw)) continue;
     pillars.set(m.startCol, {
       title: normalizeSynPillarTitle(raw),
@@ -1824,7 +1829,7 @@ export function buildSynPillarColumns(sheet, cellMap) {
 
 export function isSynPillarCol(col, pillarColumns) {
   if (isSynBuiltinPillarExcelCol(col)) return true;
-  return pillarColumns?.has(col) ?? false;
+  return Boolean(pillarColumns && pillarColumns.has(col));
 }
 
 /** Pillar column — not on virtual panel gap rows (display 21–22). */
@@ -1834,13 +1839,14 @@ export function isSynPillarColAtRow(col, row, pillarColumns) {
 }
 
 export function isSynPillarAnchor(row, col, pillarColumns) {
-  const p = pillarColumns?.get(col);
+  const p = pillarColumns ? pillarColumns.get(col) : null;
   return Boolean(p && row === p.startRow);
 }
 
 export function isSynSp2PillarCol(col, pillarColumns) {
   if (!isSynPillarCol(col, pillarColumns)) return false;
-  const title = pillarColumns.get(col)?.title ?? '';
+  const meta = pillarColumns ? pillarColumns.get(col) : null;
+  const title = meta && meta.title != null ? meta.title : '';
   return /^SP2\b/i.test(title);
 }
 
@@ -1856,7 +1862,7 @@ export function isSynProjHeaderGreenCol(row, col) {
 export function isSynStlaSlashGreenCell(row, col, display) {
   if (row == null || !isSynHeaderPanelRow(row)) return false;
   if (!isSynHdrSummaryTableCol(col)) return false;
-  const t = String(display ?? '').trim().toUpperCase();
+  const t = String(display != null ? display : '').trim().toUpperCase();
   return t === 'STLA/S' || t === 'STLA-S';
 }
 
@@ -2014,7 +2020,7 @@ export function synRow20PortfolioYellowStyle() {
 
 /** Row 21/22: Step 3 on display V–AA, AI–AN, or AY–BB. */
 export function isSynRow21Step3Col(row, col, display) {
-  if (!String(display ?? '').trim()) return false;
+  if (!String(display != null ? display : '').trim()) return false;
   const n = colToNum(col);
   if (Number(row) === 21 && isSynApBbTableCol(col)) {
     const start = colToNum(displayToExcelCol('AY'));
@@ -2339,14 +2345,14 @@ export function isSynHdrAaDividerRightCol(row, col) {
 
 /** Display-row gap between Excel 18–19 — keep table grid borders on a white band. */
 export function isSynHeaderTableGapBetweenEntry(entry) {
-  return Boolean(entry?.gapBetween);
+  return Boolean(entry && entry.gapBetween);
 }
 
 /** Excel row for table-frame helpers — gap row uses a panel row so col checks apply. */
 export function resolveSynHeaderTableEntryRow(entry) {
   if (!entry) return null;
   if (entry.gapBetween) return SYN_GRID_FIRST_ROW;
-  return entry.excelRow ?? null;
+  return entry.excelRow != null ? entry.excelRow : null;
 }
 
 /** M / AA frame — Excel rows 3–22 + display gap row 19. */
@@ -2874,7 +2880,7 @@ export function synSpacerColStyle(col) {
 }
 
 export function isSynFilterRow(row, sheet) {
-  const rows = sheet?.filterRows || [...SYN_FILTER_ROWS];
+  const rows = (sheet && sheet.filterRows) || [...SYN_FILTER_ROWS];
   return rows.includes(row);
 }
 
@@ -2884,21 +2890,26 @@ export function isSynSeparatorRow(row) {
 
 /** Yellow L1 band (AILES, ALTERNATEUR, -ADAPTATION, BOUCLIER AR…). */
 export function isSynL1SectionLabel(label) {
-  const t = String(label ?? '').trim();
+  const t = String(label != null ? label : '').trim();
   if (!t) return false;
   if (t.startsWith('-')) return true;
   return isSectionLabel(t);
 }
 
 export function isSynL2SubsectionLabel(label) {
-  const t = String(label ?? '').trim();
+  const t = String(label != null ? label : '').trim();
   return t.startsWith('_');
 }
 
 /** Rows under an L1 title until the next L1 (e.g. between AILES and ALTERNATEUR). */
 export function isSynBetweenL1SectionRows(map, row, sheet) {
   if (isSynL1SectionLabel(synLabel(map, row))) return false;
-  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? SYN_MAX_EXCEL_ROW;
+  const last =
+    sheet && sheet.effectiveLastRow != null
+      ? sheet.effectiveLastRow
+      : sheet && sheet.lastRow != null
+        ? sheet.lastRow
+        : SYN_MAX_EXCEL_ROW;
   let lastL1 = 0;
   for (let r = SYN_GRID_FIRST_ROW; r < row; r++) {
     if (isSynL1SectionLabel(synLabel(map, r))) lastL1 = r;
@@ -2911,7 +2922,9 @@ export function isSynBetweenL1SectionRows(map, row, sheet) {
 }
 
 export function isSynSectionLabelRow(map, row, sheet) {
-  const band = sheet?.rowBands?.[String(row)] ?? sheet?.rowBands?.[row];
+  const band =
+    (sheet && sheet.rowBands && sheet.rowBands[String(row)]) ||
+    (sheet && sheet.rowBands && sheet.rowBands[row]);
   if (band === 'section' || band === 'subsection') return true;
   const label = synLabel(map, row);
   if (!label) return false;
@@ -2921,7 +2934,9 @@ export function isSynSectionLabelRow(map, row, sheet) {
 /** Row band from Excel label column (F) export, else label-prefix fallback. */
 export function synRowStyleClass(map, row, sheet) {
   if (isSynPanelGapRow(row)) return 'syn-panel-gap';
-  const band = sheet?.rowBands?.[String(row)] ?? sheet?.rowBands?.[row];
+  const band =
+    (sheet && sheet.rowBands && sheet.rowBands[String(row)]) ||
+    (sheet && sheet.rowBands && sheet.rowBands[row]);
   if (band === 'separator') return 'syn-row-separator';
   if (band === 'filter') return 'syn-row-filter';
   if (band === 'section') return 'syn-row-section';
@@ -3052,7 +3067,11 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   const rowCls = synRowStyleClass(map, row, sheet);
   if (SYN_STRUCTURE_ROW_CLASSES.has(rowCls)) {
     const rowColor =
-      sheet?.matrixColors?.[row] ?? sheet?.matrixColors?.[String(row)];
+      sheet && sheet.matrixColors
+        ? sheet.matrixColors[row] != null
+          ? sheet.matrixColors[row]
+          : sheet.matrixColors[String(row)]
+        : undefined;
     if (
       rowColor &&
       (rowCls === 'syn-row-section' || rowCls === 'syn-row-subsection')
@@ -3061,7 +3080,7 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
     }
     return style;
   }
-  if (cell?.b) style.fontWeight = '700';
+  if (cell && cell.b) style.fontWeight = '700';
   Object.assign(style, synAdaptCjBoldFontStyle(row, col, disp, sheet) || {});
   return style;
 }
@@ -3110,7 +3129,12 @@ export function synHeaderPanelBoldFontStyle(row, col) {
 export function isSynAdaptCjBoldRow(row, sheet) {
   const r = Number(row);
   if (!Number.isFinite(r) || r < SYN_ZERO_FILL_FIRST_ROW) return false;
-  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? SYN_MAX_EXCEL_ROW;
+  const last =
+    sheet && sheet.effectiveLastRow != null
+      ? sheet.effectiveLastRow
+      : sheet && sheet.lastRow != null
+        ? sheet.lastRow
+        : SYN_MAX_EXCEL_ROW;
   return r <= last;
 }
 
@@ -3118,7 +3142,7 @@ export function isSynAdaptCjValueBold(row, col, displayText, sheet) {
   if (!isSynAdaptCjBoldRow(row, sheet)) return false;
   if (!isSynHeaderPanelVehicleCol(col)) return false;
   if (isSynSpacerDisplayExcelCol(col)) return false;
-  const t = String(displayText ?? '').trim();
+  const t = String(displayText != null ? displayText : '').trim();
   if (!t || t === '0,00') return false;
   return true;
 }
@@ -3130,7 +3154,7 @@ export function synAdaptCjBoldFontStyle(row, col, displayText, sheet) {
 
 /** Avenger like (#d8e4bc) / P1X (#c0504d) — exact cell value (row 5 Silhouette). */
 export function synCellAccentClass(displayText) {
-  const u = String(displayText ?? '')
+  const u = String(displayText != null ? displayText : '')
     .trim()
     .toUpperCase();
   if (!u) return '';
@@ -3162,7 +3186,7 @@ export function isSynHdrBevTextRow(row) {
 
 export function synHdrBevTextClass(row, displayText) {
   if (!isSynHdrBevTextRow(row)) return '';
-  const v = String(displayText ?? '').trim().toUpperCase();
+  const v = String(displayText != null ? displayText : '').trim().toUpperCase();
   if (!v.includes('BEV')) return '';
   return 'syn-hdr-val-bev';
 }
@@ -3173,7 +3197,7 @@ export function synHdrBevTextStyle(row, displayText) {
 }
 
 function escapeSynDisplayHtml(text) {
-  return String(text ?? '')
+  return String(text != null ? text : '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -3183,7 +3207,7 @@ function escapeSynDisplayHtml(text) {
 /** Read-only display: highlight "BEV" in green within cell text (rows 3–23). */
 export function synHdrBevDisplayHtml(row, displayText) {
   if (!isSynHdrBevTextRow(row)) return null;
-  const text = String(displayText ?? '');
+  const text = String(displayText != null ? displayText : '');
   if (!/BEV/i.test(text)) return null;
   return escapeSynDisplayHtml(text).replace(
     /BEV/gi,
@@ -3194,7 +3218,7 @@ export function synHdrBevDisplayHtml(row, displayText) {
 export function synHdrEnergyValueClass(row, col, displayText) {
   if (row == null || !isSynHeaderPanelRow(row)) return '';
   if (!isSynHdrSummaryTableCol(col)) return '';
-  const v = String(displayText ?? '').trim().toUpperCase();
+  const v = String(displayText != null ? displayText : '').trim().toUpperCase();
   if (!v) return '';
   if (v.includes('MHEVP2')) return 'syn-hdr-val-mhevp2';
   if (v.includes('HEV')) return 'syn-hdr-val-hev';
@@ -3301,7 +3325,7 @@ export function synHeaderPanelVehicleClass(row, col, displayText) {
   if (accent) return accent;
   const energyCls = synHdrEnergyValueClass(row, col, displayText);
   if (energyCls) return energyCls;
-  const v = String(displayText ?? '')
+  const v = String(displayText != null ? displayText : '')
     .trim()
     .toUpperCase();
   if (v.includes('P1H')) return 'syn-hdr-val-p1h';
@@ -3378,7 +3402,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     return synHeaderPanelLabel(map, row);
   }
   if (isSynHeaderPanelRow(row) && isSynMaaPresetExcelCol(col)) {
-    if (cell?.userEdited) {
+    if (cell && cell.userEdited) {
       const rawEdited = displayValue(cell);
       if (isSynNumericRaw(rawEdited)) {
         return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
@@ -3398,7 +3422,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     }
   }
   if (isSynHeaderPanelRow(row) && isSynAcanPresetExcelCol(col)) {
-    if (cell?.userEdited) {
+    if (cell && cell.userEdited) {
       const rawEdited = displayValue(cell);
       if (isSynNumericRaw(rawEdited)) {
         return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
@@ -3418,7 +3442,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     }
   }
   if (isSynHeaderPanelRow(row) && isSynApbbPresetExcelCol(col)) {
-    if (cell?.userEdited) {
+    if (cell && cell.userEdited) {
       const rawEdited = displayValue(cell);
       if (isSynNumericRaw(rawEdited)) {
         return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
@@ -3450,7 +3474,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
     );
     // Body M…AA / AC…AN — only show session-merged values; never Excel export or M…AA presets.
     if (liveMassCell && isSynVehicleMassCol(col)) {
-      if (cell?.userEdited) {
+      if (cell && cell.userEdited) {
         const rawEdited = displayValue(cell);
         if (isSynNumericRaw(rawEdited)) {
           return synTranslateText(formatSynNumericDisplay(rawEdited), col);
@@ -3508,7 +3532,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       }
       return synTranslateText(formatSynNumericDisplay('0'), col);
     }
-    if (cell?.userEdited) {
+    if (cell && cell.userEdited) {
       const rawEdited = displayValue(cell);
       if (isSynNumericRaw(rawEdited)) {
         return synTranslateText(formatSynNumericDisplay(rawEdited), col);
@@ -3601,11 +3625,11 @@ export function computeSynEffectiveLastRow(sheet, cellMap) {
     rowChecked.set(r, ok);
     return ok;
   };
-  for (const cell of sheet?.cells || []) {
+  for (const cell of (sheet && sheet.cells) || []) {
     if (cell.r <= SYN_HEADER_PANEL_LAST_ROW) continue;
     if (rowHasContent(cell.r)) last = Math.max(last, cell.r);
   }
-  for (const rowStr of Object.keys(sheet?.rowBands || {})) {
+  for (const rowStr of Object.keys((sheet && sheet.rowBands) || {})) {
     const r = parseInt(rowStr, 10);
     if (r > SYN_HEADER_PANEL_LAST_ROW && rowHasContent(r)) {
       last = Math.max(last, r);
@@ -3616,8 +3640,8 @@ export function computeSynEffectiveLastRow(sheet, cellMap) {
 
 /** Skip blank lines below the grid; keep filter band rows 3–14. */
 function isSynRowArchived(sheet, row) {
-  const bands = sheet?.archivedRowBands;
-  if (!bands?.length || row == null) return false;
+  const bands = sheet && sheet.archivedRowBands;
+  if (!bands || !bands.length || row == null) return false;
   for (const b of bands) {
     if (row >= b.start && row <= b.end) return true;
   }
@@ -3631,7 +3655,7 @@ export function synRowHasContent(map, row, sheet) {
   if (synLabel(map, row)) return true;
   const cls = synRowStyleClass(map, row, sheet);
   if (cls !== 'syn-row-data') return true;
-  for (const col of sheet?.columns || []) {
+  for (const col of (sheet && sheet.columns) || []) {
     if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START)) continue;
     const cell = getCell(map, row, col);
     if (!cell) continue;
@@ -3643,14 +3667,18 @@ export function synRowHasContent(map, row, sheet) {
 }
 
 export function isSynPanelGapEntry(entry) {
-  return Boolean(entry?.gapBeforePanel || entry?.gapAfterPanel || entry?.gapBetween);
+  return Boolean(
+    entry &&
+      (entry.gapBeforePanel || entry.gapAfterPanel || entry.gapBetween)
+  );
 }
 
 export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
   const map = cellMap || new Map();
   const lastRow =
-    sheet?.effectiveLastRow ??
-    computeSynEffectiveLastRow(sheet, map);
+    sheet && sheet.effectiveLastRow != null
+      ? sheet.effectiveLastRow
+      : computeSynEffectiveLastRow(sheet, map);
   const rows = [];
   let displayRow = 1;
   if (!outlineOnly) {
@@ -3692,6 +3720,8 @@ export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
 }
 
 export function synRowHeightPx(sheet, excelRow, defaultPx = 21) {
-  const ht = sheet?.rowHeights?.[String(excelRow)] ?? sheet?.rowHeights?.[excelRow];
+  const ht =
+    (sheet && sheet.rowHeights && sheet.rowHeights[String(excelRow)]) ||
+    (sheet && sheet.rowHeights && sheet.rowHeights[excelRow]);
   return ht || defaultPx;
 }

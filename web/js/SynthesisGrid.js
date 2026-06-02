@@ -202,12 +202,12 @@ export default {
     const scrollLeft = ref(0);
     const viewportH = ref(600);
     const viewportW = ref(1000);
-    const cellMap = shallowRef(props.sheet?.cellMap || new Map());
+    const cellMap = shallowRef((props.sheet && props.sheet.cellMap) || new Map());
 
     watch(
       () => props.sheet,
       (sheet) => {
-        if (sheet?.cellMap instanceof Map) {
+        if (sheet && sheet.cellMap instanceof Map) {
           cellMap.value = sheet.cellMap;
         } else if (sheet) {
           cellMap.value = buildCellMap(sheet.cells, sheet.headerRows);
@@ -217,7 +217,7 @@ export default {
     );
 
     const pillarColumns = computed(() => {
-      const preset = props.sheet?.pillarColumns;
+      const preset = props.sheet && props.sheet.pillarColumns;
       const map =
         preset && typeof preset === 'object'
           ? new Map(Object.entries(preset))
@@ -244,7 +244,9 @@ export default {
         if (!m.has(col) && col !== SYN_STICKY_COL) {
           m.set(
             col,
-            synPillarColWidth(col, props.sheet, pillarColumns.value) ?? 54
+            synPillarColWidth(col, props.sheet, pillarColumns.value) != null
+              ? synPillarColWidth(col, props.sheet, pillarColumns.value)
+              : 54
           );
         }
       }
@@ -336,7 +338,7 @@ export default {
 
     const bodyRows = computed(() => {
       void props.outlineOnly;
-      void props.sheet?.effectiveLastRow;
+      void (props.sheet && props.sheet.effectiveLastRow);
       return computeSynBodyRows(props.sheet, cellMap.value, props.outlineOnly);
     });
     const rowCount = computed(() => bodyRows.value.length);
@@ -432,10 +434,12 @@ export default {
         ) {
           continue;
         }
+        const pillarMeta = pillarColumns.value.get(layout.col);
+        const builtin = SYN_BUILTIN_PILLAR_META[layout.col];
         const title =
-          pillarColumns.value.get(layout.col)?.title ??
-          SYN_BUILTIN_PILLAR_META[layout.col]?.title ??
-          '';
+          (pillarMeta && pillarMeta.title != null ? pillarMeta.title : null) != null
+            ? pillarMeta.title
+            : (builtin && builtin.title != null ? builtin.title : '');
         const letters = synPillarLettersFromTitle(title);
         const chars = [];
         for (let i = 0; i < letters.length; i++) {
@@ -466,7 +470,12 @@ export default {
     });
 
     function colStyle(col, w) {
-      const width = w ?? widthByCol.value.get(col) ?? 54;
+      const width =
+        w != null
+          ? w
+          : widthByCol.value.has(col)
+            ? widthByCol.value.get(col)
+            : 54;
       return { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` };
     }
 
@@ -499,8 +508,16 @@ export default {
       }, 80);
     }
     const selectedCell = ref(null);
-    const calcRevision = computed(() => props.session?.revision?.value ?? 0);
-    const synCalcTick = computed(() => props.session?.synCalcTick?.value ?? 0);
+    const calcRevision = computed(() =>
+      props.session && props.session.revision && props.session.revision.value != null
+        ? props.session.revision.value
+        : 0
+    );
+    const synCalcTick = computed(() =>
+      props.session && props.session.synCalcTick && props.session.synCalcTick.value != null
+        ? props.session.synCalcTick.value
+        : 0
+    );
     const displayCache = new Map();
     const scrollStyleCache = new Map();
     const rowClassesCache = new Map();
@@ -532,7 +549,10 @@ export default {
     );
 
     watch(
-      () => props.session?.synCalcTick?.value ?? 0,
+      () =>
+        props.session && props.session.synCalcTick && props.session.synCalcTick.value != null
+          ? props.session.synCalcTick.value
+          : 0,
       () => {
         editEpoch.value += 1;
         invalidateDisplayCache();
@@ -540,15 +560,21 @@ export default {
     );
 
     watch(
-      () => props.session?.displayTick?.value ?? 0,
+      () =>
+        props.session && props.session.displayTick && props.session.displayTick.value != null
+          ? props.session.displayTick.value
+          : 0,
       () => {
-        const dirty = props.session?.takeDisplayDirty?.();
+        const dirty =
+          props.session && props.session.takeDisplayDirty
+            ? props.session.takeDisplayDirty()
+            : null;
         if (!dirty || dirty.all) {
           editEpoch.value += 1;
           invalidateDisplayCache();
           return;
         }
-        if (dirty.keys?.size) {
+        if (dirty.keys && dirty.keys.size) {
           for (const k of dirty.keys) {
             displayCache.delete(k);
             const [row, col] = k.split(':');
@@ -562,7 +588,7 @@ export default {
     );
 
     watch(
-      () => props.session?.ready?.value ?? false,
+      () => Boolean(props.session && props.session.ready && props.session.ready.value),
       (ready, wasReady) => {
         if (ready && !wasReady) {
           editEpoch.value += 1;
@@ -591,11 +617,13 @@ export default {
         col,
         value,
         sheet: 'SYNTHESIS',
-        previousValue: previousValue ?? '',
+        previousValue: previousValue != null ? previousValue : '',
       });
-      void props.session
-        ?.setCellValue?.('SYNTHESIS', row, col, value)
-        ?.catch((e) => console.warn('Synthesis setCellValue:', e));
+      if (props.session && props.session.setCellValue) {
+        void props.session
+          .setCellValue('SYNTHESIS', row, col, value)
+          .catch((e) => console.warn('Synthesis setCellValue:', e));
+      }
     }
 
     const cellEditor = createGridCellEditor({
@@ -634,7 +662,13 @@ export default {
       if (row == null) return true;
       if (isSynAdaptationSumCell(row, col)) return true;
       const cell = getCell(cellMap.value, row, col);
-      if (props.session?.isReadonlySynCell?.(row, col, cell)) return true;
+      if (
+        props.session &&
+        props.session.isReadonlySynCell &&
+        props.session.isReadonlySynCell(row, col, cell)
+      ) {
+        return true;
+      }
       const label = synLabel(cellMap.value, row);
       const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
       return (
@@ -657,7 +691,7 @@ export default {
       getRowTop: (_rowIndex, excelRow) => bodyTopForExcelRow(excelRow),
       getColLeft: (col) => {
         const entry = columnLayout.value.find((c) => c.col === col);
-        return entry?.left ?? null;
+        return entry && entry.left != null ? entry.left : null;
       },
       getColWidth: (col) => widthByCol.value.get(col) || 54,
       rowHeight: ROW_H,
@@ -680,7 +714,11 @@ export default {
       void calcRevision.value;
       const sel = selectedCell.value;
       if (!sel) return '';
-      return props.session?.getSynFormula?.(sel.row, sel.col) ?? '';
+      if (props.session && props.session.getSynFormula) {
+        const v = props.session.getSynFormula(sel.row, sel.col);
+        return v != null ? v : '';
+      }
+      return '';
     });
 
     const formulaCellRef = computed(() => {
@@ -745,7 +783,8 @@ export default {
       const label = synLabel(cellMap.value, row);
       const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
       const materialized =
-        props.sheet?.materializedCalc || (cell?.mat && !cell?.userEdited);
+        (props.sheet && props.sheet.materializedCalc) ||
+        (cell && cell.mat && !cell.userEdited);
       const isLiveCalc =
         isSynAdaptationSumCell(row, col) ||
         isSynCalculatedMassCell(cell, row, col, props.sheet, label, rowClass);
@@ -755,8 +794,10 @@ export default {
         !materialized &&
         liveCalcReady.value &&
         !scrollActive.value &&
-        props.session?.getDisplayValue &&
-        props.session.ready?.value
+        props.session &&
+        props.session.getDisplayValue &&
+        props.session.ready &&
+        props.session.ready.value
       ) {
         const fromSession = props.session.getDisplayValue(
           'SYNTHESIS',
@@ -764,7 +805,7 @@ export default {
           col,
           cell
         );
-        if (fromSession != null && !cell?.userEdited) {
+        if (fromSession != null && !(cell && cell.userEdited)) {
           const out = isSynMetricRow(row)
             ? fromSession
             : formatVal(fromSession);
@@ -835,9 +876,9 @@ export default {
         }
         if (cmd.step === 0) emit('search-navigated', { searching: true });
         void gridSearch
-          .searchAndScroll(cmd.q, { step: cmd.step ?? 0 })
+          .searchAndScroll(cmd.q, { step: cmd.step != null ? cmd.step : 0 })
           .then((result) => {
-            if (!result?.cancelled) emit('search-navigated', result);
+            if (!result || !result.cancelled) emit('search-navigated', result);
           });
       }
     );
@@ -945,7 +986,8 @@ export default {
     }
 
     function pillarTitle(col) {
-      return pillarColumns.value.get(col)?.title ?? '';
+      const meta = pillarColumns.value.get(col);
+      return meta && meta.title != null ? meta.title : '';
     }
 
     function cellInlineStyle(row, col) {
@@ -1430,7 +1472,7 @@ export default {
       const value = cellShowValue(row, col, displayed);
       const bevHtml = synHdrBevDisplayHtml(row, value);
       if (bevHtml) return bevHtml;
-      return String(value ?? '')
+      return String(value != null ? value : '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -1483,7 +1525,7 @@ export default {
     watch(
       () => props.sheet,
       (sheet) => {
-        if (!sheet || !props.session?.bindSynthesisGrid) return;
+        if (!sheet || !props.session || !props.session.bindSynthesisGrid) return;
         const map = cellMap.value;
         const bind = () => {
           props.session.bindSynthesisGrid(
@@ -1506,7 +1548,7 @@ export default {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
-      if (props.sheet?.materializedCalc) return;
+      if (props.sheet && props.sheet.materializedCalc) return;
       requestAnimationFrame(() => {
         const enable = () => {
           liveCalcReady.value = true;

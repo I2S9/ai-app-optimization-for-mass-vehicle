@@ -31,7 +31,7 @@ export function normalizeFormula(raw) {
 /** Shared-formula anchor (e.g. f: "AG6") → real formula from master cell. */
 export function resolveFormula(ref, byRef, vis = new Set()) {
   const cell = byRef.get(ref);
-  if (!cell?.f) return null;
+  if (!cell || !cell.f) return null;
   const anchor = String(cell.f).trim();
   if (!/^[A-Z]+\d+$/i.test(anchor)) return normalizeFormula(anchor);
   if (vis.has(anchor)) return null;

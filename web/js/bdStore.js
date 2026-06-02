@@ -27,29 +27,29 @@ import { colToIndex } from './formulaUtil.js';
 
 /** Column letter for yellow L1 section titles (AP in JSON, AR after transform). */
 export function bdSubsystemL1Col(sheet) {
-  const headers = sheet?.headers || {};
-  for (const col of sheet?.columns || Object.keys(headers)) {
+  const headers = (sheet && sheet.headers) || {};
+  for (const col of (sheet && sheet.columns) || Object.keys(headers)) {
     if (headers[col] === 'Sub-system L1') return col;
   }
-  if (sheet?.columns?.includes(BD_SUBSYSTEM_L1_COL_RAW)) {
+  if (sheet && sheet.columns && sheet.columns.includes(BD_SUBSYSTEM_L1_COL_RAW)) {
     return BD_SUBSYSTEM_L1_COL_RAW;
   }
   return BD_SUBSYSTEM_L1_COL;
 }
 /** Column letter for L2 sub-section labels (_ADDBLUE, _FUEL…). */
 export function bdSubsystemL2Col(sheet) {
-  const headers = sheet?.headers || {};
-  for (const col of sheet?.columns || Object.keys(headers)) {
+  const headers = (sheet && sheet.headers) || {};
+  for (const col of (sheet && sheet.columns) || Object.keys(headers)) {
     if (headers[col] === 'Sub-system L2') return col;
   }
-  if (sheet?.columns?.includes(BD_SUBSYSTEM_L2_COL_RAW)) {
+  if (sheet && sheet.columns && sheet.columns.includes(BD_SUBSYSTEM_L2_COL_RAW)) {
     return BD_SUBSYSTEM_L2_COL_RAW;
   }
   return BD_SUBSYSTEM_L2_COL;
 }
 export function bdHeaderCol(sheet, headerLabel, fallback) {
-  const headers = sheet?.headers || {};
-  for (const col of sheet?.columns || Object.keys(headers)) {
+  const headers = (sheet && sheet.headers) || {};
+  for (const col of (sheet && sheet.columns) || Object.keys(headers)) {
     if (headers[col] === headerLabel) return col;
   }
   return fallback;
@@ -121,11 +121,21 @@ export function buildCellMap(cells, headerRows = {}) {
       map.set(key, {
         r: row,
         c: col,
-        v: c.v ?? existing?.v,
-        f: c.f ?? existing?.f,
-        bg: c.bg ?? c.s?.backgroundColor ?? existing?.bg,
-        fc: c.fc ?? c.s?.color ?? existing?.fc,
-        b: c.b ?? existing?.b,
+        v: c.v != null ? c.v : existing && existing.v,
+        f: c.f != null ? c.f : existing && existing.f,
+        bg:
+          c.bg != null
+            ? c.bg
+            : c.s && c.s.backgroundColor != null
+              ? c.s.backgroundColor
+              : existing && existing.bg,
+        fc:
+          c.fc != null
+            ? c.fc
+            : c.s && c.s.color != null
+              ? c.s.color
+              : existing && existing.fc,
+        b: c.b != null ? c.b : existing && existing.b,
       });
     }
   }
@@ -150,14 +160,14 @@ export function buildWidthMap(
 ) {
   const map = new Map();
   const freeFieldWidth =
-    freeFieldWidthCached ?? measureFreeFieldWidth(cells);
+    freeFieldWidthCached != null ? freeFieldWidthCached : measureFreeFieldWidth(cells);
   for (const w of colWidths || []) {
     map.set(w.col, w.width);
   }
   for (const col of columns) {
     const label = String(headers[col] || col);
     const fromHeader = Math.ceil(label.length * 7.5 + 24);
-    const fromExcel = map.get(col) ?? 72;
+    const fromExcel = map.has(col) ? map.get(col) : 72;
     let wide = Math.max(fromExcel, fromHeader, 56);
     if (col === BD_FREE_FIELD_COL) {
       map.set(col, Math.max(wide, freeFieldWidth));
@@ -190,7 +200,7 @@ export function displayValue(cell) {
 /** Sub-system L2 label (never surface formula text as a label). */
 export function getAsLabel(map, row, l2Col = BD_SUBSYSTEM_L2_COL) {
   const cell = getCell(map, row, l2Col);
-  if (!cell?.v || cell.v === '') return '';
+  if (!cell || cell.v == null || cell.v === '') return '';
   return String(cell.v);
 }
 /** Blue sub-section title (_ADDBLUE, _FUEL…) — L2 column first (Excel AS), then A. */
@@ -302,7 +312,9 @@ function asSectionRowSet(sectionHeaderRows) {
  */
 export function computeSectionHeaderRows(sheet, cellMap = null) {
   const map =
-    cellMap ??
+    cellMap != null
+      ? cellMap
+      :
     (sheet.cellMap instanceof Map
       ? sheet.cellMap
       : buildCellMap(sheet.cells, sheet.headerRows));
@@ -416,8 +428,8 @@ function isSignificantDataRow(map, row, sectionHeaderRows) {
   return isProjectConfigRow(map, row, sectionHeaderRows);
 }
 function isRowInArchivedBands(sheet, row) {
-  const bands = sheet?.archivedRowBands;
-  if (!bands?.length || row == null) return false;
+  const bands = sheet && sheet.archivedRowBands;
+  if (!bands || !bands.length || row == null) return false;
   for (const b of bands) {
     if (row >= b.start && row <= b.end) return true;
   }
@@ -427,7 +439,7 @@ function isRowInArchivedBands(sheet, row) {
 export function shouldDisplayBodyRow(map, row, sheet) {
   if (HIDDEN_META_ROWS.has(row)) return false;
   if (isRowInArchivedBands(sheet, row)) return false;
-  const dataStart = sheet.dataStartRow || 6;
+  const dataStart = (sheet && sheet.dataStartRow) || 6;
   const sh = sheet.sectionHeaderRows;
   if (
     row < dataStart &&
@@ -477,7 +489,7 @@ export function getRowLabel(
   if (isUnassignedSectionLabel(as)) return as;
   if (isCaBandRow(map, row)) {
     const w = displayValue(getCell(map, row, 'W'));
-    if (w?.startsWith('-')) return w;
+    if (w && w.startsWith('-')) return w;
   }
   return '';
 }
@@ -490,13 +502,13 @@ export function isReadonlyCell(cell, row, dataStartRow) {
 
 /** Body rows users may edit (mass, vehicle cols, etc.) — not L1/L2 bands or headers. */
 export function isBdBodyEditableCell(sheet, row, col) {
-  const dataStart = sheet?.dataStartRow ?? 6;
+  const dataStart = sheet && sheet.dataStartRow != null ? sheet.dataStartRow : 6;
   if (row < dataStart) return false;
   const map =
-    sheet?.cellMap instanceof Map
+    sheet && sheet.cellMap instanceof Map
       ? sheet.cellMap
-      : buildCellMap(sheet?.cells, sheet?.headerRows);
-  const sh = sheet?.sectionHeaderRows;
+      : buildCellMap(sheet && sheet.cells, sheet && sheet.headerRows);
+  const sh = sheet && sheet.sectionHeaderRows;
   if (isStructureRow(map, row, sh) || isTitleMarkerRow(map, row, sh)) {
     return false;
   }
@@ -636,12 +648,16 @@ export function isOutlineRow(map, row, sectionHeaderRows) {
 /** Outline = ADAPTATION/ADTH on rows 5/139 + structure rows. */
 export function computeOutlineRows(sheet, cellMap = null) {
   const map =
-    cellMap ??
+    cellMap != null
+      ? cellMap
+      :
     (sheet.cellMap instanceof Map
       ? sheet.cellMap
       : buildCellMap(sheet.cells, sheet.headerRows));
   const sectionRows = asSectionRowSet(
-    sheet.sectionHeaderRows ??
+    sheet.sectionHeaderRows != null
+      ? sheet.sectionHeaderRows
+      :
       computeSectionHeaderRows(sheet, map).rows
   );
   const rows = [];
@@ -659,10 +675,11 @@ export function cellInlineStyle(
   matrixColors
 ) {
   const style = {};
-  if (cell?.bg) style.backgroundColor = cell.bg;
-  if (cell?.fc) style.color = cell.fc;
+  if (cell && cell.bg) style.backgroundColor = cell.bg;
+  if (cell && cell.fc) style.color = cell.fc;
   const cls = rowStyleClass(map, row, sectionHeaderRows);
-  const rowColor = matrixColors?.[row] ?? matrixColors?.[String(row)];
+  const rowColor =
+    matrixColors && (matrixColors[row] != null ? matrixColors[row] : matrixColors[String(row)]);
   if (rowColor && (cls === 'row-section' || cls === 'row-subsection')) {
     style.backgroundColor = rowColor;
   }
@@ -978,7 +995,7 @@ export function displayCellValue(
     ) {
       return '';
     }
-    if (cell?.v != null && cell.v !== '') {
+    if (cell && cell.v != null && cell.v !== '') {
       return translateSubsystemLabel(stripExcelErrorValue(String(cell.v)));
     }
     return '';

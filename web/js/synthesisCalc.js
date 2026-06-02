@@ -240,7 +240,12 @@ export function synCalcExcelCols(_sheet) {
 function isSynCalcRow(row, sheet) {
   const r = Number(row);
   if (!Number.isFinite(r) || r < SYN_CALC_FIRST_ROW) return false;
-  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? 422;
+  const last =
+    sheet && sheet.effectiveLastRow != null
+      ? sheet.effectiveLastRow
+      : sheet && sheet.lastRow != null
+        ? sheet.lastRow
+        : 422;
   return r <= last;
 }
 
@@ -312,12 +317,14 @@ export function isSynGreenSectionRow(row, sheet, synLabel = '', rowClass = '') {
     return false;
   }
   if (rowClass === 'syn-row-section') return true;
-  const band = sheet?.rowBands?.[String(row)] ?? sheet?.rowBands?.[row];
+  const band =
+    (sheet && sheet.rowBands && sheet.rowBands[String(row)]) ||
+    (sheet && sheet.rowBands && sheet.rowBands[row]);
   if (band === 'section') return true;
   if (band === 'filter' || band === 'separator' || band === 'subsection') {
     return false;
   }
-  const label = String(synLabel ?? '').trim();
+  const label = String(synLabel != null ? synLabel : '').trim();
   if (label.startsWith('-')) return true;
   return isSectionLabel(label);
 }
@@ -334,10 +341,12 @@ export function isSynBlueSubsectionRow(row, sheet, synLabel = '', rowClass = '')
   ) {
     return false;
   }
-  const band = sheet?.rowBands?.[String(r)] ?? sheet?.rowBands?.[r];
+  const band =
+    (sheet && sheet.rowBands && sheet.rowBands[String(r)]) ||
+    (sheet && sheet.rowBands && sheet.rowBands[r]);
   if (band === 'subsection') return true;
   if (band === 'section' || band === 'filter' || band === 'separator') return false;
-  const label = String(synLabel ?? '').trim();
+  const label = String(synLabel != null ? synLabel : '').trim();
   if (label.startsWith('_')) return true;
   return false;
 }
@@ -362,8 +371,8 @@ export function buildBdColumnIndex(bdRaw) {
 }
 
 function columnMatches(bdVal, crit) {
-  const v = String(bdVal ?? '').trim();
-  const c = String(crit ?? '').trim();
+  const v = String(bdVal != null ? bdVal : '').trim();
+  const c = String(crit != null ? crit : '').trim();
   if (c === 'TT') return true;
   if (!c) return v === 'TT' || v === '';
   return v === c || v === 'TT';
@@ -374,11 +383,15 @@ function rowMatchesFilters(bdCols, vehCol, bdRow, getSynCell, getBdValue) {
     const crit = getSynCell(filterRow, vehCol);
     const bdVal = getBdValue
       ? getBdValue(bdRow, bdCol)
-      : bdCols[bdCol]?.[bdRow];
+      : bdCols[bdCol]
+        ? bdCols[bdCol][bdRow]
+        : undefined;
     if (!columnMatches(bdVal, crit)) return false;
   }
   const q = String(
-    (getBdValue ? getBdValue(bdRow, 'Q') : bdCols.Q?.[bdRow]) ?? ''
+    (getBdValue ? getBdValue(bdRow, 'Q') : bdCols.Q ? bdCols.Q[bdRow] : undefined) != null
+      ? (getBdValue ? getBdValue(bdRow, 'Q') : bdCols.Q ? bdCols.Q[bdRow] : undefined)
+      : ''
   ).trim();
   if (q !== 'S') return false;
   return true;
@@ -402,12 +415,23 @@ export function buildSumproductL2Index(bdCols, getBdValue) {
   const end = Math.min(BD_END_ROW, 4000);
   for (let r = 2; r <= end; r++) {
     const q = String(
-      (getBdValue ? getBdValue(r, 'Q') : bdCols.Q?.[r]) ?? ''
+      (getBdValue ? getBdValue(r, 'Q') : bdCols.Q ? bdCols.Q[r] : undefined) != null
+        ? (getBdValue ? getBdValue(r, 'Q') : bdCols.Q ? bdCols.Q[r] : undefined)
+        : ''
     ).trim();
     if (q !== 'S') continue;
     const l2Raw =
-      (getBdValue ? getBdValue(r, BD_SUBSYSTEM_L2_COL) : bdCols[BD_SUBSYSTEM_L2_COL]?.[r]) ??
-      '';
+      (getBdValue
+        ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
+        : bdCols[BD_SUBSYSTEM_L2_COL]
+          ? bdCols[BD_SUBSYSTEM_L2_COL][r]
+          : undefined) != null
+        ? (getBdValue
+            ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
+            : bdCols[BD_SUBSYSTEM_L2_COL]
+              ? bdCols[BD_SUBSYSTEM_L2_COL][r]
+              : undefined)
+        : '';
     const key = canonicalL2MatchKey(l2Raw);
     if (!key) continue;
     if (!index.has(key)) index.set(key, []);
@@ -437,13 +461,13 @@ export function computeSumproduct(
   let scan;
   if (labelKey && l2Index instanceof Map) {
     const l2Rows = l2Index.get(labelKey) || [];
-    if (filterRows?.length) {
+    if (filterRows && filterRows.length) {
       const filt = new Set(filterRows);
       scan = l2Rows.filter((r) => filt.has(r));
     } else {
       scan = l2Rows;
     }
-  } else if (filterRows?.length) {
+  } else if (filterRows && filterRows.length) {
     scan = filterRows;
   } else {
     scan = Array.from({ length: Math.min(BD_END_ROW, 4000) - 1 }, (_, i) => i + 2);
@@ -455,7 +479,15 @@ export function computeSumproduct(
       const l2Raw =
         (getBdValue
           ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
-          : bdCols[BD_SUBSYSTEM_L2_COL]?.[r]) ?? '';
+          : bdCols[BD_SUBSYSTEM_L2_COL]
+            ? bdCols[BD_SUBSYSTEM_L2_COL][r]
+            : undefined) != null
+          ? (getBdValue
+              ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
+              : bdCols[BD_SUBSYSTEM_L2_COL]
+                ? bdCols[BD_SUBSYSTEM_L2_COL][r]
+                : undefined)
+          : '';
       if (canonicalL2MatchKey(l2Raw) !== labelKey) continue;
     }
     if (
@@ -479,15 +511,32 @@ export function buildBdL2Registry(bdCols, getBdValue) {
   const end = Math.min(BD_END_ROW, 4000);
   for (let r = 2; r <= end; r++) {
     const q = String(
-      (getBdValue ? getBdValue(r, 'Q') : bdCols.Q?.[r]) ?? ''
+      (getBdValue ? getBdValue(r, 'Q') : bdCols.Q ? bdCols.Q[r] : undefined) != null
+        ? (getBdValue ? getBdValue(r, 'Q') : bdCols.Q ? bdCols.Q[r] : undefined)
+        : ''
     ).trim();
     if (q !== 'S') continue;
     const l2 = String(
-      (getBdValue ? getBdValue(r, BD_SUBSYSTEM_L2_COL) : bdCols[BD_SUBSYSTEM_L2_COL]?.[r]) ??
-        ''
+      (getBdValue
+        ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
+        : bdCols[BD_SUBSYSTEM_L2_COL]
+          ? bdCols[BD_SUBSYSTEM_L2_COL][r]
+          : undefined) != null
+        ? (getBdValue
+            ? getBdValue(r, BD_SUBSYSTEM_L2_COL)
+            : bdCols[BD_SUBSYSTEM_L2_COL]
+              ? bdCols[BD_SUBSYSTEM_L2_COL][r]
+              : undefined)
+        : ''
     ).trim();
     if (!l2) continue;
-    const mass = parseNum(getBdValue ? getBdValue(r, BD_MASS_COL) : bdCols.V?.[r]);
+    const mass = parseNum(
+      getBdValue
+        ? getBdValue(r, BD_MASS_COL)
+        : bdCols.V
+          ? bdCols.V[r]
+          : undefined
+    );
     const hit = byLabel.get(l2) || { label: l2, rows: 0, mass: 0 };
     hit.rows += 1;
     hit.mass += mass;
@@ -504,7 +553,12 @@ export function buildBdL2Registry(bdCols, getBdValue) {
 /** Sorted Excel rows for yellow/green L1 section headers (row 26+). */
 export function buildSynSectionRowList(sheet, getLabel, getRowClass) {
   const first = SYN_CALC_FIRST_ROW;
-  const last = sheet?.effectiveLastRow ?? sheet?.lastRow ?? 422;
+  const last =
+    sheet && sheet.effectiveLastRow != null
+      ? sheet.effectiveLastRow
+      : sheet && sheet.lastRow != null
+        ? sheet.lastRow
+        : 422;
   const rows = [];
   for (let r = first; r <= last; r++) {
     const label = getLabel(r);
@@ -551,7 +605,7 @@ export function isSynSectionSumDataCell(
   synLabel = '',
   rowClass = ''
 ) {
-  if (cell?.userEdited) return false;
+  if (cell && cell.userEdited) return false;
   if (!isSynVehicleMassCol(col)) return false;
   if (!isSynCalcRow(row, sheet)) return false;
   return isSynGreenSectionRow(row, sheet, synLabel, rowClass);
@@ -566,12 +620,12 @@ export function isSynSumproductDataCell(
   synLabel = '',
   rowClass = ''
 ) {
-  if (cell?.userEdited) return false;
+  if (cell && cell.userEdited) return false;
   if (!isSynVehicleMassCol(col)) return false;
   if (!isSynCalcRow(row, sheet)) return false;
   if (Number(row) === SYN_ADAPTATION_SUM_ROW) return false;
   if (isSynAdaptationSumCell(row, col)) return false;
-  if (!String(synLabel ?? '').trim()) return false;
+  if (!String(synLabel != null ? synLabel : '').trim()) return false;
   return isSynBlueSubsectionRow(row, sheet, synLabel, rowClass);
 }
 
@@ -584,9 +638,9 @@ export function isSynCalculatedMassCell(
   synLabel = '',
   rowClass = ''
 ) {
-  if (cell?.f && /SUMPRODUCT/i.test(cell.f)) return true;
+  if (cell && cell.f && /SUMPRODUCT/i.test(cell.f)) return true;
   if (row == null || col == null || !sheet) {
-    return Boolean(cell?.f && /SUMPRODUCT/i.test(cell.f));
+    return Boolean(cell && cell.f && /SUMPRODUCT/i.test(cell.f));
   }
   return (
     isSynSectionSumDataCell(row, col, sheet, cell, synLabel, rowClass) ||
@@ -605,7 +659,7 @@ export function isSumproductCell(cell, row, col, sheet, synLabel = '', rowClass 
 }
 
 function isSynNumericRaw(raw) {
-  const s = String(raw ?? '').trim();
+  const s = String(raw != null ? raw : '').trim();
   if (!s) return false;
   return /^-?\d+([.,]\d+)?([eE][+-]?\d+)?$/.test(s);
 }
@@ -650,7 +704,7 @@ const SYN_FORMULA_FILTER_LABELS = new Map(
 );
 
 function synFormulaFilterCrit(raw) {
-  const c = String(raw ?? '').trim();
+  const c = String(raw != null ? raw : '').trim();
   if (!c) return '∅';
   if (c === 'TT') return 'TT (tous)';
   return `"${c}"`;
@@ -685,10 +739,12 @@ export function describeSynCellFormula(
   if (
     isSynSumproductDataCell(r, col, sheet, null, synLabelText, rowClass)
   ) {
-    const l2 = String(synLabelText ?? '').trim() || '?';
+    const l2 = String(synLabelText != null ? synLabelText : '').trim() || '?';
     const filterParts = SYN_FILTER_BD_ROWS.map(([bdCol, synRow]) => {
       const crit = getSynCell(synRow, excelCol);
-      const label = SYN_FORMULA_FILTER_LABELS.get(synRow) ?? bdCol;
+      const label = SYN_FORMULA_FILTER_LABELS.has(synRow)
+        ? SYN_FORMULA_FILTER_LABELS.get(synRow)
+        : bdCol;
       return `BD.${bdCol}=${synFormulaFilterCrit(crit)} (${label}, filtre ${colRef}${synRow})`;
     });
     return (

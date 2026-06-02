@@ -86,7 +86,7 @@ export class WorkbookEngine {
     const keys = indexFormulas(sheetJson);
     this.formulaKeys.set('BD', new Set(keys));
     return {
-      cellCount: sheetJson.cells?.length ?? 0,
+      cellCount: sheetJson.cells && sheetJson.cells.length ? sheetJson.cells.length : 0,
       formulaKeys: keys,
       values: {},
     };
@@ -95,7 +95,7 @@ export class WorkbookEngine {
   dumpFormulaValues(name) {
     const sheetId = this.sheetIds.get(name);
     const keys = this.formulaKeys.get(name);
-    if (sheetId == null || !keys?.size) return {};
+    if (sheetId == null || !keys || !keys.size) return {};
     const values = {};
     try {
       const serialized = this.hf.getSheetValues(sheetId);
@@ -104,7 +104,7 @@ export class WorkbookEngine {
         const row = parseInt(key.slice(0, colon), 10);
         const col = key.slice(colon + 1);
         const ci = colToIndex(col);
-        const raw = serialized[row - 1]?.[ci];
+        const raw = serialized[row - 1] ? serialized[row - 1][ci] : undefined;
         const v = formatEngineValue(raw);
         if (v !== '' && v !== '#REF!') values[key] = v;
       }
@@ -137,7 +137,9 @@ export class WorkbookEngine {
   }
 
   hasFormula(name, row, col) {
-    return this.formulaKeys.get(name)?.has(`${row}:${col}`) ?? false;
+    const set = this.formulaKeys.get(name);
+    if (!set) return false;
+    return set.has(`${row}:${col}`);
   }
 
   destroy() {

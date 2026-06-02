@@ -28,17 +28,54 @@
     </div>
     <script>
       window.addEventListener('error', function (e) {
-        var msg = e.message || String(e);
+        var msg = (e && e.message) || String(e);
+        var file = (e && e.filename) || '';
+        var line = (e && e.lineno) || '';
+        var col = (e && e.colno) || '';
+        var stack = '';
+        try {
+          stack = e && e.error && e.error.stack ? String(e.error.stack) : '';
+        } catch (err) {
+          stack = '';
+        }
         var el = document.getElementById('app');
         if (el) {
+          var where = file
+            ? '\n\nSource: ' + file + (line ? ':' + line : '') + (col ? ':' + col : '')
+            : '';
+          var stackBlock = stack ? '\n\nStack:\n' + stack : '';
           el.innerHTML =
             '<pre style="margin:24px;color:#b00020;font:14px/1.4 Segoe UI,sans-serif;white-space:pre-wrap">' +
             'Startup error:\n' +
             msg +
+            where +
+            stackBlock +
+            '\n\nTry: close Edge, double-click run-bd-server.bat, then Ctrl+F5.</pre>';
+        }
+      });
+
+      window.addEventListener('unhandledrejection', function (e) {
+        var reason = (e && e.reason) || '';
+        var msg = '';
+        if (reason && reason.message) msg = reason.message;
+        else msg = String(reason || e);
+        var stack = '';
+        try {
+          stack = reason && reason.stack ? String(reason.stack) : '';
+        } catch (err) {
+          stack = '';
+        }
+        var el = document.getElementById('app');
+        if (el) {
+          el.innerHTML =
+            '<pre style="margin:24px;color:#b00020;font:14px/1.4 Segoe UI,sans-serif;white-space:pre-wrap">' +
+            'Startup error (promise):\n' +
+            msg +
+            (stack ? '\n\nStack:\n' + stack : '') +
             '\n\nTry: close Edge, double-click run-bd-server.bat, then Ctrl+F5.</pre>';
         }
       });
     </script>
-    <script type="module" src="/js/main.js?v=grid-search4"></script>
+    <script type="module" src="/js/main.js?v=grid-search5"></script>
   </body>
 </html>

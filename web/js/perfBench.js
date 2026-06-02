@@ -1,5 +1,5 @@
 /**
- * Console perf bench — run: window.__runPerfBench?.()
+ * Console perf bench — run: window.__runPerfBench && window.__runPerfBench()
  * Requires app mounted with session + grids loaded.
  */
 
@@ -17,7 +17,9 @@ export function createPerfBench(getState) {
       getState();
     console.group('[perf] Vehicle Mass Platform bench');
     await time('getDisplayValue (Syn C15)', () => {
-      session?.getDisplayValue?.('SYNTHESIS', 15, 'H', null);
+      if (session && typeof session.getDisplayValue === 'function') {
+        session.getDisplayValue('SYNTHESIS', 15, 'H', null);
+      }
     });
     if (applyBdFromRaw) {
       await time('transformBdSheet (cached miss path)', async () => {

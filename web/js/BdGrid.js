@@ -87,12 +87,17 @@ export default {
     const bodyRows = computed(() => {
       if (props.outlineOnly) {
         return (
-          props.sheet.outlineBodyDisplayRows ??
-          props.sheet.bodyDisplayRows ??
+          (props.sheet.outlineBodyDisplayRows != null
+            ? props.sheet.outlineBodyDisplayRows
+            : props.sheet.bodyDisplayRows != null
+              ? props.sheet.bodyDisplayRows
+              : null) ||
           computeBodyDisplayRows(props.sheet)
         );
       }
-      return props.sheet.bodyDisplayRows ?? computeBodyDisplayRows(props.sheet);
+      return props.sheet.bodyDisplayRows != null
+        ? props.sheet.bodyDisplayRows
+        : computeBodyDisplayRows(props.sheet);
     });
 
     const rowCount = computed(() => bodyRows.value.length);
@@ -140,8 +145,14 @@ export default {
     const designDeptCol = computed(() => bdDesignDeptCol(props.sheet));
     const titleCol = computed(() => bdTitleCol(props.sheet));
     const massCol = computed(() => bdMassCol(props.sheet));
-    const calcRevision = computed(() => props.session?.revision?.value ?? 0);
-    const engineReady = computed(() => props.session?.ready?.value ?? false);
+    const calcRevision = computed(() =>
+      props.session && props.session.revision && props.session.revision.value != null
+        ? props.session.revision.value
+        : 0
+    );
+    const engineReady = computed(() =>
+      Boolean(props.session && props.session.ready && props.session.ready.value)
+    );
     const displayCache = new Map();
     let displayCacheKey = '';
 
@@ -154,9 +165,9 @@ export default {
       () => props.sheet,
       (sheet) => {
         cellMap.value =
-          sheet?.cellMap instanceof Map
+          sheet && sheet.cellMap instanceof Map
             ? sheet.cellMap
-            : buildCellMap(sheet?.cells, sheet?.headerRows);
+            : buildCellMap(sheet && sheet.cells, sheet && sheet.headerRows);
         invalidateDisplayCache();
       },
       { immediate: true }
@@ -177,15 +188,21 @@ export default {
     });
 
     watch(
-      () => props.session?.displayTick?.value ?? 0,
+      () =>
+        props.session && props.session.displayTick && props.session.displayTick.value != null
+          ? props.session.displayTick.value
+          : 0,
       () => {
-        const dirty = props.session?.takeDisplayDirty?.();
+        const dirty =
+          props.session && props.session.takeDisplayDirty
+            ? props.session.takeDisplayDirty()
+            : null;
         if (!dirty || dirty.all) {
           editEpoch.value += 1;
           invalidateDisplayCache();
           return;
         }
-        if (dirty.keys?.size) {
+        if (dirty.keys && dirty.keys.size) {
           for (const k of dirty.keys) displayCache.delete(k);
         }
       }
@@ -202,7 +219,7 @@ export default {
     function commitCellInput(row, col, value, previousValue) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
-      const hadFormula = Boolean(cell?.f);
+      const hadFormula = Boolean(cell && cell.f);
       if (!cell) {
         cell = { r: row, c: col, v: value, userEdited: true };
         props.sheet.cells.push(cell);
@@ -220,9 +237,9 @@ export default {
         col,
         value,
         sheet: props.sheetName || 'BD',
-        previousValue: previousValue ?? '',
+        previousValue: previousValue != null ? previousValue : '',
       });
-      if (props.session?.ready?.value) {
+      if (props.session && props.session.ready && props.session.ready.value) {
         void props.session
           .setCellValue(props.sheetName, row, col, value)
           .catch((e) => console.warn('Engine setCellValue:', e));
@@ -331,9 +348,9 @@ export default {
         }
         if (cmd.step === 0) emit('search-navigated', { searching: true });
         void gridSearch
-          .searchAndScroll(cmd.q, { step: cmd.step ?? 0 })
+          .searchAndScroll(cmd.q, { step: cmd.step != null ? cmd.step : 0 })
           .then((result) => {
-            if (!result?.cancelled) emit('search-navigated', result);
+            if (!result || !result.cancelled) emit('search-navigated', result);
           });
       }
     );
@@ -358,13 +375,14 @@ export default {
       }
       const sh = sectionHeaderRows.value;
       const canon =
-        props.sheet.canonicalSectionMap ??
-        props.sheet.canonicalSectionByLabel;
+        props.sheet.canonicalSectionMap != null
+          ? props.sheet.canonicalSectionMap
+          : props.sheet.canonicalSectionByLabel;
       const cell = getCell(map, row, col);
 
       if (props.sheetName === 'BD') {
-        if (cell?.userEdited) {
-          const plain = cell?.v != null ? String(cell.v) : '';
+        if (cell && cell.userEdited) {
+          const plain = cell.v != null ? String(cell.v) : '';
           displayCache.set(hitKey, plain);
           return plain;
         }
@@ -391,9 +409,11 @@ export default {
           !BD_POSITION_COLS.has(col) &&
           !BD_MASS_AV_AR_COLS.has(col) &&
           !bookmark &&
-          props.session?.ready?.value &&
+          props.session &&
+          props.session.ready &&
+          props.session.ready.value &&
           props.session.isFormulaCell(props.sheetName, row, col, cell);
-        if (useFormula && cell?.f) {
+        if (useFormula && cell && cell.f) {
           const computed = props.session.getDisplayValue(
             props.sheetName,
             row,
@@ -412,6 +432,11 @@ export default {
       const plain = displayValue(cell);
       displayCache.set(hitKey, plain);
       return plain;
+    }
+
+    function cellTitle(row, col) {
+      const cell = getCell(cellMap.value, row, col);
+      return cell && cell.f ? String(cell.f) : '';
     }
 
     function updateViewport() {
@@ -469,6 +494,7 @@ export default {
       colStyle,
       isStickyDateCol,
       getCell: (r, c) => getCell(cellMap.value, r, c),
+      cellTitle,
       cellDisplay,
       cellReadonly,
       rowStyleClass: (row) => {
@@ -560,7 +586,7 @@ export default {
                 :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"
               >
                 <template v-if="cellReadonly(entry.excelRow, col)">
-                  <span :title="getCell(entry.excelRow, col)?.f || ''">{{ cellDisplay(entry.excelRow, col) }}</span>
+                  <span :title="cellTitle(entry.excelRow, col)">{{ cellDisplay(entry.excelRow, col) }}</span>
                 </template>
                 <input
                   v-else-if="isCellActive(entry.excelRow, col)"

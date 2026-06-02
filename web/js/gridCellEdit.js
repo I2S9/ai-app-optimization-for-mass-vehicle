@@ -8,7 +8,7 @@ export const NUMERIC_VALUE_ALERT_MSG =
   'The entered value must be a numeric value.';
 
 export function isAllowedNumericTyping(value) {
-  const s = String(value ?? '');
+  const s = String(value != null ? value : '');
   if (s === '' || s === '-') return true;
   if (!/^-?\d*([.,]?\d*)?$/.test(s)) return false;
   const body = s.startsWith('-') ? s.slice(1) : s;
@@ -16,7 +16,7 @@ export function isAllowedNumericTyping(value) {
 }
 
 export function isCompleteNumericValue(value) {
-  const s = String(value ?? '').trim();
+  const s = String(value != null ? value : '').trim();
   if (s === '') return true;
   if (s === '-') return false;
   if (!/^-?\d+([.,]\d+)?$/.test(s)) return false;
@@ -139,7 +139,7 @@ export function createGridCellEditor(opts) {
     }
     if (!isAllowedNumericTyping(next)) {
       window.alert(NUMERIC_VALUE_ALERT_MSG);
-      el.value = lastGoodByEl.get(el) ?? '';
+      el.value = lastGoodByEl.has(el) ? lastGoodByEl.get(el) : '';
       placeCaretAtEnd(el);
       return;
     }
@@ -150,7 +150,7 @@ export function createGridCellEditor(opts) {
     if (!isNumericAt(row, col)) {
       return { ok: true, value: raw };
     }
-    const v = String(raw ?? '').trim();
+    const v = String(raw != null ? raw : '').trim();
     if (!isCompleteNumericValue(v)) {
       return { ok: false };
     }
@@ -184,7 +184,7 @@ export function createGridCellEditor(opts) {
       return false;
     }
 
-    const startSeed = startSeedByEl.get(el) ?? '';
+    const startSeed = startSeedByEl.has(el) ? startSeedByEl.get(el) : '';
     if (String(parsed.value).trim() === String(startSeed).trim()) {
       rememberIdleDisplay(row, col, el.value);
       clearEditState(el);
@@ -205,7 +205,7 @@ export function createGridCellEditor(opts) {
     if (dirtyByEl.get(el) === true) {
       return finishEdit(row, col, event, { deferDeactivate: true });
     }
-    const preserved = startSeedByEl.get(el) ?? el.value;
+    const preserved = startSeedByEl.has(el) ? startSeedByEl.get(el) : el.value;
     rememberIdleDisplay(row, col, preserved);
     clearEditState(el);
     return true;

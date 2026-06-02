@@ -14,13 +14,19 @@ export function isSynBuiltinPillarExcelCol(excelCol) {
 }
 
 export function synPillarColWidth(col, sheet, pillarColumns) {
-  if (!pillarColumns?.has(col) && !isSynBuiltinPillarExcelCol(col)) return null;
-  const fromSheet = sheet?.colWidths?.find((w) => w.col === col)?.width;
+  if (!(pillarColumns && pillarColumns.has(col)) && !isSynBuiltinPillarExcelCol(col)) return null;
+  const fromSheet =
+    sheet && sheet.colWidths
+      ? (sheet.colWidths.find((w) => w.col === col) || {}).width
+      : undefined;
   return Math.max(fromSheet || 0, SYN_PILLAR_COL_WIDTH);
 }
 
 export function synStickyColWidth(sheet) {
-  const fromSheet = sheet?.colWidths?.find((w) => w.col === SYN_STICKY_COL)?.width;
+  const fromSheet =
+    sheet && sheet.colWidths
+      ? (sheet.colWidths.find((w) => w.col === SYN_STICKY_COL) || {}).width
+      : undefined;
   return Math.max(fromSheet || SYN_LABEL_COL_MIN_W, SYN_LABEL_COL_MIN_W);
 }
 

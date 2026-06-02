@@ -74,7 +74,7 @@ function mergeMeta(raw, meta) {
  */
 export async function loadSheetRaw(sheetId, opts = {}) {
   const cfg = await probeSheetApi();
-  if (!cfg?.chunkedLoad) {
+  if (!cfg || !cfg.chunkedLoad) {
     return fetchJson(SHEET_FILES[sheetId]);
   }
 
@@ -91,7 +91,7 @@ export async function loadSheetRaw(sheetId, opts = {}) {
       `/api/v1/sheets/${sheetId}/cells?rowMin=${start}&rowMax=${end}`
     );
     raw.cells.push(...(chunk.cells || []));
-    opts.onProgress?.({
+    if (opts.onProgress) opts.onProgress({
       sheetId,
       rowMin: start,
       rowMax: end,
@@ -110,7 +110,7 @@ export async function loadSheetRaw(sheetId, opts = {}) {
 /** Load remaining rows after first chunk (when raw already has meta + partial cells). */
 export async function loadSheetRemainingCells(sheetId, raw, opts = {}) {
   const cfg = await probeSheetApi();
-  if (!cfg?.chunkedLoad) return raw;
+  if (!cfg || !cfg.chunkedLoad) return raw;
 
   const step = CHUNK_ROWS[sheetId] || 300;
   const rowMin = sheetId === 'bd' ? 2 : 1;
@@ -128,7 +128,7 @@ export async function loadSheetRemainingCells(sheetId, raw, opts = {}) {
       `/api/v1/sheets/${sheetId}/cells?rowMin=${start}&rowMax=${end}`
     );
     raw.cells.push(...(chunk.cells || []));
-    opts.onProgress?.({
+    if (opts.onProgress) opts.onProgress({
       sheetId,
       rowMin: start,
       rowMax: end,

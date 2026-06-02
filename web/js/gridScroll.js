@@ -221,7 +221,7 @@ export function createScrollRafSync(refs) {
   }
 
   function flush() {
-    const el = getScrollEl?.() ?? null;
+    const el = getScrollEl ? getScrollEl() : null;
     if (el) apply(el);
   }
 

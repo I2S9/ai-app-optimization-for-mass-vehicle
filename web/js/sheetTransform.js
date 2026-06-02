@@ -296,8 +296,8 @@ function fillDesignDeptInherited(sheet, col) {
     if (anchors[anchorIdx].row <= r) inherited = anchors[anchorIdx].v;
     let v = inherited;
     const cell = byRow.get(r);
-    if (cell?.f && !cell.v) v = resolveFormulaParent(r) || inherited;
-    else if (cell?.v == null || cell.v === '') v = inherited;
+    if (cell && cell.f && !cell.v) v = resolveFormulaParent(r) || inherited;
+    else if (!cell || cell.v == null || cell.v === '') v = inherited;
     else continue;
     if (!v) continue;
     let target = cell;

@@ -67,7 +67,7 @@ export function createSynCalcContext(bdSheet, synSheet) {
   const vehColFilterIndex = new Map();
 
   function getBdValue(r, c) {
-    const raw = bdCols[c]?.[r];
+    const raw = bdCols[c] ? bdCols[c][r] : undefined;
     if (raw != null && raw !== '') return String(raw);
     const displayed = displayCellValue(
       bdMap,
@@ -88,7 +88,7 @@ export function createSynCalcContext(bdSheet, synSheet) {
       if (label != null && String(label).trim() !== '') return String(label).trim();
     }
     const cell = getCell(synMap, row, col);
-    return cell?.v != null && cell.v !== '' ? String(cell.v) : '';
+    return cell && cell.v != null && cell.v !== '' ? String(cell.v) : '';
   }
 
   function getSynLabel(row) {
@@ -153,7 +153,11 @@ export function createSynCalcContext(bdSheet, synSheet) {
       synSectionRows,
       isBlueRow,
       (r, c) => getBlueMaaValue(r, c),
-      synSheet.effectiveLastRow ?? synSheet.lastRow ?? 422
+      synSheet.effectiveLastRow != null
+        ? synSheet.effectiveLastRow
+        : synSheet.lastRow != null
+          ? synSheet.lastRow
+          : 422
     );
     sumproductCache.set(cacheKey, String(n));
     return n;
@@ -176,7 +180,7 @@ export function createSynCalcContext(bdSheet, synSheet) {
 
   function resolveNumericAtInner(row, col) {
     const cell = getCell(synMap, row, col);
-    if (cell?.userEdited) return parseSynNum(displayValue(cell));
+    if (cell && cell.userEdited) return parseSynNum(displayValue(cell));
     const label = getSynLabel(row);
     const rowClass = getSynRowClass(row);
     if (isSynSectionSumDataCell(row, col, synSheet, cell, label, rowClass)) {
@@ -200,7 +204,7 @@ export function createSynCalcContext(bdSheet, synSheet) {
 
   function getDisplayValue(row, col) {
     const cell = getCell(synMap, row, col);
-    if (cell?.userEdited && !isSynAdaptationSumCell(row, col)) {
+    if (cell && cell.userEdited && !isSynAdaptationSumCell(row, col)) {
       return displayValue(cell);
     }
     if (isSynAdaptationSumCell(row, col)) {
@@ -254,7 +258,12 @@ export function createSynCalcContext(bdSheet, synSheet) {
   /** @returns {{ r: number, c: string, v: string, mat: true }[]} */
   function materializeAll() {
     const patches = [];
-    const last = synSheet.effectiveLastRow ?? synSheet.lastRow ?? 422;
+    const last =
+      synSheet.effectiveLastRow != null
+        ? synSheet.effectiveLastRow
+        : synSheet.lastRow != null
+          ? synSheet.lastRow
+          : 422;
     const cols = synLiveMassExcelCols();
     for (const excelCol of cols) {
       getVehColFilterRows(excelCol);
@@ -270,7 +279,7 @@ export function createSynCalcContext(bdSheet, synSheet) {
         ) {
           continue;
         }
-        if (cell?.userEdited) continue;
+        if (cell && cell.userEdited) continue;
         const v = getDisplayValue(row, col);
         if (v == null || String(v).trim() === '') continue;
         patches.push({ r: row, c: col, v, mat: true });

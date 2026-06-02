@@ -4,7 +4,7 @@ import { ROW_H } from './gridScroll.js?v=grid-search4';
 import { yieldToMain } from './yieldMain.js?v=2';
 
 export function normalizeSearchQuery(q) {
-  return String(q ?? '').trim().toLowerCase();
+  return String(q != null ? q : '').trim().toLowerCase();
 }
 
 function cellSearchText(cell) {
@@ -27,12 +27,12 @@ export async function buildSearchIndex(cellMap, sheet, columns) {
   if (!(cellMap instanceof Map) || cellMap.size === 0) return [];
 
   const cols = Array.isArray(columns) ? columns : null;
-  const colSet = cols?.length ? new Set(cols) : null;
-  const colOrder = cols?.length
+  const colSet = cols && cols.length ? new Set(cols) : null;
+  const colOrder = cols && cols.length
     ? new Map(cols.map((c, i) => [c, i]))
     : null;
-  const minRow = sheet?.dataStartRow ?? 1;
-  const maxRow = sheet?.lastRow ?? 999999;
+  const minRow = sheet && sheet.dataStartRow != null ? sheet.dataStartRow : 1;
+  const maxRow = sheet && sheet.lastRow != null ? sheet.lastRow : 999999;
   const entries = [];
   let n = 0;
 
@@ -50,7 +50,7 @@ export async function buildSearchIndex(cellMap, sheet, columns) {
       row,
       col,
       // Store numeric order once to make sorting cheap.
-      _o: colOrder ? colOrder.get(col) ?? 999999 : 0,
+      _o: colOrder ? (colOrder.has(col) ? colOrder.get(col) : 999999) : 0,
       text,
     });
     n += 1;
@@ -59,7 +59,7 @@ export async function buildSearchIndex(cellMap, sheet, columns) {
 
   entries.sort(
     (a, b) =>
-      a.row - b.row || (a._o ?? 0) - (b._o ?? 0)
+      a.row - b.row || (a._o != null ? a._o : 0) - (b._o != null ? b._o : 0)
   );
   // Remove internal sort key to keep the index compact.
   for (let i = 0; i < entries.length; i += 1) delete entries[i]._o;
@@ -69,7 +69,7 @@ export async function buildSearchIndex(cellMap, sheet, columns) {
 /** Substring match — cells in row/col order. */
 export function findInSearchIndex(index, query) {
   const q = normalizeSearchQuery(query);
-  if (!q || !index?.length) return [];
+  if (!q || !index || !index.length) return [];
   const hits = [];
   for (let i = 0; i < index.length; i += 1) {
     if (index[i].text.includes(q)) {
@@ -131,7 +131,7 @@ export function createGridSearchController(opts) {
     if (top == null) return;
     const vh = getViewportH();
     scrollEl.scrollTop = Math.max(0, top - vh / 2 + rowHeight / 2);
-    flushScroll?.();
+    if (flushScroll) flushScroll();
   }
 
   async function searchAndScroll(query, { step = 0 } = {}) {
@@ -168,7 +168,7 @@ export function createGridSearchController(opts) {
     const rows = getBodyExcelRows();
     const ri = rows.indexOf(row);
     if (ri < 0) {
-      onRowHidden?.({ row, col });
+      if (onRowHidden) onRowHidden({ row, col });
       return {
         count: searchMatches.length,
         index: searchMatchIndex,
@@ -179,7 +179,7 @@ export function createGridSearchController(opts) {
     scrollCellIntoView(row, col);
     centerRowInView(ri, row);
     await nextTick();
-    flushScroll?.();
+    if (flushScroll) flushScroll();
 
     return {
       count: searchMatches.length,

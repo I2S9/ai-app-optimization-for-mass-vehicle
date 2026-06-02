@@ -8,7 +8,9 @@ export default {
   emits: ['navigate', 'close'],
   setup(props, { emit }) {
     function go(id, event) {
-      event?.currentTarget?.blur();
+      if (event && event.currentTarget && typeof event.currentTarget.blur === 'function') {
+        event.currentTarget.blur();
+      }
       emit('navigate', id);
     }
     return { NAV_ITEMS, go };

@@ -67,7 +67,7 @@ export class WorkbookEngineClient {
     if (values) {
       this._applyValues(values);
     }
-    pending.resolve(values ?? {});
+    pending.resolve(values != null ? values : {});
   }
 
   async _call(type, payload) {
@@ -125,7 +125,7 @@ export class WorkbookEngineClient {
 
   async loadSheetData(name, sheetJson) {
     const result = await this._call('load', { name, sheetJson });
-    return result.cellCount ?? 0;
+    return result.cellCount != null ? result.cellCount : 0;
   }
 
   async setCellValue(name, row, col, value) {
@@ -144,9 +144,9 @@ export class WorkbookEngineClient {
   }
 
   hasFormula(name, row, col) {
-    return (
-      this.formulaKeysBySheet.get(name)?.has(`${row}:${col}`) ?? false
-    );
+    const set = this.formulaKeysBySheet.get(name);
+    if (!set) return false;
+    return set.has(`${row}:${col}`);
   }
 
   destroy() {

@@ -122,7 +122,7 @@ export function createGridCellNavigation(opts) {
       }
     }
 
-    flushScroll?.();
+    if (flushScroll) flushScroll();
   }
 
   function focusCell(row, col, beginNavigationTo, activateCell, onDone) {

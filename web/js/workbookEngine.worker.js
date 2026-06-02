@@ -48,6 +48,8 @@ self.onmessage = async (event) => {
         throw new Error(`Unknown worker message: ${type}`);
     }
   } catch (err) {
-    reply(id, false, { error: err?.message || String(err) });
+    reply(id, false, {
+      error: (err && err.message) || String(err),
+    });
   }
 };

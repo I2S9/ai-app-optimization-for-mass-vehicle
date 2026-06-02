@@ -13,7 +13,7 @@ export function createEditHistory({ maxSteps = 200, maxMatrixSteps = 30 } = {}) 
   let revision = 0;
 
   function push(entry) {
-    if (entry?.type === 'matrix') {
+    if (entry && entry.type === 'matrix') {
       if (!entry.bdBefore || !entry.bdAfter) return;
       undoStack.push({
         type: 'matrix',
@@ -28,9 +28,9 @@ export function createEditHistory({ maxSteps = 200, maxMatrixSteps = 30 } = {}) 
         if (firstMatrix >= 0) undoStack.splice(firstMatrix, 1);
       }
     } else {
-      const oldValue = String(entry?.oldValue ?? '');
-      const newValue = String(entry?.newValue ?? '');
-      if (!entry?.sheet || oldValue === newValue) return;
+      const oldValue = String(entry && entry.oldValue != null ? entry.oldValue : '');
+      const newValue = String(entry && entry.newValue != null ? entry.newValue : '');
+      if (!entry || !entry.sheet || oldValue === newValue) return;
       undoStack.push({
         type: 'cell',
         sheet: entry.sheet,

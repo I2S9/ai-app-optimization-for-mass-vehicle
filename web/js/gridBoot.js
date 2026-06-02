@@ -21,7 +21,7 @@ const packCache = new Map();
 
 export function hasSheetEdits(edits) {
   if (!edits) return false;
-  if (edits.cells?.length) return true;
+  if (edits.cells && edits.cells.length) return true;
   return Object.keys(edits.headerRows || {}).length > 0;
 }
 
@@ -38,7 +38,7 @@ export async function fetchPrecomputedPack(sheetId) {
   if (!url) return null;
   try {
     const pack = await fetchJson(url);
-    if (!pack?.sheet) return null;
+    if (!pack || !pack.sheet) return null;
     const hydrated = {
       fingerprint: pack.fingerprint || '',
       sheet: hydrateTransformSheet(pack.sheet),
@@ -60,12 +60,12 @@ export async function resolveGridSheet(sheetId, raw, { force = false } = {}) {
     const idb = await loadSheetTransform(sheetId, fp);
     if (idb) return idb;
     const pre = await fetchPrecomputedPack(sheetId);
-    if (pre?.fingerprint === fp) return pre.sheet;
+    if (pre && pre.fingerprint === fp) return pre.sheet;
     return null;
   }
   if (!force && !raw) {
     const pre = await fetchPrecomputedPack(sheetId);
-    if (pre?.sheet) return pre.sheet;
+    if (pre && pre.sheet) return pre.sheet;
   }
   return null;
 }

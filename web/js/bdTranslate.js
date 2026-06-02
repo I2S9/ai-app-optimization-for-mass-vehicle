@@ -60,7 +60,7 @@ export const L1_SECTION_EN = {
   ASSISES: 'SEATS',
   ATTELAGE: 'TOWING',
   BATTERIE: 'BATTERY',
-  'BATTERIE TRACTION': 'TRACTION BATTERY',
+  'BATTERIE TRACTION': 'HIGH-VOLTAGE BATTERY',
   'BOUCLIER AR': 'REAR BUMPER',
   'BOUCLIER AV': 'FRONT BUMPER',
   BV: 'GEARBOX',
@@ -79,7 +79,7 @@ export const L1_SECTION_EN = {
   ECLAIRAGE: 'LIGHTING',
   'ECRAN AERO': 'AERO SCREENS',
   ESSUYAGE: 'WIPERS',
-  'FACADE AV': 'FRONT END',
+  'FACADE AV': 'FACADE',
   FAISCEAUX: 'HARNESS',
   FREINAGE: 'BRAKING',
   GARNISSAGE: 'TRIM',
@@ -115,21 +115,21 @@ export const L2_SECTION_EN = {
   _ADDBLUE: '_ADDBLUE',
   _CARBURANT: '_FUEL',
   '_CIRCUIT AIR': '_AIR CIRCUIT',
-  '_CIRCUIT EAU': '_COOLANT CIRCUIT',
-  '_COMMANDE VITESSE': '_GEAR SHIFT CONTROL',
+  '_CIRCUIT EAU': '_WATER CIRCUIT',
+  '_COMMANDE VITESSE': '_SPEED CONTROL',
   '_COMPRESSEUR CLIM': '_AC COMPRESSOR',
   '_DIVERS ADTH': '_ADTH MISC',
   _ECHAPPEMENT: '_EXHAUST',
-  '_ECRANS THERMIQUE': '_THERMAL SHIELDS',
-  _FACADE: '_FRONT END',
+  '_ECRANS THERMIQUE': '_THERMAL SCREENS',
+  _FACADE: '_FACADE',
   '_GROUP CLIM': '_HVAC GROUP',
   '_GROUPE ADDITIONNEL': '_ADD-ON GROUP',
-  '_LIQUIDE ADDITIF': '_ADDITIVE FLUID',
-  '_LIQUIDE REFROIDISSEMENT': '_COOLANT',
-  _PEDALIER: '_PEDAL ASSEMBLY',
+  '_LIQUIDE ADDITIF': '_ADDITIVE LIQUID',
+  '_LIQUIDE REFROIDISSEMENT': '_COOLING LIQUID',
+  _PEDALIER: '_PEDAL',
   '_RESERVOIR ADDITIF': '_ADDITIVE TANK',
   '_RESERVOIR CARBURANT': '_FUEL TANK',
-  '_Supports GMP': '_POWERTRAIN SUPPORTS',
+  '_Supports GMP': '_ENGINE MOUNTS',
   '_Système de refroidissement par huile': '_OIL COOLING SYSTEM',
   '_Non affecté': '_Unassigned',
 };
@@ -147,7 +147,7 @@ export const CELL_VALUE_EN = {
   'Avant gauche (ancien process)': 'Front left (legacy process)',
   'Avant droite (ancien process)': 'Front right (legacy process)',
   'Système batterie 12V': '12V battery system',
-  'Système batterie traction': 'Traction battery system',
+  'Système batterie traction': 'Battery system',
   'Caisse en blanc (avec peinture)': 'Body in white (with paint)',
   'Système barre de direction': 'Steering column system',
   'electric power steering': 'Electric Power Steering',
@@ -161,10 +161,12 @@ export const CELL_VALUE_EN = {
   'Ecrans aérodynamiques': 'Aerodynamic screens',
   'SYSTÈME LAVAGE': 'WASH SYSTEM',
   'Fixations ISOFIX': 'ISOFIX mountings',
-  'Système module de charge HT (IDCM)': 'HV charging module system (IDCM)',
-  'ASSISE AR RG2': 'REAR SEAT RG2',
-  'ASSISE AR RG3': 'REAR SEAT RG3',
+  'Système module de charge HT (IDCM)': 'High-voltage charge module system (IDCM)',
+  'ASSISE AR RG2': 'BACK SEAT RG2',
+  'ASSISE AR RG3': 'BACK SEAT RG3',
   'ASSISE AV': 'FRONT SEAT',
+  'Système alternateur': 'Alternator system',
+  'SYSTÈME ALTERNATEUR': 'ALTERNATOR SYSTEM',
   ENJO: 'HUB',
   'ENJO CAISSE': 'BODY HUB',
   TOLERIE: 'SHEET METAL',
@@ -187,8 +189,10 @@ export const CELL_VALUE_EN = {
   'Enjoliveur de fixation côté droit': 'Right side fixing molding',
   'Enjoliveur de fixation côté gauche': 'Left side fixing molding',
   'Commande de déverrouillage de console centrale': 'Center console unlock control',
-  'Deuxiéme support calculateur gestion batterie HT': 'Second HV battery management controller support',
-  'Système crochet d attelage / Porte vélo': 'Towing hook / bicycle rack system',
+  'Deuxiéme support calculateur gestion batterie HT':
+    'Second high-voltage battery management computer support',
+  'Système crochet d attelage / Porte vélo':
+    'Trailer hitch system / bike carrier',
   'Système de contôle avec téléphone / NFC': 'Control system with phone / NFC',
   'Système de déverrouillage': 'Unlocking system',
   'Système frein a main': 'Handbrake system',
@@ -211,6 +215,52 @@ export const CELL_VALUE_EN = {
   'Ailes arrière': 'Rear wings',
 };
 const LABEL_COLS = new Set(['A', 'AP', 'AS', 'AR', 'AU', 'W']);
+// Canonical overrides for already-English labels (used by bookmark/matrix text).
+// Keep these aligned with the expected English terminology.
+const ENGLISH_LABEL_OVERRIDES = {
+  'Coolant circuit': 'Water circuit',
+  'Thermal shields': 'Thermal screens',
+  'Front end': 'Facade',
+  'Adaptive fluid': 'Additive liquid',
+  'Adaptive liquid': 'Additive liquid',
+  Coolant: 'Cooling liquid',
+  'Pedal assembly': 'Pedal',
+  'Powertrain supports': 'Engine mounts',
+  'Gear shift control': 'Speed control',
+  'System alternator': 'Alternator system',
+  'Rear seat RG2': 'Back seat RG2',
+  'Rear seat RG3': 'Back seat RG3',
+  'Towing hook / bicycle rack system': 'Trailer hitch system / bike carrier',
+  'Traction battery': 'High-voltage battery',
+  'Traction battery system': 'Battery system',
+  'HV charging module system (IDCM)': 'High-voltage charge module system (IDCM)',
+  'HV Charging module system (IDCM)': 'High-voltage charge module system (IDCM)',
+  'HV Charging module system (idcm)': 'High-voltage charge module system (IDCM)',
+  'High-voltage charge module system (idcm)':
+    'High-voltage charge module system (IDCM)',
+
+  // Explicit underscore labels (often appear in bookmark/matrix structure rows).
+  _DURITE_DE_VENTILATION_MODULE_CHARGE_HT:
+    'High-voltage charge module ventilation hose',
+  ['_DURITE_DE_VENTILATION_MODULE_CHARGE_HT'.replaceAll('_', ' ')]:
+    'High-voltage charge module ventilation hose',
+  '_DURITE DE VENTILATION MODULE CHARGE HT':
+    'High-voltage charge module ventilation hose',
+  _CONTROLLER_MANAGEMENT_BATTERY_HT:
+    'High-voltage battery management computer',
+  '_CONTROLLER MANAGEMENT BATTERY HT':
+    'High-voltage battery management computer',
+  _SECOND_SUPPORT_MODULE_CHARGE_HT:
+    'Second high-voltage charge module support',
+  '_SECOND SUPPORT MODULE CHARGE HT':
+    'Second high-voltage charge module support',
+  _SUPPORT_CONTROLLER_MANAGEMENT_BATTERY_HT:
+    'High-voltage battery management computer support',
+  '_SUPPORT CONTROLLER MANAGEMENT BATTERY HT':
+    'High-voltage battery management computer support',
+  '_SECOND HV BATTERY MANAGEMENT CONTROLLER SUPPORT':
+    'Second high-voltage battery management computer support',
+};
 /** Nomination / label columns visible on structure rows (yellow & blue). */
 export function isLabelColumn(col) {
   return LABEL_COLS.has(col);
@@ -219,6 +269,7 @@ export function translateValue(raw) {
   if (raw == null || raw === '') return raw;
   const v = String(raw).trim();
   if (!v) return v;
+  if (ENGLISH_LABEL_OVERRIDES[v]) return ENGLISH_LABEL_OVERRIDES[v];
   if (HEADER_FR_EN[v]) return HEADER_FR_EN[v];
   if (CA_BAND_EN[v]) return CA_BAND_EN[v];
   if (L1_SECTION_EN[v]) return L1_SECTION_EN[v];
@@ -297,9 +348,19 @@ export function translateFrenchPhrase(text) {
     [/Vitesse/gi, 'Speed'],
     [/Échappement/gi, 'Exhaust'],
     [/Echappement/gi, 'Exhaust'],
-    [/Pédalier/gi, 'Pedal assembly'],
-    [/Façade/gi, 'Front end'],
-    [/Facade/gi, 'Front end'],
+    [/Pédalier/gi, 'Pedal'],
+    [/Façade/gi, 'Facade'],
+    [/Facade/gi, 'Facade'],
+    [/Circuit eau/gi, 'Water circuit'],
+    [/circuit eau/gi, 'water circuit'],
+    [/Ecrans thermique/gi, 'Thermal screens'],
+    [/écrans thermique/gi, 'thermal screens'],
+    [/Liquide additif/gi, 'Additive liquid'],
+    [/liquide additif/gi, 'additive liquid'],
+    [/Liquide refroidissement/gi, 'Cooling liquid'],
+    [/liquide refroidissement/gi, 'cooling liquid'],
+    [/Supports GMP/gi, 'Engine mounts'],
+    [/supports GMP/gi, 'engine mounts'],
     [/Écran/gi, 'Screen'],
     [/Ecran/gi, 'Screen'],
     [/aérodynamique/gi, 'aerodynamic'],
@@ -402,7 +463,7 @@ export function translateSubsystemLabel(raw) {
  * Applies translation twice (Syn French → EN, BD title case) then uppercases.
  */
 export function canonicalL2MatchKey(raw) {
-  let s = translateSubsystemLabel(String(raw ?? '').trim());
+  let s = translateSubsystemLabel(String(raw != null ? raw : '').trim());
   if (!s) return '';
   s = translateSubsystemLabel(s);
   return s.toUpperCase();

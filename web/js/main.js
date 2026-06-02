@@ -89,7 +89,7 @@ const App = {
     const autoSave = createAutoSave(
       () => ({
         bd: bdRaw.value,
-        syn: synRaw.value ?? preservedSynRaw,
+        syn: synRaw.value != null ? synRaw.value : preservedSynRaw,
         revision: dirty.value,
         structureRevision: structureRevision.value,
       }),
@@ -97,7 +97,7 @@ const App = {
         debounceMs: 400,
         onStatus(status, err) {
           saveStatus.value = status;
-          if (err) saveError.value = err?.message || String(err);
+          if (err) saveError.value = (err && err.message) || String(err);
           else if (status !== 'error') saveError.value = '';
         },
       }
@@ -179,7 +179,7 @@ const App = {
       if (!bdRaw.value) {
         if (!force) {
           const pre = await fetchPrecomputedPack('bd');
-          if (pre?.sheet) {
+          if (pre && pre.sheet) {
             await yieldToMain();
             bdSheet.value = pre.sheet;
             bdSheetBuiltAt = bdSheetRevision.value;
@@ -206,7 +206,7 @@ const App = {
       const fp = rawFingerprint(bdRaw.value);
       const pre = await fetchPrecomputedPack('bd');
       void saveSheetTransform('bd', fp, bdSheet.value, {
-        skipIfPrecomputed: pre?.fingerprint === fp,
+        skipIfPrecomputed: Boolean(pre && pre.fingerprint === fp),
       });
     }
 
@@ -214,7 +214,7 @@ const App = {
       if (!synRaw.value) {
         if (!force) {
           const pre = await fetchPrecomputedPack('syn');
-          if (pre?.sheet) {
+          if (pre && pre.sheet) {
             await yieldToMain();
             synthesisSheet.value = pre.sheet;
             synSheetBuiltAt = synSheetRevision.value;
@@ -241,7 +241,7 @@ const App = {
       const fp = rawFingerprint(synRaw.value);
       const pre = await fetchPrecomputedPack('syn');
       void saveSheetTransform('syn', fp, synthesisSheet.value, {
-        skipIfPrecomputed: pre?.fingerprint === fp,
+        skipIfPrecomputed: Boolean(pre && pre.fingerprint === fp),
       });
     }
 
@@ -260,7 +260,7 @@ const App = {
       synthesisPreparePromise = (async () => {
         const pre = await fetchPrecomputedPack('syn');
         if (!synRaw.value) {
-          if (pre?.sheet) {
+          if (pre && pre.sheet) {
             await yieldToMain();
             synthesisSheet.value = pre.sheet;
             synSheetBuiltAt = synSheetRevision.value;
@@ -269,7 +269,7 @@ const App = {
           }
           await fetchSynFromServer();
         }
-        if (pre?.sheet) {
+        if (pre && pre.sheet) {
           const fp = rawFingerprint(synRaw.value);
           if (pre.fingerprint === fp) {
             await yieldToMain();
@@ -290,7 +290,7 @@ const App = {
 
     function mergeExtraCellsIntoBd(fullRaw) {
       const sheet = bdSheet.value;
-      if (!sheet || !fullRaw?.cells?.length) return;
+      if (!sheet || !fullRaw || !fullRaw.cells || !fullRaw.cells.length) return;
       const map = sheet.cellMap instanceof Map ? sheet.cellMap : null;
       if (!map) {
         bumpBdSheetRevision();
@@ -386,7 +386,7 @@ const App = {
       synthesisLoading.value = true;
       synthesisLoadPromise = startSynBackgroundPrepare()
         .catch((e) => {
-          error.value = e?.message || String(e);
+          error.value = (e && e.message) || String(e);
           synthesisLoadPromise = null;
         })
         .finally(() => {
@@ -396,7 +396,7 @@ const App = {
     }
 
     onErrorCaptured((err) => {
-      error.value = err?.message || String(err);
+      error.value = (err && err.message) || String(err);
       synthesisLoading.value = false;
       bdLoading.value = false;
       console.error('Grid render failed:', err);
@@ -436,19 +436,19 @@ const App = {
           probeSheetApi(),
           fetchPrecomputedPack('bd'),
         ]);
-        chunkedApi.value = Boolean(apiCfg?.chunkedLoad);
-        serverCalc.value = Boolean(apiCfg?.serverCalc);
+        chunkedApi.value = Boolean(apiCfg && apiCfg.chunkedLoad);
+        serverCalc.value = Boolean(apiCfg && apiCfg.serverCalc);
 
         const bdHasEdits =
-          (snapshot?.version === 3 && hasSheetEdits(snapshot.bdEdits)) ||
-          (snapshot?.version === 2 && hasSheetEdits(snapshot.bdEdits));
+          (snapshot && snapshot.version === 3 && hasSheetEdits(snapshot.bdEdits)) ||
+          (snapshot && snapshot.version === 2 && hasSheetEdits(snapshot.bdEdits));
         const synHasEdits =
-          (snapshot?.version === 3 && hasSheetEdits(snapshot.synEdits)) ||
-          (snapshot?.version === 2 && hasSheetEdits(snapshot.synEdits));
-        const hasBdFull = snapshot?.version === 3 && snapshot.bdFull;
-        const hasSynFull = snapshot?.version === 3 && snapshot.synFull;
+          (snapshot && snapshot.version === 3 && hasSheetEdits(snapshot.synEdits)) ||
+          (snapshot && snapshot.version === 2 && hasSheetEdits(snapshot.synEdits));
+        const hasBdFull = snapshot && snapshot.version === 3 && snapshot.bdFull;
+        const hasSynFull = snapshot && snapshot.version === 3 && snapshot.synFull;
 
-        if (snapshot?.version === 3) {
+        if (snapshot && snapshot.version === 3) {
           if (snapshot.bdFull) {
             bdRaw.value = snapshot.bdFull;
           } else if (bdHasEdits) {
@@ -462,10 +462,11 @@ const App = {
             await fetchSynFromServer();
             applySheetEdits(synRaw.value, snapshot.synEdits);
           }
-          structureRevision.value = snapshot.structureRevision ?? 0;
+          structureRevision.value =
+            snapshot.structureRevision != null ? snapshot.structureRevision : 0;
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
-        } else if (snapshot?.version === 2) {
+        } else if (snapshot && snapshot.version === 2) {
           if (snapshot.bdEdits) {
             await fetchBdFromServer();
             applySheetEdits(bdRaw.value, snapshot.bdEdits);
@@ -476,7 +477,7 @@ const App = {
           }
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
-        } else if (snapshot?.bd) {
+        } else if (snapshot && snapshot.bd) {
           bdRaw.value = snapshot.bd;
           if (snapshot.syn) {
             synRaw.value = snapshot.syn;
@@ -488,7 +489,7 @@ const App = {
 
         gridPreparing.value = true;
 
-        if (!bdRaw.value && preBd?.sheet) {
+        if (!bdRaw.value && preBd && preBd.sheet) {
           await yieldToMain();
           bdSheet.value = preBd.sheet;
           bdSheetBuiltAt = 0;
@@ -638,7 +639,12 @@ const App = {
 
     function isEditingGridInput() {
       const el = document.activeElement;
-      return el?.tagName === 'INPUT' && el.classList?.contains('grid-cell-input');
+      return Boolean(
+        el &&
+          el.tagName === 'INPUT' &&
+          el.classList &&
+          el.classList.contains('grid-cell-input')
+      );
     }
 
     function onGlobalKeydown(e) {
@@ -657,7 +663,7 @@ const App = {
     }
 
     function applySynPatches(patches) {
-      if (!patches?.length) return;
+      if (!patches || !patches.length) return;
       const raw = synRaw.value;
       const grid = synthesisSheet.value;
       if (!raw) return;
@@ -666,11 +672,11 @@ const App = {
         if (grid) {
           const key = `${p.r}:${p.c}`;
           const map = grid.cellMap instanceof Map ? grid.cellMap : null;
-          let cell = map?.get(key);
+          let cell = map ? map.get(key) : null;
           if (!cell) {
             cell = { r: p.r, c: p.c, v: p.v, mat: true };
             grid.cells.push(cell);
-            map?.set(key, cell);
+            if (map) map.set(key, cell);
           } else if (!cell.userEdited) {
             cell.v = p.v;
             cell.mat = true;
@@ -686,7 +692,7 @@ const App = {
           sheet,
           row,
           col,
-          oldValue: previousValue ?? '',
+          oldValue: previousValue != null ? previousValue : '',
           newValue: value,
         });
         historyTick.value = editHistory.revision;
@@ -793,7 +799,11 @@ const App = {
       if (searchOpen.value) closeSearch();
       else {
         searchOpen.value = true;
-        nextTick(() => searchInputRef.value?.focus());
+        nextTick(() => {
+          if (searchInputRef.value && typeof searchInputRef.value.focus === 'function') {
+            searchInputRef.value.focus();
+          }
+        });
       }
     }
 
@@ -802,11 +812,11 @@ const App = {
         searchStatus.value = '';
         return;
       }
-      if (result?.searching) {
+      if (result && result.searching) {
         searchStatus.value = 'Recherche…';
         return;
       }
-      if (!result?.count) searchStatus.value = 'Aucun résultat';
+      if (!result || !result.count) searchStatus.value = 'Aucun résultat';
       else searchStatus.value = `${result.index + 1} / ${result.count}`;
     }
 
@@ -831,7 +841,7 @@ const App = {
         searchStatus.value = '';
         return;
       }
-      if (result?.hidden && !searchHiddenRetry) {
+      if (result && result.hidden && !searchHiddenRetry) {
         searchHiddenRetry = true;
         if (outlineOnly.value) {
           outlineOnly.value = false;
@@ -914,7 +924,7 @@ const App = {
             /* BD-only matrix still usable */
           }
         }
-        const synSource = synRaw.value ?? null;
+        const synSource = synRaw.value != null ? synRaw.value : null;
         matrixState.value = buildMatrixState(bdSheet.value, synSource);
         matrixSessionBefore = {
           bd: cloneRawSheet(bdRaw.value),
@@ -922,7 +932,7 @@ const App = {
         };
         matrixSessionDirty = false;
       } catch (e) {
-        error.value = e?.message || String(e);
+        error.value = (e && e.message) || String(e);
         console.error('Matrix open failed:', e);
         matrixOpen.value = false;
       }
@@ -947,7 +957,7 @@ const App = {
     }
 
     async function applyMatrixFromModel(bdModel) {
-      if (!bdRaw.value || !bdModel?.sections?.length) return;
+      if (!bdRaw.value || !bdModel || !bdModel.sections || !bdModel.sections.length) return;
       if (bdModel.sections.length < 2) return;
       if (matrixSaving.value) {
         matrixApplyQueued = true;
@@ -964,7 +974,7 @@ const App = {
             /* apply BD structure only */
           }
         }
-        const synBase = matrixState.value?.syn ?? null;
+        const synBase = matrixState.value && matrixState.value.syn != null ? matrixState.value.syn : null;
         const synModel = synBase
           ? alignSynModelToBd(cloneStructure(synBase), bdModel)
           : null;
@@ -994,7 +1004,9 @@ const App = {
           bd: cloneStructure(result.bdModel),
           syn: result.synModel
             ? cloneStructure(result.synModel)
-            : matrixState.value?.syn ?? null,
+            : matrixState.value && matrixState.value.syn != null
+              ? matrixState.value.syn
+              : null,
         };
         matrixSessionDirty = true;
         structureRevision.value = Math.max(structureRevision.value, 1);
@@ -1002,7 +1014,7 @@ const App = {
         autoSave.schedule();
         void autoSave.saveNow();
       } catch (e) {
-        error.value = e?.message || String(e);
+        error.value = (e && e.message) || String(e);
         console.error('Matrix apply failed:', e);
       } finally {
         matrixSaving.value = false;

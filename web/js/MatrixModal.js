@@ -65,7 +65,7 @@ function buildPaletteColors(model) {
     out.push(n);
   };
   for (const c of BOOKMARK_COLOR_PALETTE) add(c);
-  if (!model?.sections) return out;
+  if (!model || !model.sections) return out;
   for (const sec of model.sections) {
     add(sec.color);
     for (const sub of sec.subsections) add(sub.color);
@@ -92,11 +92,11 @@ function subSortIndex(model, subId) {
 }
 
 function isSectionLocked(sec) {
-  return Boolean(sec?.archived);
+  return Boolean(sec && sec.archived);
 }
 
 function isSubLocked(sec, sub) {
-  return Boolean(sec?.archived || sub?.archived);
+  return Boolean((sec && sec.archived) || (sub && sub.archived));
 }
 
 export default {
@@ -123,7 +123,16 @@ export default {
     const colorPick = ref(null);
 
     function syncModelRowCoords(local, incoming) {
-      if (!local?.sections?.length || !incoming?.sections?.length) return false;
+      if (
+        !local ||
+        !local.sections ||
+        !local.sections.length ||
+        !incoming ||
+        !incoming.sections ||
+        !incoming.sections.length
+      ) {
+        return false;
+      }
       if (local.sections.length !== incoming.sections.length) return false;
       for (let i = 0; i < local.sections.length; i++) {
         if (local.sections[i].id !== incoming.sections[i].id) return false;
@@ -170,7 +179,7 @@ export default {
           resetMatrixUiState();
           return;
         }
-        if (props.state?.bd) {
+        if (props.state && props.state.bd) {
           model.value = cloneStructure(props.state.bd);
           resetMatrixUiState();
           const ids = model.value.sections.slice(0, 2).map((s) => s.id);
@@ -182,12 +191,12 @@ export default {
     watch(
       () => props.state,
       (s) => {
-        if (!s?.bd) {
+        if (!s || !s.bd) {
           model.value = null;
           resetMatrixUiState();
           return;
         }
-        if (!model.value?.sections?.length) {
+        if (!model.value || !model.value.sections || !model.value.sections.length) {
           model.value = cloneStructure(s.bd);
           resetMatrixUiState();
           if (props.open) {
@@ -230,11 +239,11 @@ export default {
     function onSecDragStart(secId, e) {
       const sec = findSection(model.value, secId);
       if (isSectionLocked(sec)) {
-        e?.preventDefault?.();
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
         return;
       }
       dragSecId.value = secId;
-      if (e?.dataTransfer) {
+      if (e && e.dataTransfer) {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', secId);
       }
@@ -427,18 +436,18 @@ export default {
 
     function isDropTarget(sectionId, index) {
       const t = dropTarget.value;
-      return t?.sectionId === sectionId && t?.index === index;
+      return Boolean(t && t.sectionId === sectionId && t.index === index);
     }
 
     function onDragStart(subId, e) {
       const ids = resolveDragIds(subId);
       if (!ids.length) {
-        e?.preventDefault?.();
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
         return;
       }
       dragSubIds.value = ids;
       dragSubId.value = subId;
-      if (e?.dataTransfer) {
+      if (e && e.dataTransfer) {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', ids.join(','));
       }
@@ -456,7 +465,9 @@ export default {
     }
 
     function clearDrop(sectionId) {
-      if (dropTarget.value?.sectionId === sectionId) dropTarget.value = null;
+      if (dropTarget.value && dropTarget.value.sectionId === sectionId) {
+        dropTarget.value = null;
+      }
     }
 
     function onDropSub(targetSectionId, insertIndex) {
@@ -557,7 +568,7 @@ export default {
         selectedIds.value = selectedIds.value.filter((id) => id !== d.sectionId);
         selectedSubIds.value = selectedSubIds.value.filter((subId) => {
           const hit = findSubsection(model.value, subId);
-          return hit?.section.id !== d.sectionId;
+          return !(hit && hit.section && hit.section.id === d.sectionId);
         });
       } else if (d.kind === 'subsection') {
         const sec = findSection(model.value, d.sectionId);
@@ -589,7 +600,9 @@ export default {
           });
           if (!ids.length) return;
           const first = findSubsection(model.value, ids[0]);
-          current = first?.subsection.color || DEFAULT_SUBSECTION_COLOR;
+          current =
+            (first && first.subsection && first.subsection.color) ||
+            DEFAULT_SUBSECTION_COLOR;
         } else if (subId) {
           const hit = findSubsection(model.value, subId);
           if (!hit || isSubLocked(hit.section, hit.subsection)) return;
@@ -600,8 +613,11 @@ export default {
         }
       }
 
-      const btn = ev?.currentTarget;
-      const rect = btn?.getBoundingClientRect?.();
+      const btn = ev && ev.currentTarget ? ev.currentTarget : null;
+      const rect =
+        btn && typeof btn.getBoundingClientRect === 'function'
+          ? btn.getBoundingClientRect()
+          : null;
       const colors = buildPaletteColors(model.value);
       colorPick.value = {
         type,
@@ -681,7 +697,9 @@ export default {
     function scrollToSub(subId) {
       nextTick(() => {
         const el = document.querySelector(`[data-matrix-sub="${subId}"]`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       });
     }
 
@@ -696,7 +714,7 @@ export default {
 
     function subStyle(sub, sec) {
       const style = { background: sub.color || DEFAULT_SUBSECTION_COLOR };
-      if (sub.archived || sec?.archived) {
+      if (sub.archived || (sec && sec.archived)) {
         style.filter = 'grayscale(1)';
         style.opacity = '0.52';
       }
