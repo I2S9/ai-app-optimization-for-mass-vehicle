@@ -38,7 +38,7 @@ const PERSIST_VERSION = 3;
 
 /** Cells the user changed — small enough for localStorage + IndexedDB. */
 export function extractSheetEdits(raw) {
-  if (!raw) return { cells: [], headerRows: {} };
+  if (!raw) return { cells: [], headerRows: {}, deletedRows: [] };
   const cells = (raw.cells || [])
     .filter((c) => c.userEdited)
     .map((c) => ({
@@ -59,7 +59,62 @@ export function extractSheetEdits(raw) {
       };
     }
   }
-  return { cells, headerRows };
+  const deletedRows = Array.isArray(raw.deletedRows)
+    ? [...new Set(raw.deletedRows.map(Number).filter(Number.isFinite))]
+    : [];
+  return { cells, headerRows, deletedRows };
+}
+
+/**
+ * Copy in-grid user edits onto export-shaped raw JSON before save/load fingerprint.
+ * Needed when Synthesis was shown from a precomputed grid before synRaw finished loading.
+ */
+/** Detect synthesis JSON damaged by an old matrix apply (missing ADAPTATION band). */
+export function synRawLooksHealthy(raw) {
+  if (!raw) return true;
+  const labelAt = (row) => {
+    const idx = raw._cellIndex;
+    if (idx instanceof Map) {
+      const c = idx.get(`${row}:F`);
+      return c && c.v != null ? String(c.v).trim() : '';
+    }
+    for (const c of raw.cells || []) {
+      if (Number(c.r) === row && c.c === 'F') {
+        return c.v == null ? '' : String(c.v).trim();
+      }
+    }
+    return '';
+  };
+  const l25 = labelAt(25).toUpperCase();
+  if (!l25 || !l25.includes('ADAPT')) return false;
+  const l26 = labelAt(26).toUpperCase();
+  if (!l26 || !l26.startsWith('_')) return false;
+  const l41 = labelAt(41).toUpperCase();
+  if (!l41 || (!l41.includes('ADTH') && !l41.includes('CABIN'))) return false;
+  return true;
+}
+
+export function syncGridEditsToRaw(gridSheet, raw) {
+  if (!gridSheet || !raw) return;
+  for (const c of gridSheet.cells || []) {
+    if (c && c.userEdited) upsertRawCell(raw, c.r, c.c, c.v);
+  }
+  for (const [rowKey, cols] of Object.entries(gridSheet.headerRows || {})) {
+    const row = Number(rowKey);
+    for (const [col, cell] of Object.entries(cols)) {
+      if (cell && cell.userEdited) upsertRawCell(raw, row, col, cell.v);
+    }
+  }
+  if (Array.isArray(gridSheet.deletedRows) && gridSheet.deletedRows.length) {
+    const set = new Set(
+      (raw.deletedRows || []).map(Number).filter(Number.isFinite)
+    );
+    for (const r of gridSheet.deletedRows) {
+      const n = Number(r);
+      if (Number.isFinite(n)) set.add(n);
+    }
+    raw.deletedRows = [...set];
+  }
 }
 
 export function applySheetEdits(raw, edits) {
@@ -72,6 +127,16 @@ export function applySheetEdits(raw, edits) {
     for (const [col, cell] of Object.entries(cols)) {
       upsertRawCell(raw, row, col, cell.v);
     }
+  }
+  if (Array.isArray(edits.deletedRows) && edits.deletedRows.length) {
+    const set = new Set(
+      (raw.deletedRows || []).map(Number).filter(Number.isFinite)
+    );
+    for (const r of edits.deletedRows) {
+      const n = Number(r);
+      if (Number.isFinite(n)) set.add(n);
+    }
+    raw.deletedRows = [...set];
   }
 }
 
@@ -88,9 +153,13 @@ export function buildPersistRecord({
   const bdEdits = extractSheetEdits(bd);
   const synEdits = extractSheetEdits(syn);
   const hasBdEdits =
-    bdEdits.cells.length || Object.keys(bdEdits.headerRows).length;
+    bdEdits.cells.length ||
+    Object.keys(bdEdits.headerRows).length ||
+    bdEdits.deletedRows.length;
   const hasSynEdits =
-    synEdits.cells.length || Object.keys(synEdits.headerRows).length;
+    synEdits.cells.length ||
+    Object.keys(synEdits.headerRows).length ||
+    synEdits.deletedRows.length;
 
   if (!hasStructure && !hasBdEdits && !hasSynEdits) return null;
 
@@ -103,7 +172,10 @@ export function buildPersistRecord({
 
   if (hasStructure) {
     if (bd) record.bdFull = bd;
-    if (syn) record.synFull = syn;
+    // Never persist synFull: matrix row-remap snapshots reload as a broken grid
+    // (ADAPTATION band replaced by FENDERS, etc.). Synthesis rebuilds from the
+    // project JSON + synEdits; structure comes from bdFull + matrix re-apply.
+    if (hasSynEdits) record.synEdits = synEdits;
   } else {
     if (hasBdEdits) record.bdEdits = bdEdits;
     if (hasSynEdits) record.synEdits = synEdits;
@@ -331,12 +403,29 @@ export function rawFingerprint(raw) {
   const cells = raw.cells && raw.cells.length ? raw.cells.length : 0;
   const cols = raw.columns && raw.columns.length ? raw.columns.length : 0;
   const lastRow = raw.lastRow != null ? raw.lastRow : 0;
+  // Hash the actual content (r, c, v) of every edited cell — order-independent —
+  // so re-editing an already-edited cell still changes the fingerprint and
+  // invalidates any stale cached grid transform. A count-only fingerprint would
+  // collide when a value changes without the edited-cell count changing, causing
+  // a refresh to show the previous value instead of the one just entered.
   let edited = 0;
+  let editHash = 0;
   for (const c of raw.cells || []) {
-    if (c.userEdited) edited++;
-    if (edited > 99) break;
+    if (!c.userEdited) continue;
+    edited++;
+    const s = `${c.r}:${c.c}=${c.v == null ? '' : c.v}`;
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    editHash = (editHash + (h >>> 0)) >>> 0;
   }
-  return `${cells}:${cols}:${lastRow}:${edited}`;
+  const delRows = Array.isArray(raw.deletedRows)
+    ? [...raw.deletedRows].map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+    : [];
+  const delKey = delRows.length ? delRows.join(',') : '';
+  return `${cells}:${cols}:${lastRow}:${edited}:${editHash.toString(36)}:del${delKey}`;
 }
 
 export function serializeTransformSheet(sheet) {
@@ -355,6 +444,20 @@ export function hydrateTransformSheet(data) {
     ...data,
     cellMap: buildCellMap(data.cells, data.headerRows),
   };
+}
+
+export async function clearSheetTransform(sheetId) {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_TRANSFORMS, 'readwrite');
+      tx.objectStore(STORE_TRANSFORMS).delete(sheetId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 export async function loadSheetTransform(sheetId, fingerprint) {

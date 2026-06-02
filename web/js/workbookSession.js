@@ -31,6 +31,7 @@ import {
   isSynApbbMassCol,
   isSynVehicleMassCol,
   isSynAbDiffExcelCol,
+  classifyBdEditForSynMass,
   describeSynCellFormula,
   synVehicleMassExcelCol,
   affectsAdaptationSum,
@@ -47,6 +48,13 @@ export function createWorkbookSession() {
   const displayTick = ref(0);
   /** Synthesis live-calc invalidation (BD edit → Syn SUMPRODUCT only). */
   const synCalcTick = ref(0);
+  /**
+   * True once a BD edit has touched a calc input (mass / filter / L2 index).
+   * Flips Synthesis out of the build-time "materialized" snapshot so impacted
+   * SUMPRODUCT / section-sum / AB-diff cells recompute live. Only the cells whose
+   * cache entry was invalidated recompute — untouched cells stay cached.
+   */
+  const liveBdEdited = ref(false);
   /** ADAPTATION row-26 SUM only (cols C..J) — lightweight, no SUMPRODUCT. */
   const adaptationSumTick = ref(0);
   let displayDirtyAll = true;
@@ -228,6 +236,12 @@ export function createWorkbookSession() {
         if (k.startsWith('g:')) sumproductCache.delete(k);
       }
     }
+    // AB diff (display AB = V − Y) is derived from blue mass values, so it must
+    // be recomputed whenever any blue mass changes. There are only a few of these
+    // rows, so always dropping them is cheap and avoids stale Δ values.
+    for (const k of [...sumproductCache.keys()]) {
+      if (k.startsWith('d:')) sumproductCache.delete(k);
+    }
   }
 
   function getVehColFilterRows(col) {
@@ -281,28 +295,48 @@ export function createWorkbookSession() {
     return true;
   }
 
+  /**
+   * A Database edit was committed. Invalidate exactly the Synthesis live-mass
+   * caches that the edited BD column feeds, so the dependent SOMMEPROD / section
+   * sums / Δ cells recompute on the next render.
+   *
+   * The set of relevant columns (mass V, sub-system L2 AU, gate Q, and every
+   * filter column A,B,C,D,E,F,G,I,K,L,O) is defined once in
+   * {@link classifyBdEditForSynMass} — the previous logic only watched O/P/Q/AU/V
+   * and therefore silently ignored edits to the actual filter columns A–L.
+   */
   function applyBdEditInvalidation(row, col) {
-    const isMass = col === BD_MASS_COL;
-    const isFilter = col === 'O' || col === 'P';
-    const isIndexCol = col === 'Q' || col === BD_SUBSYSTEM_L2_COL;
-    if (!isMass && !isFilter && !isIndexCol) return;
+    const kind = classifyBdEditForSynMass(col);
+    if (!kind) return;
 
-    if (isIndexCol) {
+    // From now on Synthesis must recompute impacted cells live rather than
+    // serving the build-time materialized snapshot.
+    liveBdEdited.value = true;
+
+    if (kind === 'l2') {
+      // The row may move from one Synthesis label to another: invalidate both the
+      // previous and the new L2 group so neither keeps a stale total.
+      const oldKey = bdRowToL2Key.get(row);
       patchSumproductL2IndexForRow(row);
-      invalidateSumproductForL2(bdL2KeyAtRow(row), { sectionSums: true });
-      vehColFilterIndex.clear();
-    } else if (isMass) {
+      const newKey = bdL2KeyAtRow(row);
+      invalidateSumproductForL2(oldKey, { sectionSums: true });
+      invalidateSumproductForL2(newKey, { sectionSums: true });
+    } else if (kind === 'gate') {
+      // Q="S" gates a row in/out of every vehicle column's filter set and the L2
+      // index, so the per-column filter caches and all blue/green/Δ totals reset.
+      patchSumproductL2IndexForRow(row);
+      invalidateSumproductCaches();
+    } else if (kind === 'mass') {
       const l2 = bdL2KeyAtRow(row);
-      if (synGridGetter) {
+      if (synGridGetter && l2) {
         invalidateSumproductForL2(l2, { sectionSums: true });
       } else {
         invalidateSumproductCaches();
       }
-    } else if (isFilter) {
-      vehColFilterIndex.clear();
-      for (const k of [...sumproductCache.keys()]) {
-        if (k.startsWith('b:') || k.startsWith('g:')) sumproductCache.delete(k);
-      }
+    } else if (kind === 'filter') {
+      // A filter column changed which BD rows match — for every vehicle column —
+      // so drop the cached per-column filter sets and all dependent totals.
+      invalidateSumproductCaches();
     }
     synCalcTick.value += 1;
   }
@@ -765,6 +799,7 @@ export function createWorkbookSession() {
     revision,
     displayTick,
     synCalcTick,
+    liveBdEdited,
     adaptationSumTick,
     takeDisplayDirty,
     ready,

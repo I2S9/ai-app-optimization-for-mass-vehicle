@@ -5,6 +5,10 @@ import {
   buildCellMap,
   displayValue,
   getCell,
+  getBdSectionTitleFromRow,
+  sanitizeStructureLabel,
+  isFormulaLike,
+  isSectionLabel,
   isSectionRow,
   isCaBandRow,
   formatBlueBandLabel,
@@ -41,18 +45,8 @@ function rowRange(start, end) {
 }
 
 function getBdSectionLabel(map, row, sheet) {
-  if (isCaBandRow(map, row)) {
-    if (row === 5) return '-ADAPTATION';
-    if (row === 139) return '-ADTH';
-  }
-  const l1Col = bdSubsystemL1Col(sheet);
-  const ap = displayValue(getCell(map, row, l1Col));
-  if (ap) return translateSubsystemLabel(String(ap).trim());
-  const a = displayValue(getCell(map, row, 'A'));
-  if (a && String(a).trim().startsWith('-')) {
-    return translateSubsystemLabel(String(a).trim());
-  }
-  return `Section ${row}`;
+  const title = getBdSectionTitleFromRow(map, row, sheet);
+  return title || `Section ${row}`;
 }
 
 /** Ordered L1 section header rows in the BD sheet. */
@@ -106,10 +100,19 @@ export function extractBdStructure(sheet) {
       color: colors[headerRow] || DEFAULT_SECTION_COLOR,
       subsections,
       customLines: [],
+      // CA chapter bands (-ADAPTATION / -ADTH) store their label in column W,
+      // not the L1 column. Flag them so the label is written/read consistently.
+      caBand: isCaBandRow(map, headerRow),
     });
   }
+  // The first section header (row 5 = -ADAPTATION) must NOT be swallowed by the
+  // prefix, otherwise it collides with prefixEnd and shifts on apply.
+  const firstHeader = headers.length ? headers[0] : sheet.dataStartRow || 6;
   const model = {
-    prefixEndRow: (sheet.dataStartRow || 6) - 1,
+    prefixEndRow: Math.max(
+      0,
+      Math.min((sheet.dataStartRow || 6) - 1, firstHeader - 1)
+    ),
     finRow: sheet.finRow != null ? sheet.finRow : sheet.lastRow,
     sections,
   };
@@ -257,6 +260,26 @@ function isCaChapterRow(row) {
   return row === 5 || row === 139;
 }
 
+/**
+ * BD CA chapter rows (W column) only mirror their title onto synthesis L1 bands.
+ * They must never drive synthesis row bands or sub-section lists (different layout).
+ */
+const CA_BAND_SYN_LABEL_MIRROR = [
+  { bdHeaderRow: 5, synHeaderRow: 25 },
+  { bdHeaderRow: 139, synHeaderRow: 41 },
+];
+
+function syncCaBandLabelsOntoSyn(synModel, bdModel) {
+  if (!synModel || !bdModel) return;
+  for (const { bdHeaderRow, synHeaderRow } of CA_BAND_SYN_LABEL_MIRROR) {
+    const bdSec = bdModel.sections.find(
+      (s) => s.caBand && s.headerRow === bdHeaderRow
+    );
+    const synSec = synModel.sections.find((s) => s.headerRow === synHeaderRow);
+    if (bdSec && synSec) synSec.label = bdSec.label;
+  }
+}
+
 function insertNewBdRows(sheet, model) {
   const l1Col = bdSubsystemL1Col(sheet);
   const l2Col = bdSubsystemL2Col(sheet);
@@ -283,12 +306,21 @@ function insertNewBdRows(sheet, model) {
 function applyBdLabels(sheet, model) {
   const l1Col = bdSubsystemL1Col(sheet);
   const l2Col = bdSubsystemL2Col(sheet);
+  if (!sheet.canonicalSectionByLabel) sheet.canonicalSectionByLabel = {};
   for (const sec of model.sections) {
     const hr = sec.headerRow;
-    if (isCaChapterRow(hr)) {
-      setCell(sheet, hr, 'A', sec.label);
+    const label = sanitizeStructureLabel(sec.label);
+    if (!label) continue;
+    sec.label = label;
+    if (sec.caBand || isCaChapterRow(hr)) {
+      // CA chapter label lives in column W (its canonical display cell).
+      setCell(sheet, hr, 'W', label);
+      sheet.canonicalSectionByLabel[label] = hr;
     } else {
-      setCell(sheet, hr, l1Col, sec.label);
+      setCell(sheet, hr, l1Col, label);
+      if (isSectionLabel(label)) {
+        sheet.canonicalSectionByLabel[label] = hr;
+      }
     }
     for (const sub of sec.subsections) {
       const lbl = formatBlueBandLabel(sub.label);
@@ -331,8 +363,10 @@ function buildBdRowMap(raw, model) {
       const sec = block.meta;
       sec.headerRow = oldToNew.get(block.rows[0]);
       sec.endRow = oldToNew.get(block.rows[block.rows.length - 1]);
+      // Re-map any sub-section that already owns a row. Driven by startRow (not
+      // the isNew flag) so a stale isNew flag can never re-allocate a duplicate.
       for (const sub of sec.subsections) {
-        if (sub.isNew) continue;
+        if (sub.startRow == null) continue;
         const nrStart = oldToNew.get(sub.startRow);
         const nrEnd = oldToNew.get(sub.endRow);
         if (nrStart != null) sub.startRow = nrStart;
@@ -340,9 +374,12 @@ function buildBdRowMap(raw, model) {
       }
     }
   }
+  // Allocate fresh rows ONLY for items that don't already own one. A section
+  // with a headerRow is handled by its band above; a sub with a startRow was
+  // re-mapped above — so nothing here can duplicate an existing row.
   let insertAt = next;
   for (const sec of model.sections) {
-    const isNewSec = sec.isNew || sec.headerRow == null;
+    const isNewSec = sec.headerRow == null;
     if (isNewSec) {
       sec.headerRow = insertAt;
       sec.endRow = insertAt;
@@ -350,7 +387,7 @@ function buildBdRowMap(raw, model) {
       insertAt++;
     }
     for (const sub of sec.subsections) {
-      if (!sub.isNew) continue;
+      if (sub.startRow != null) continue;
       sub.startRow = insertAt;
       sub.endRow = insertAt;
       oldToNew.set(`new:${sub.id}`, insertAt);
@@ -584,8 +621,9 @@ function buildSynBlocks(synModel, bdModel) {
   blocks.push({ type: 'prefix', rows: rowRange(1, prefixEnd) });
   const active = [];
   const archived = [];
-  for (const sec of synModel.sections) {
-    if (sec.headerRow == null) continue; // brand-new section — appended later
+  const withRows = synModel.sections.filter((sec) => sec.headerRow != null);
+  withRows.sort((a, b) => a.headerRow - b.headerRow);
+  for (const sec of withRows) {
     const start = sec.headerRow;
     const end = sec.endRow != null && sec.endRow >= start ? sec.endRow : start;
     (sec.archived ? archived : active).push({
@@ -654,7 +692,10 @@ function applySynRowOrder(synRaw, synModel, bdModel) {
 
 function applySynLabels(sheet, model) {
   for (const sec of model.sections) {
-    if (sec.headerRow != null) setCell(sheet, sec.headerRow, 'F', sec.label);
+    const label = sanitizeStructureLabel(sec.label);
+    if (!label || sec.headerRow == null) continue;
+    sec.label = label;
+    setCell(sheet, sec.headerRow, 'F', label);
     for (const sub of sec.subsections) {
       if (sub.startRow == null) continue;
       const lbl = formatBlueBandLabel(sub.label);
@@ -682,6 +723,7 @@ function linkBdStructureToSyn(bd, syn) {
   const synByLabel = new Map();
   for (const s of syn.sections) synByLabel.set(normalizeKey(s.label), s);
   for (const sec of bd.sections) {
+    if (sec.caBand) continue;
     const synSec = synByLabel.get(normalizeKey(sec.label));
     if (!synSec) continue;
     sec.synLinkId = synSec.id;
@@ -706,9 +748,18 @@ export function alignSynModelToBd(synModel, bdModel) {
   const sections = [];
   const consumed = new Set();
   for (const bdSec of bdModel.sections) {
-    let synSec =
-      (bdSec.synLinkId && synSecById.get(bdSec.synLinkId)) ||
-      synBySec.get(normalizeKey(bdSec.label));
+    // CA bands (rows 5 / 139) are BD-only structure — never merge into synthesis.
+    if (bdSec.caBand) continue;
+    // Each synthesis section may be claimed by AT MOST ONE BD section, so a
+    // rename/reorder updates the existing row band instead of duplicating it.
+    let synSec = null;
+    const byId = bdSec.synLinkId ? synSecById.get(bdSec.synLinkId) : null;
+    if (byId && !consumed.has(byId.id)) {
+      synSec = byId;
+    } else {
+      const byLabel = synBySec.get(normalizeKey(bdSec.label));
+      if (byLabel && !consumed.has(byLabel.id)) synSec = byLabel;
+    }
     if (synSec) consumed.add(synSec.id);
     const sec = synSec
       ? {
@@ -741,10 +792,19 @@ export function alignSynModelToBd(synModel, bdModel) {
       synSubs.set(normalizeKey(sub.label), sub);
       synSubById.set(sub.id, sub);
     }
+    const consumedSubs = new Set();
     for (const bdSub of bdSec.subsections) {
-      const existing =
-        (bdSub.synLinkId && synSubById.get(bdSub.synLinkId)) ||
-        synSubs.get(normalizeKey(bdSub.label));
+      // Each synthesis sub-section is claimed by AT MOST ONE BD sub-section so a
+      // rename never spawns a duplicate row pointing at the same band.
+      let existing = null;
+      const subById = bdSub.synLinkId ? synSubById.get(bdSub.synLinkId) : null;
+      if (subById && !consumedSubs.has(subById.id)) {
+        existing = subById;
+      } else {
+        const subByLabel = synSubs.get(normalizeKey(bdSub.label));
+        if (subByLabel && !consumedSubs.has(subByLabel.id)) existing = subByLabel;
+      }
+      if (existing) consumedSubs.add(existing.id);
       sec.subsections.push(
         existing
           ? {
@@ -778,7 +838,9 @@ export function alignSynModelToBd(synModel, bdModel) {
     if (consumed.has(synSec.id)) continue;
     sections.push({ ...synSec, subsections: [...(synSec.subsections || [])] });
   }
-  return { ...synModel, sections };
+  const out = { ...synModel, sections };
+  syncCaBandLabelsOntoSyn(out, bdModel);
+  return out;
 }
 
 function attachBdStructureMeta(sheet, model) {
@@ -788,6 +850,16 @@ function attachBdStructureMeta(sheet, model) {
   }
   const { rows: computedRows, canonicalByLabel } = computeSectionHeaderRows(sheet);
   for (const r of computedRows) rows.add(r);
+  for (const sec of (model && model.sections) || []) {
+    if (
+      sec.caBand &&
+      sec.headerRow != null &&
+      sec.label &&
+      !isFormulaLike(sec.label)
+    ) {
+      canonicalByLabel.set(String(sec.label).trim(), sec.headerRow);
+    }
+  }
   sheet.sectionHeaderRows = [...rows].sort((a, b) => a - b);
   sheet.canonicalSectionByLabel = Object.fromEntries(canonicalByLabel);
   sheet.outlineRows = computeOutlineRows(sheet).filter(

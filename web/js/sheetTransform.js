@@ -36,7 +36,7 @@ import {
   applySynRowsApbbPresetCells,
   applySynRowsApbbPresetHeaderRows,
 } from './synStore.js?v=syn-apbb8';
-import { runInChunks, yieldToMain } from './yieldMain.js?v=2';
+import { runInChunks, yieldToMain } from './yieldMain.js?v=3';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 import {
   sanitizeSynAdaptationSumCells,
@@ -223,10 +223,16 @@ function insertPositionColumns(sheet) {
   };
 }
 
-function clearColumnCells(sheet, cols) {
+/** CA chapter title (-ADAPTATION/-ADTH) lives in W on rows 5/139 — keep it. */
+function isCaBandTitleCell(cell) {
+  return Boolean(cell) && cell.c === 'W' && (cell.r === 5 || cell.r === 139);
+}
+
+function clearColumnCells(sheet, cols, keep = null) {
   const colSet = cols instanceof Set ? cols : new Set(cols);
   const cells = (sheet.cells || []).map((cell) => {
     if (!colSet.has(cell.c)) return cell;
+    if (keep && keep(cell)) return cell;
     const entry = { ...cell };
     delete entry.f;
     delete entry.v;
@@ -318,7 +324,7 @@ function fillDesignDeptInherited(sheet, col) {
 export function transformBdSheet(sheet) {
   sheet = trimSheetAfterFin(sheet);
   sheet = insertPositionColumns(sheet);
-  sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS);
+  sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS, isCaBandTitleCell);
   sheet = clearColumnCells(sheet, new Set([BD_TITLE_COL]));
   const afterIdx = colToIndex(POSITION_INSERT_AFTER);
   const hiddenCols = new Set(
@@ -343,7 +349,9 @@ export function transformBdSheet(sheet) {
     .filter((c) => !hiddenCols.has(c.c))
     .map((c) => {
       let entry = { ...c };
-      if (isSubsystemDataCol(c.c) && entry.v != null) {
+      if (isCaBandTitleCell(c)) {
+        // Keep the raw CA-chapter label; the grid translates it at render time.
+      } else if (isSubsystemDataCol(c.c) && entry.v != null) {
         entry.v = stripExcelErrors(String(entry.v));
         if (entry.v === '') delete entry.v;
         else entry.v = translateSubsystemLabel(String(entry.v));
@@ -404,6 +412,9 @@ function finalizeBdPrepared(prepared) {
 
 function mapBdCell(c) {
   let entry = { ...c };
+  if (isCaBandTitleCell(c)) {
+    return entry;
+  }
   if (isSubsystemDataCol(c.c) && entry.v != null) {
     entry.v = stripExcelErrors(String(entry.v));
     if (entry.v === '') delete entry.v;
@@ -419,7 +430,7 @@ function mapBdCell(c) {
 export async function transformBdSheetAsync(sheet) {
   sheet = trimSheetAfterFin(sheet);
   sheet = insertPositionColumns(sheet);
-  sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS);
+  sheet = clearColumnCells(sheet, BD_MASS_AV_AR_COLS, isCaBandTitleCell);
   sheet = clearColumnCells(sheet, new Set([BD_TITLE_COL]));
   const afterIdx = colToIndex(POSITION_INSERT_AFTER);
   const hiddenCols = new Set(

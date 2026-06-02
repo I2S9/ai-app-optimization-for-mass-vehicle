@@ -9,29 +9,30 @@ import {
   onErrorCaptured,
   nextTick,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=grid-perf9';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-p3';
+import BdGrid from './BdGrid.js?v=scroll-perf1';
+import SynthesisGrid from './SynthesisGrid.js?v=scroll-perf1';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MatrixModal from './MatrixModal.js?v=matrix16';
+import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
-import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf7';
-import { createWorkbookSession } from './workbookSession.js?v=grid-perf9';
+import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
+import { synGridLooksHealthy } from './synStore.js?v=syn-nuke1';
+import { createWorkbookSession } from './workbookSession.js?v=realtime-sync1';
 import { createPerfBench } from './perfBench.js?v=1';
-import { yieldToMain, deferHeavy } from './yieldMain.js?v=2';
+import { yieldToMain, deferHeavy } from './yieldMain.js?v=3';
 import {
   fetchPrecomputedPack,
   resolveGridSheet,
   hasSheetEdits,
-} from './gridBoot.js?v=1';
+} from './gridBoot.js?v=row-del-persist1';
 import { loadSheetRaw, probeSheetApi, patchSheetCells } from './sheetDataApi.js?v=p2';
 import {
   buildMatrixState,
   applyMatrixSave,
   alignSynModelToBd,
   cloneStructure,
-} from './structureModel.js?v=matrix16';
+} from './structureModel.js?v=matrix-ca-syn1';
 import {
   upsertRawCell,
   loadLocalSnapshot,
@@ -40,7 +41,10 @@ import {
   applySheetEdits,
   saveSheetTransform,
   rawFingerprint,
-} from './sessionPersistence.js?v=persist-v5';
+  syncGridEditsToRaw,
+  synRawLooksHealthy,
+  clearSheetTransform,
+} from './sessionPersistence.js?v=syn-nuke1';
 
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
@@ -94,19 +98,32 @@ const App = {
     let matrixApplyQueued = false;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
     let preservedSynRaw = null;
+    let synRawLoadPromise = null;
     /** Skip re-running transformBdSheet / transformSynthesisSheet when raw unchanged. */
     const bdSheetRevision = ref(0);
     const synSheetRevision = ref(0);
     let bdSheetBuiltAt = -1;
     let synSheetBuiltAt = -1;
 
-    const autoSave = createAutoSave(
-      () => ({
+    function buildAutoSavePayload() {
+      if (bdSheet.value && bdRaw.value) {
+        syncGridEditsToRaw(bdSheet.value, bdRaw.value);
+      }
+      let syn = synRaw.value != null ? synRaw.value : preservedSynRaw;
+      if (synthesisSheet.value) {
+        if (!syn) syn = synRaw.value;
+        if (syn) syncGridEditsToRaw(synthesisSheet.value, syn);
+      }
+      return {
         bd: bdRaw.value,
-        syn: synRaw.value != null ? synRaw.value : preservedSynRaw,
+        syn,
         revision: dirty.value,
         structureRevision: structureRevision.value,
-      }),
+      };
+    }
+
+    const autoSave = createAutoSave(
+      () => buildAutoSavePayload(),
       {
         debounceMs: 400,
         onStatus(status, err) {
@@ -181,7 +198,15 @@ const App = {
       }
     );
 
+    function syncDeletedRowsOntoSheet(raw, sheet) {
+      if (!sheet || !raw || !Array.isArray(raw.deletedRows) || !raw.deletedRows.length) {
+        return;
+      }
+      sheet.deletedRows = [...raw.deletedRows];
+    }
+
     async function applyBdFromRaw(force = false) {
+      if (force) await clearSheetTransform('bd');
       if (!bdRaw.value) {
         if (!force) {
           const pre = await fetchPrecomputedPack('bd');
@@ -195,12 +220,14 @@ const App = {
         return;
       }
       if (!force && bdSheet.value && bdSheetBuiltAt === bdSheetRevision.value) {
+        syncDeletedRowsOntoSheet(bdRaw.value, bdSheet.value);
         return;
       }
       const resolved = await resolveGridSheet('bd', bdRaw.value, { force });
       if (resolved) {
         await yieldToMain();
         bdSheet.value = resolved;
+        syncDeletedRowsOntoSheet(bdRaw.value, bdSheet.value);
         bdSheetBuiltAt = bdSheetRevision.value;
         return;
       }
@@ -208,6 +235,7 @@ const App = {
       const transformed = await transformBdSheetAsync(bdRaw.value);
       await yieldToMain();
       bdSheet.value = transformed;
+      syncDeletedRowsOntoSheet(bdRaw.value, bdSheet.value);
       bdSheetBuiltAt = bdSheetRevision.value;
       const fp = rawFingerprint(bdRaw.value);
       const pre = await fetchPrecomputedPack('bd');
@@ -216,7 +244,49 @@ const App = {
       });
     }
 
+    /**
+     * Seed a transform-built Synthesis sheet with the precomputed pack's materialized
+     * live-mass values (M…AA / AC…AN / AP…BB, ADAPTATION total, AB Δ). Without this, a
+     * sheet rebuilt from raw (because local edits changed the fingerprint and the pack no
+     * longer matches) has empty M…AA cells until the slow live SUMPRODUCT warms up — which
+     * is the "blank for ~1 minute on load" bug. With the seed, every cell shows its last
+     * recorded value instantly; the live engine then refreshes impacted cells in real time.
+     * Non-destructive: never touches user-edited cells nor cells that already hold a value.
+     * @returns {number} count of cells seeded
+     */
+    async function seedSynMaterializedFromPack(sheet) {
+      if (!sheet) return 0;
+      const map = sheet.cellMap instanceof Map ? sheet.cellMap : null;
+      if (!map) return 0;
+      let pre = null;
+      try {
+        pre = await fetchPrecomputedPack('syn');
+      } catch {
+        return 0;
+      }
+      if (!pre || !pre.sheet || !Array.isArray(pre.sheet.cells)) return 0;
+      let seeded = 0;
+      for (const pc of pre.sheet.cells) {
+        if (!pc || !pc.mat) continue;
+        const key = `${pc.r}:${pc.c}`;
+        const existing = map.get(key);
+        if (existing) {
+          if (existing.userEdited) continue;
+          if (existing.v != null && String(existing.v).trim() !== '') continue;
+          existing.v = pc.v;
+          existing.mat = true;
+        } else {
+          const cell = { r: pc.r, c: pc.c, v: pc.v, mat: true };
+          sheet.cells.push(cell);
+          map.set(key, cell);
+        }
+        seeded++;
+      }
+      return seeded;
+    }
+
     async function applySynFromRaw(force = false) {
+      if (force) await clearSheetTransform('syn');
       if (!synRaw.value) {
         if (!force) {
           const pre = await fetchPrecomputedPack('syn');
@@ -230,19 +300,24 @@ const App = {
         return;
       }
       if (!force && synthesisSheet.value && synSheetBuiltAt === synSheetRevision.value) {
+        syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
         return;
       }
       const resolved = await resolveGridSheet('syn', synRaw.value, { force });
       if (resolved) {
         await yieldToMain();
+        await seedSynMaterializedFromPack(resolved);
         synthesisSheet.value = resolved;
+        syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
         synSheetBuiltAt = synSheetRevision.value;
         return;
       }
       await yieldToMain();
       const transformed = await transformSynthesisSheetAsync(synRaw.value);
       await yieldToMain();
+      await seedSynMaterializedFromPack(transformed);
       synthesisSheet.value = transformed;
+      syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
       synSheetBuiltAt = synSheetRevision.value;
       const fp = rawFingerprint(synRaw.value);
       const pre = await fetchPrecomputedPack('syn');
@@ -259,33 +334,51 @@ const App = {
       synSheetRevision.value += 1;
     }
 
+    /** Load synthesis-sheet.json once — required before any edit can persist. */
+    async function ensureSynRaw() {
+      if (synRaw.value) return synRaw.value;
+      if (synRawLoadPromise) return synRawLoadPromise;
+      synRawLoadPromise = (async () => {
+        const raw = await loadSheetRaw('synthesis');
+        synRaw.value = raw;
+        preservedSynRaw = raw;
+        return raw;
+      })()
+        .catch((e) => {
+          console.warn('ensureSynRaw failed:', e);
+          throw e;
+        })
+        .finally(() => {
+          synRawLoadPromise = null;
+        });
+      return synRawLoadPromise;
+    }
+
     /** Fetch + transform Synthesis when user opens the page (never while on Database). */
     function startSynBackgroundPrepare() {
-      if (synthesisSheet.value) return Promise.resolve();
+      if (
+        synthesisSheet.value &&
+        synRaw.value &&
+        synSheetBuiltAt === synSheetRevision.value &&
+        synGridLooksHealthy(synthesisSheet.value)
+      ) {
+        return Promise.resolve();
+      }
       if (synthesisPreparePromise) return synthesisPreparePromise;
       synthesisPreparePromise = (async () => {
-        const pre = await fetchPrecomputedPack('syn');
-        if (!synRaw.value) {
-          if (pre && pre.sheet) {
-            await yieldToMain();
-            synthesisSheet.value = pre.sheet;
-            synSheetBuiltAt = synSheetRevision.value;
-            void fetchSynFromServer();
-            return;
-          }
+        await ensureSynRaw();
+        if (!synRawLooksHealthy(synRaw.value)) {
           await fetchSynFromServer();
+          preservedSynRaw = synRaw.value;
         }
-        if (pre && pre.sheet) {
-          const fp = rawFingerprint(synRaw.value);
-          if (pre.fingerprint === fp) {
-            await yieldToMain();
-            synthesisSheet.value = pre.sheet;
-            synSheetBuiltAt = synSheetRevision.value;
-            return;
-          }
-        }
+        await clearSheetTransform('syn');
         bumpSynSheetRevision();
-        await applySynFromRaw(false);
+        await applySynFromRaw(true);
+        if (!synGridLooksHealthy(synthesisSheet.value)) {
+          await fetchSynFromServer();
+          preservedSynRaw = synRaw.value;
+          await applySynFromRaw(true);
+        }
       })().catch((e) => {
         synthesisPreparePromise = null;
         console.warn('Synthesis prepare failed:', e);
@@ -363,6 +456,69 @@ const App = {
       await loadBdFromServer({ progressive: false });
     }
 
+    /** Force a full Synthesis grid rebuild from synRaw (bypasses IDB / stale Vue sheet). */
+    async function rebuildSynthesisGridFromRaw() {
+      await clearSheetTransform('syn');
+      if (!synRaw.value) await fetchSynFromServer();
+      preservedSynRaw = synRaw.value;
+      synthesisSheet.value = null;
+      synthesisPreparePromise = null;
+      synthesisLoadPromise = null;
+      synSheetBuiltAt = -1;
+      bumpSynSheetRevision();
+      await applySynFromRaw(true);
+      if (!synGridLooksHealthy(synthesisSheet.value)) {
+        throw new Error(
+          'Synthesis grid still invalid after rebuild (ADAPTATION band missing).'
+        );
+      }
+    }
+
+    /** Reload synthesis-sheet.json from the project (fixes a corrupted local copy). */
+    async function restoreSynthesisFromProject() {
+      if (
+        !confirm(
+          "Restaurer Synthesis depuis le fichier projet ?\n\nEfface la copie locale Synthesis corrompue et recharge ADAPTATION (ligne Excel 25, affichage ~26).\nDatabase / Bookmark Matrix sont conservés."
+        )
+      ) {
+        return;
+      }
+      synthesisLoading.value = true;
+      try {
+        await clearSheetTransform('syn');
+        await fetchSynFromServer();
+        preservedSynRaw = synRaw.value;
+        if (session && session.liveBdEdited) session.liveBdEdited.value = false;
+        structureRevision.value = 0;
+        await rebuildSynthesisGridFromRaw();
+        externalEditTick.value += 1;
+        dirty.value += 1;
+        await autoSave.saveNow();
+        saveStatus.value = 'saved';
+      } catch (e) {
+        error.value = (e && e.message) || String(e);
+        console.error('restoreSynthesisFromProject failed:', e);
+      } finally {
+        synthesisLoading.value = false;
+      }
+    }
+
+    async function healSynRawIfCorrupted(reason) {
+      const rawBad = synRaw.value && !synRawLooksHealthy(synRaw.value);
+      const gridBad =
+        synthesisSheet.value && !synGridLooksHealthy(synthesisSheet.value);
+      if (!rawBad && !gridBad) return false;
+      console.warn(
+        `[syn] Copie locale invalide (${reason}) — rechargement synthesis-sheet.json`
+      );
+      if (rawBad || !synRaw.value) {
+        await fetchSynFromServer();
+        preservedSynRaw = synRaw.value;
+      }
+      await rebuildSynthesisGridFromRaw();
+      return true;
+    }
+
     async function fetchSynFromServer() {
       synthesisLoading.value = true;
       try {
@@ -387,7 +543,12 @@ const App = {
     }
 
     function loadSynthesis() {
-      if (synthesisSheet.value) return Promise.resolve();
+      if (
+        synthesisSheet.value &&
+        synGridLooksHealthy(synthesisSheet.value)
+      ) {
+        return Promise.resolve();
+      }
       if (synthesisLoadPromise) return synthesisLoadPromise;
       synthesisLoading.value = true;
       synthesisLoadPromise = startSynBackgroundPrepare()
@@ -470,6 +631,7 @@ const App = {
             return String((e && e.message) || e);
           }
         };
+        window.__restoreSynthesis = () => restoreSynthesisFromProject();
       }
       void bootApp();
       window.addEventListener('beforeunload', onBeforeUnload);
@@ -512,37 +674,55 @@ const App = {
           } else if (bdHasEdits) {
             await fetchBdFromServer();
             applySheetEdits(bdRaw.value, snapshot.bdEdits);
+            bumpBdSheetRevision();
           }
-          if (snapshot.synFull) {
-            synRaw.value = snapshot.synFull;
-            preservedSynRaw = snapshot.synFull;
-          } else if (snapshot.synEdits) {
-            await fetchSynFromServer();
+          await fetchSynFromServer();
+          preservedSynRaw = synRaw.value;
+          if (synHasEdits) {
             applySheetEdits(synRaw.value, snapshot.synEdits);
           }
+          bumpSynSheetRevision();
           structureRevision.value =
             snapshot.structureRevision != null ? snapshot.structureRevision : 0;
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
         } else if (snapshot && snapshot.version === 2) {
-          if (snapshot.bdEdits) {
+          if (snapshot.bdEdits && hasSheetEdits(snapshot.bdEdits)) {
             await fetchBdFromServer();
             applySheetEdits(bdRaw.value, snapshot.bdEdits);
+            bumpBdSheetRevision();
           }
-          if (snapshot.synEdits) {
-            await fetchSynFromServer();
+          await fetchSynFromServer();
+          preservedSynRaw = synRaw.value;
+          if (snapshot.synEdits && hasSheetEdits(snapshot.synEdits)) {
             applySheetEdits(synRaw.value, snapshot.synEdits);
           }
+          bumpSynSheetRevision();
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
         } else if (snapshot && snapshot.bd) {
           bdRaw.value = snapshot.bd;
-          if (snapshot.syn) {
-            synRaw.value = snapshot.syn;
-            preservedSynRaw = snapshot.syn;
-          }
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
+        }
+
+        if (!synRaw.value) {
+          await fetchSynFromServer();
+          preservedSynRaw = synRaw.value;
+        }
+
+        // Synthesis ships a build-time "materialized" snapshot. If we restored any
+        // Database change (edits or a full BD), that snapshot is stale, so switch
+        // Synthesis to live recalculation of the impacted cells after reload.
+        const restoredBdChanges =
+          Boolean(bdHasEdits) ||
+          Boolean(hasBdFull) ||
+          (snapshot &&
+            snapshot.version !== 2 &&
+            snapshot.version !== 3 &&
+            Boolean(snapshot.bd));
+        if (restoredBdChanges && session && session.liveBdEdited) {
+          session.liveBdEdited.value = true;
         }
 
         gridPreparing.value = true;
@@ -575,6 +755,17 @@ const App = {
         } else {
           void deferHeavy(() => startSynBackgroundPrepare());
         }
+
+        if (
+          (synRaw.value && !synRawLooksHealthy(synRaw.value)) ||
+          (synthesisSheet.value && !synGridLooksHealthy(synthesisSheet.value))
+        ) {
+          await healSynRawIfCorrupted('post-boot');
+          if (route.value === 'synthesis') {
+            synthesisLoadPromise = null;
+            await loadSynthesis();
+          }
+        }
       } catch (e) {
         error.value = e.message;
         gridPreparing.value = false;
@@ -582,7 +773,28 @@ const App = {
       }
     }
 
+    /**
+     * Force-commit a cell that is still being edited (focused input) so no
+     * keystroke is lost when the user navigates, saves, or leaves the page.
+     * In-cell edits otherwise only commit on blur/Enter; blurring the active
+     * input runs that same commit path synchronously.
+     */
+    function flushActiveGridEdit() {
+      if (typeof document === 'undefined') return;
+      const el = document.activeElement;
+      if (
+        el &&
+        el.tagName === 'INPUT' &&
+        el.classList &&
+        el.classList.contains('grid-cell-input') &&
+        typeof el.blur === 'function'
+      ) {
+        el.blur();
+      }
+    }
+
     function onBeforeUnload() {
+      flushActiveGridEdit();
       void autoSave.saveNow();
     }
 
@@ -755,6 +967,19 @@ const App = {
         });
         historyTick.value = editHistory.revision;
       }
+      if (sheet === 'SYNTHESIS' && !synRaw.value) {
+        void ensureSynRaw()
+          .then((raw) => {
+            if (!raw) return;
+            upsertRawCell(raw, row, col, value);
+            if (synthesisSheet.value) syncSheetCell(synthesisSheet.value, row, col, value);
+            dirty.value += 1;
+            autoSave.schedule();
+            void autoSave.saveNow();
+          })
+          .catch((e) => console.warn('Syn raw load on edit:', e));
+        return;
+      }
       const raw =
         sheet === 'SYNTHESIS'
           ? synRaw.value
@@ -779,7 +1004,67 @@ const App = {
       void autoSave.saveNow();
     }
 
+    /**
+     * Soft-delete a grid row: hide it (persisted in raw.deletedRows so it survives
+     * reload) and clear every cell it holds so it no longer feeds calculations.
+     */
+    function onRowDelete({ sheet, excelRow }) {
+      const row = Number(excelRow);
+      if (!Number.isFinite(row)) return;
+      const raw =
+        sheet === 'SYNTHESIS'
+          ? synRaw.value
+          : sheet === 'BD'
+            ? bdRaw.value
+            : null;
+      const gridSheet =
+        sheet === 'SYNTHESIS' ? synthesisSheet.value : bdSheet.value;
+      if (!raw) return;
+
+      const set = new Set(
+        (raw.deletedRows || []).map(Number).filter(Number.isFinite)
+      );
+      set.add(row);
+      raw.deletedRows = [...set];
+      if (gridSheet) gridSheet.deletedRows = raw.deletedRows;
+      if (sheet === 'SYNTHESIS' && preservedSynRaw && preservedSynRaw !== raw) {
+        const pset = new Set(
+          (preservedSynRaw.deletedRows || []).map(Number).filter(Number.isFinite)
+        );
+        pset.add(row);
+        preservedSynRaw.deletedRows = [...pset];
+      }
+
+      const cols = new Set();
+      for (const c of raw.cells || []) {
+        if (Number(c.r) === row && c.v != null && String(c.v) !== '') {
+          cols.add(c.c);
+        }
+      }
+      const engineSheet = sheet === 'SYNTHESIS' ? 'SYNTHESIS' : 'BD';
+      for (const col of cols) {
+        upsertRawCell(raw, row, col, '');
+        if (gridSheet) syncSheetCell(gridSheet, row, col, '');
+        void session
+          .setCellValue(engineSheet, row, col, '')
+          .catch((e) => console.warn('Row delete recalc:', e));
+      }
+
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+      void autoSave.saveNow();
+      if (sheet === 'BD') {
+        bumpBdSheetRevision();
+        void applyBdFromRaw(false);
+      } else if (sheet === 'SYNTHESIS') {
+        bumpSynSheetRevision();
+        void applySynFromRaw(false);
+      }
+    }
+
     async function saveNow() {
+      flushActiveGridEdit();
       await autoSave.saveNow();
     }
 
@@ -794,6 +1079,7 @@ const App = {
       await clearLocalSnapshot();
       editHistory.clear();
       historyTick.value = editHistory.revision;
+      if (session && session.liveBdEdited) session.liveBdEdited.value = false;
       structureRevision.value = 0;
       loadedFromLocal.value = false;
       engineStarted = false;
@@ -841,6 +1127,9 @@ const App = {
     }
 
     function applyRoute(id, { source = 'ui' } = {}) {
+      // Commit any in-progress cell edit before leaving the current grid so the
+      // value (and its dependent recalculations) is never lost on navigation.
+      flushActiveGridEdit();
       closeMenu();
       closeSearch();
       if (id === route.value) return;
@@ -1077,12 +1366,15 @@ const App = {
         );
         bdRaw.value = result.bdRaw;
         bumpBdSheetRevision();
-        await applyBdFromRaw(false);
+        await applyBdFromRaw(true);
         if (result.synRaw) {
           synRaw.value = result.synRaw;
           preservedSynRaw = result.synRaw;
+          if (!synRawLooksHealthy(synRaw.value)) {
+            await healSynRawIfCorrupted('matrix-apply');
+          }
           bumpSynSheetRevision();
-          await applySynFromRaw(false);
+          await applySynFromRaw(true);
         }
         externalEditTick.value += 1;
         if (engineStarted && bdSheet.value) {
@@ -1090,14 +1382,21 @@ const App = {
             { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
           ]);
         }
-        matrixState.value = {
-          bd: cloneStructure(result.bdModel),
-          syn: result.synModel
-            ? cloneStructure(result.synModel)
-            : matrixState.value && matrixState.value.syn != null
-              ? matrixState.value.syn
-              : null,
-        };
+        if (bdSheet.value) {
+          matrixState.value = buildMatrixState(
+            bdSheet.value,
+            synthesisSheet.value || null
+          );
+        } else {
+          matrixState.value = {
+            bd: cloneStructure(result.bdModel),
+            syn: result.synModel
+              ? cloneStructure(result.synModel)
+              : matrixState.value && matrixState.value.syn != null
+                ? matrixState.value.syn
+                : null,
+          };
+        }
         matrixSessionDirty = true;
         structureRevision.value = Math.max(structureRevision.value, 1);
         dirty.value += 1;
@@ -1149,6 +1448,7 @@ const App = {
       loadedFromLocal,
       saveNow,
       resetFromServerFiles,
+      restoreSynthesisFromProject,
       route,
       gridPreparing,
       dataLoadProgress,
@@ -1160,6 +1460,7 @@ const App = {
       currentNav,
       session,
       onCellChange,
+      onRowDelete,
       navigate,
       toggleOutline,
       searchOpen,
@@ -1326,6 +1627,15 @@ const App = {
           <template v-if="isGridPage && !session.loading">
             <button type="button" class="topbar-save-btn" @click="saveNow">Enregistrer</button>
             <button
+              v-if="isSynthesis"
+              type="button"
+              class="topbar-save-btn topbar-save-btn-muted"
+              title="Recharger synthesis-sheet.json (bande ADAPTATION + sous-sections)"
+              @click="restoreSynthesisFromProject"
+            >
+              Restaurer Synthesis
+            </button>
+            <button
               type="button"
               class="topbar-save-btn topbar-save-btn-muted"
               title="Recharger les JSON du projet (efface la copie locale)"
@@ -1350,6 +1660,7 @@ const App = {
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
               @cell-change="onCellChange"
+              @row-delete="onRowDelete"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"
             />
@@ -1365,6 +1676,7 @@ const App = {
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
               @cell-change="onCellChange"
+              @row-delete="onRowDelete"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"
             />

@@ -252,7 +252,10 @@ export function createSynCalcContext(bdSheet, synSheet) {
     }
     if (!bdCols[col]) bdCols[col] = [];
     bdCols[col][row] = value;
-    invalidateCaches(col === 'O' || col === 'P' ? col : null);
+    // A filter / gate / L2 / mass change can affect every vehicle column's filter
+    // set, so fully invalidate. (recalcAfterBdEdit also does this, but keeping
+    // patchBdCell self-consistent means a standalone patch is never stale.)
+    invalidateCaches(null);
   }
 
   /** @returns {{ r: number, c: string, v: string, mat: true }[]} */

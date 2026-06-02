@@ -181,7 +181,7 @@ import {
   createRowScrollCache,
   SYN_MAX_RENDERED_COLS,
   SYN_MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=syn-fix2';
+} from './gridScroll.js?v=scroll-perf1';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
@@ -196,7 +196,7 @@ export default {
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
   },
-  emits: ['cell-change', 'cell-select', 'search-row-hidden', 'search-navigated'],
+  emits: ['cell-change', 'cell-select', 'row-delete', 'search-row-hidden', 'search-navigated'],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -337,10 +337,29 @@ export default {
       return Math.max(0, tableWidth.value - (last.left + last.width));
     });
 
+    function readDeletedRows() {
+      const src =
+        (props.rawSyn && props.rawSyn.deletedRows) ||
+        (props.sheet && props.sheet.deletedRows) ||
+        [];
+      return new Set(src.map(Number).filter(Number.isFinite));
+    }
+    const deletedRows = ref(readDeletedRows());
+    watch(
+      () => [props.sheet, props.rawSyn],
+      () => {
+        deletedRows.value = readDeletedRows();
+      }
+    );
+
+    const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
+
     const bodyRows = computed(() => {
       void props.outlineOnly;
       void (props.sheet && props.sheet.effectiveLastRow);
-      return computeSynBodyRows(props.sheet, cellMap.value, props.outlineOnly);
+      const base = computeSynBodyRows(props.sheet, cellMap.value, props.outlineOnly);
+      if (!deletedRows.value.size) return base;
+      return base.filter((e) => e.excelRow == null || !deletedRows.value.has(e.excelRow));
     });
     const rowCount = computed(() => bodyRows.value.length);
 
@@ -518,6 +537,12 @@ export default {
       props.session && props.session.synCalcTick && props.session.synCalcTick.value != null
         ? props.session.synCalcTick.value
         : 0
+    );
+    /** Once true, impacted calc cells recompute live instead of using the build snapshot. */
+    const liveBdEdited = computed(() =>
+      Boolean(
+        props.session && props.session.liveBdEdited && props.session.liveBdEdited.value
+      )
     );
     const displayCache = new Map();
     const scrollStyleCache = new Map();
@@ -802,6 +827,48 @@ export default {
       selectCell(row, col);
     }
 
+    /** Only real data rows below the header panel can be removed. */
+    function isDeletableSynRow(entry) {
+      return (
+        entry &&
+        !isSynPanelGapEntry(entry) &&
+        entry.excelRow != null &&
+        entry.excelRow > SYN_HEADER_PANEL_LAST_ROW
+      );
+    }
+
+    function onRowContextMenu(rowMeta, event) {
+      const entry = rowMeta && rowMeta.entry ? rowMeta.entry : rowMeta;
+      if (!isDeletableSynRow(entry)) return;
+      event.preventDefault();
+      ctxMenu.value = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        row: entry.excelRow,
+        displayRow: rowMeta && rowMeta.rowNum != null ? rowMeta.rowNum : entry.excelRow,
+      };
+    }
+
+    function closeCtxMenu() {
+      if (ctxMenu.value.visible) {
+        ctxMenu.value = { visible: false, x: 0, y: 0, row: null, displayRow: null };
+      }
+    }
+
+    function confirmDeleteRow() {
+      const row = ctxMenu.value.row;
+      closeCtxMenu();
+      if (row == null) return;
+      const next = new Set(deletedRows.value);
+      next.add(row);
+      deletedRows.value = next;
+      invalidateDisplayCache();
+      bumpCellModelCache();
+      editEpoch.value += 1;
+      emit('row-delete', { sheet: 'SYNTHESIS', excelRow: row });
+    }
+
     function formatVal(v) {
       const formatted = formatSynNumericDisplay(v);
       return formatted === '' && v != null && String(v).trim() !== ''
@@ -833,7 +900,7 @@ export default {
     );
 
     function cellDisplay(row, col) {
-      const cacheKey = `${synCalcTick.value}:${adaptationSumTick.value}:${editEpoch.value}:${liveCalcReady.value ? 1 : 0}`;
+      const cacheKey = `${synCalcTick.value}:${adaptationSumTick.value}:${editEpoch.value}:${liveCalcReady.value ? 1 : 0}:${liveBdEdited.value ? 1 : 0}`;
       if (cacheKey !== displayCacheKey) {
         invalidateDisplayCache();
         displayCacheKey = cacheKey;
@@ -873,8 +940,14 @@ export default {
         label,
         rowClass
       );
+      // The build-time materialized snapshot is only trusted until the user edits
+      // a BD calc input. After that, impacted live-calc cells must recompute so
+      // Synthesis reflects the Database change in real time (only invalidated
+      // cells actually recompute — the session caches the rest).
+      const sheetMaterialized =
+        Boolean(props.sheet && props.sheet.materializedCalc) && !liveBdEdited.value;
       const materialized =
-        (props.sheet && props.sheet.materializedCalc) ||
+        sheetMaterialized ||
         (cell &&
           cell.mat &&
           !cell.userEdited &&
@@ -1333,7 +1406,12 @@ export default {
     /** One pass for all scroll-column CSS classes (avoids 30+ template checks per cell). */
     function scrollCellClassNames(entry, col, colIdx, colsLen, display) {
       if (isGapEntry(entry)) {
-        return isGapGreenPillarCol(col) ? 'syn-panel-gap-pillar syn-pillar-col' : '';
+        if (!isGapGreenPillarCol(col)) return '';
+        // Keep the pillar accent (K → green, CG → light green) on gap rows so
+        // column K stays #92d050 instead of falling back to the grey pillar fill.
+        return ['syn-panel-gap-pillar', 'syn-pillar-col', synPillarAccentClass(col)]
+          .filter(Boolean)
+          .join(' ');
       }
       const row = entry.excelRow;
       const parts = [
@@ -1940,12 +2018,17 @@ export default {
       onCellSpanMouseDown,
       onCellFocus,
       onCellInput: onCellInputLive,
+      onCellInputLive,
       onCellBlur,
       onCellKeydown,
       selectedCell,
       formulaText,
       formulaCellRef,
       onReadonlyCellSelect,
+      ctxMenu,
+      onRowContextMenu,
+      closeCtxMenu,
+      confirmDeleteRow,
     };
   },
   template: `
@@ -2019,6 +2102,7 @@ export default {
               :key="row.key"
               class="grid-row-cv"
               :class="row.rowClasses"
+              @contextmenu="onRowContextMenu(row, $event)"
             >
               <td
                 class="row-num syn-row-num"
@@ -2113,6 +2197,23 @@ export default {
         </table>
         </div>
       </div>
+      <template v-if="ctxMenu.visible">
+        <div
+          class="grid-ctx-overlay"
+          @mousedown="closeCtxMenu"
+          @contextmenu.prevent="closeCtxMenu"
+          @wheel="closeCtxMenu"
+        ></div>
+        <div
+          class="grid-ctx-menu"
+          :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+          @contextmenu.prevent
+        >
+          <button type="button" class="grid-ctx-item grid-ctx-danger" @click="confirmDeleteRow">
+            Supprimer la ligne {{ ctxMenu.displayRow }}
+          </button>
+        </div>
+      </template>
     </div>
   `,
 };

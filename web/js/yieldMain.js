@@ -1,7 +1,20 @@
 /** Yield the main thread so clicks / menu paint before heavy JS. */
 export function yieldToMain() {
   return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(resolve));
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    // Paint-aligned yield when the tab is visible. requestAnimationFrame is
+    // paused in background/hidden tabs, so always arm a timer fallback — this
+    // prevents the whole app boot (which awaits yieldToMain) from hanging
+    // forever when the page loads while not focused.
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => requestAnimationFrame(finish));
+    }
+    setTimeout(finish, 50);
   });
 }
 

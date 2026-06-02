@@ -38,6 +38,40 @@ export const SYN_FILTER_BD_ROWS = [
   ['O', 14],
 ];
 
+/**
+ * Database (BD) columns that the SOMMEPROD filters on (rows 3–14 of each Synthesis
+ * vehicle column are matched against these BD columns).
+ */
+export const SYN_BD_FILTER_COLS = new Set(SYN_FILTER_BD_ROWS.map(([c]) => c));
+
+/**
+ * Classify a Database edit for the live Synthesis mass engine.
+ * Returns the kind of recompute a BD edit on `col` requires, or `null` when the
+ * column is not a SOMMEPROD input (no Synthesis cell depends on it).
+ *
+ *  - 'mass'   → BD.V weight changed (sum value only; filter membership unchanged)
+ *  - 'l2'     → BD sub-system L2 (AU) changed (row moves between Synthesis labels)
+ *  - 'gate'   → BD.Q changed (the Q="S" gate adds/removes the row from every column)
+ *  - 'filter' → a filter column (A,B,C,D,E,F,G,I,K,L,O) changed (per-column match set)
+ *
+ * This is the single source of truth shared by the client live engine
+ * ({@link file://./workbookSession.js}) and the server/build engine
+ * ({@link file://./synMaterialize.js}) so a Database change always propagates.
+ */
+export function classifyBdEditForSynMass(col) {
+  const c = String(col);
+  if (c === BD_MASS_COL) return 'mass';
+  if (c === BD_SUBSYSTEM_L2_COL) return 'l2';
+  if (c === 'Q') return 'gate';
+  if (SYN_BD_FILTER_COLS.has(c)) return 'filter';
+  return null;
+}
+
+/** True when a Database edit on `col` must trigger a live Synthesis recompute. */
+export function bdEditAffectsSynMass(col) {
+  return classifyBdEditForSynMass(col) !== null;
+}
+
 /** Human-readable map for the Database page. */
 export const SYN_FILTER_BD_LABELS = [
   { synRow: 3, bdCol: 'A', label: 'Date / Org' },

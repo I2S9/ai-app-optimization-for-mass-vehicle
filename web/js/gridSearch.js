@@ -1,7 +1,7 @@
 /** Fast in-grid search (raw cell text) + yellow highlights. */
 import { ref, shallowRef, nextTick } from 'vue';
 import { ROW_H } from './gridScroll.js?v=grid-search4';
-import { yieldToMain } from './yieldMain.js?v=2';
+import { yieldToMain } from './yieldMain.js?v=3';
 
 export function normalizeSearchQuery(q) {
   return String(q != null ? q : '').trim().toLowerCase();

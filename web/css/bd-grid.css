@@ -3218,3 +3218,45 @@
   color: #000 !important;
   font-weight: 600;
 }
+
+/* Right-click row context menu (delete a row) */
+.grid-ctx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent;
+}
+.grid-ctx-menu {
+  position: fixed;
+  z-index: 1001;
+  min-width: 180px;
+  background: #ffffff;
+  border: 1px solid #c8c8c8;
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  padding: 4px;
+  font-size: 13px;
+  color: #1a1a1a;
+}
+.grid-ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
+}
+.grid-ctx-item:hover {
+  background: #f0f0f0;
+}
+.grid-ctx-danger {
+  color: #c0392b;
+}
+.grid-ctx-danger:hover {
+  background: #fbe9e7;
+}

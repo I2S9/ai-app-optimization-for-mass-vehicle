@@ -197,6 +197,49 @@ export function displayValue(cell) {
   if (cell.f) return cell.f.startsWith('=') ? cell.f : cell.f;
   return '';
 }
+
+/** Excel formula text must never become a bookmark / section title. */
+export function isFormulaLike(text) {
+  const t = String(text || '').trim();
+  if (!t) return false;
+  if (t.startsWith('=')) return true;
+  if (/^IF\s*\(/i.test(t)) return true;
+  if (t.includes('#REF!') || t.includes('#NAME?')) return true;
+  return false;
+}
+
+/** Display text for structure titles only (values, never formula strings). */
+export function cellLabelValue(cell) {
+  if (!cell) return '';
+  if (cell.v != null && cell.v !== '') {
+    const v = stripExcelErrorValue(String(cell.v));
+    if (v && !isFormulaLike(v)) return v;
+  }
+  return '';
+}
+
+/** Yellow L1 / CA chapter title for matrix extract and Database row labels. */
+export function getBdSectionTitleFromRow(map, row, sheet) {
+  if (isCaBandRow(map, row)) {
+    const w = cellLabelValue(getCell(map, row, 'W'));
+    if (w) return String(w).trim();
+    return row === 5 ? '-ADAPTATION' : '-ADTH';
+  }
+  const l1Col = bdSubsystemL1Col(sheet);
+  const ap = cellLabelValue(getCell(map, row, l1Col));
+  if (ap) return translateSubsystemLabel(String(ap).trim());
+  const a = cellLabelValue(getCell(map, row, 'A'));
+  if (a && String(a).trim().startsWith('-')) {
+    return translateSubsystemLabel(String(a).trim());
+  }
+  return '';
+}
+
+export function sanitizeStructureLabel(label) {
+  const t = String(label || '').trim();
+  if (!t || isFormulaLike(t)) return '';
+  return t;
+}
 /** Sub-system L2 label (never surface formula text as a label). */
 export function getAsLabel(map, row, l2Col = BD_SUBSYSTEM_L2_COL) {
   const cell = getCell(map, row, l2Col);
@@ -335,9 +378,11 @@ export function computeSectionHeaderRows(sheet, cellMap = null) {
   canonicalByLabel.set('-ADTH', 139);
   let lastAp = '';
   for (let r = sheet.dataStartRow || 6; r <= sheet.lastRow; r++) {
-    const ap = displayValue(getCell(map, r, l1Col));
+    if (HIDDEN_META_ROWS.has(r)) continue;
+    const ap = cellLabelValue(getCell(map, r, l1Col));
     if (!ap) continue;
     const label = String(ap).trim();
+    if (isFormulaLike(label)) continue;
     if (isSectionLabel(label) && label !== lastAp) {
       rows.add(r);
       canonicalByLabel.set(label, r);
@@ -488,9 +533,13 @@ export function getRowLabel(
     if (a) return a;
     return '';
   }
-  if (row === 5) return '-ADAPTATION';
-  if (row === 139) return '-ADTH';
-  const ap = displayValue(getCell(map, row, l1Col));
+  if (row === 5 || row === 139) {
+    // CA chapter label is editable and stored in column W.
+    const w = cellLabelValue(getCell(map, row, 'W'));
+    if (w) return String(w).trim();
+    return row === 5 ? '-ADAPTATION' : '-ADTH';
+  }
+  const ap = cellLabelValue(getCell(map, row, l1Col));
   if (ap && isSectionLabel(ap)) return ap;
   const as = getAsLabel(map, row);
   if (isUnassignedSectionLabel(as)) return as;
@@ -752,7 +801,10 @@ function structureBookmarkDisplay(
     const title = translateSubsystemLabel(rawTitle);
     /* CA bands 5 / 139: Date (A) + W; row 5 sans contenu projet (TT…) */
     if (isCaBandRow(map, row)) {
-      if (col === 'A') return caChapterDateLabel(row);
+      if (col === 'A') {
+        const dateLabel = String(rawTitle || '').replace(/^-+/, '').trim();
+        return dateLabel ? translateSubsystemLabel(dateLabel) : caChapterDateLabel(row);
+      }
       if (col === 'W') return title;
       return '';
     }
@@ -805,10 +857,8 @@ function isCanonicalSectionDisplay(
   if (!v || !isInheritedBandOrSection(v)) return false;
   const label = String(v).trim();
   if (isCaBandRow(map, row) && col === 'W') {
-    return (
-      (row === 5 && label === '-ADAPTATION') ||
-      (row === 139 && label === '-ADTH')
-    );
+    // W is the canonical (editable) CA-chapter title cell, whatever its label.
+    return row === 5 || row === 139;
   }
   return canonicalByLabel.get(label) === row && col === l1Col;
 }

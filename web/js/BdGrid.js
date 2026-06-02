@@ -28,7 +28,7 @@ import {
   bdColMetaClass,
   bdMassCol,
   bdTitleCol,
-} from './bdStore.js?v=edit-fix2';
+} from './bdStore.js?v=edit-fix3';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import {
   ROW_H,
@@ -37,7 +37,7 @@ import {
   createScrollRafSync,
   createRowScrollCache,
   MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=syn-fix1';
+} from './gridScroll.js?v=scroll-perf1';
 import {
   BD_FREE_FIELD_COL,
   BD_MASS_AV_AR_COLS,
@@ -63,7 +63,7 @@ export default {
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
   },
-  emits: ['cell-change', 'search-row-hidden', 'search-navigated'],
+  emits: ['cell-change', 'row-delete', 'search-row-hidden', 'search-navigated'],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -71,6 +71,18 @@ export default {
     const editEpoch = ref(0);
 
     const cellMap = shallowRef(new Map());
+
+    /** Rows the user removed via the right-click menu (persisted in raw.deletedRows). */
+    function readDeletedRows() {
+      const src =
+        (props.rawBd && props.rawBd.deletedRows) ||
+        (props.sheet && props.sheet.deletedRows) ||
+        [];
+      return new Set(src.map(Number).filter(Number.isFinite));
+    }
+    const deletedRows = ref(readDeletedRows());
+
+    const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
 
     const widthMap = computed(() =>
       buildWidthMap(
@@ -84,7 +96,7 @@ export default {
 
     const columns = computed(() => props.sheet.columns || []);
 
-    const bodyRows = computed(() => {
+    const bodyRowsRaw = computed(() => {
       if (props.outlineOnly) {
         return (
           (props.sheet.outlineBodyDisplayRows != null
@@ -98,6 +110,18 @@ export default {
       return props.sheet.bodyDisplayRows != null
         ? props.sheet.bodyDisplayRows
         : computeBodyDisplayRows(props.sheet);
+    });
+
+    const bodyRows = computed(() => {
+      const base = bodyRowsRaw.value;
+      if (!deletedRows.value.size) return base;
+      const out = [];
+      let displayRow = BD_BODY_DISPLAY_ROW_START;
+      for (const e of base) {
+        if (deletedRows.value.has(e.excelRow)) continue;
+        out.push({ excelRow: e.excelRow, displayRow: displayRow++ });
+      }
+      return out;
     });
 
     const rowCount = computed(() => bodyRows.value.length);
@@ -363,6 +387,43 @@ export default {
       return row < 2;
     }
 
+    watch(
+      () => [props.sheet, props.rawBd],
+      () => {
+        deletedRows.value = readDeletedRows();
+      }
+    );
+
+    function onRowContextMenu(entry, event) {
+      if (!entry || entry.excelRow == null || entry.excelRow < 2) return;
+      event.preventDefault();
+      ctxMenu.value = {
+        visible: true,
+        x: event.clientX,
+        y: event.clientY,
+        row: entry.excelRow,
+        displayRow: entry.displayRow,
+      };
+    }
+
+    function closeCtxMenu() {
+      if (ctxMenu.value.visible) {
+        ctxMenu.value = { visible: false, x: 0, y: 0, row: null, displayRow: null };
+      }
+    }
+
+    function confirmDeleteRow() {
+      const row = ctxMenu.value.row;
+      closeCtxMenu();
+      if (row == null) return;
+      const next = new Set(deletedRows.value);
+      next.add(row);
+      deletedRows.value = next;
+      invalidateDisplayCache();
+      editEpoch.value += 1;
+      emit('row-delete', { sheet: props.sheetName || 'BD', excelRow: row });
+    }
+
     function cellDisplay(row, col) {
       const cacheKey = `${calcRevision.value}:${editEpoch.value}:${engineReady.value}:${props.outlineOnly}:${props.sheet === null ? 0 : 1}`;
       if (cacheKey !== displayCacheKey) {
@@ -523,6 +584,10 @@ export default {
       isSearchHit: gridSearch.isSearchHit,
       isSearchFocus: gridSearch.isSearchFocus,
       onScroll: scrollSync.onScroll,
+      ctxMenu,
+      onRowContextMenu,
+      closeCtxMenu,
+      confirmDeleteRow,
       isCellActive,
       cellShowValue,
       onCellMouseDown,
@@ -569,6 +634,7 @@ export default {
               :key="entry.excelRow"
               class="grid-row-cv"
               :class="rowStyleClass(entry.excelRow)"
+              @contextmenu="onRowContextMenu(entry, $event)"
             >
               <td class="row-num">{{ entry.displayRow }}</td>
               <td
@@ -618,6 +684,23 @@ export default {
           </tbody>
         </table>
       </div>
+      <template v-if="ctxMenu.visible">
+        <div
+          class="grid-ctx-overlay"
+          @mousedown="closeCtxMenu"
+          @contextmenu.prevent="closeCtxMenu"
+          @wheel="closeCtxMenu"
+        ></div>
+        <div
+          class="grid-ctx-menu"
+          :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
+          @contextmenu.prevent
+        >
+          <button type="button" class="grid-ctx-item grid-ctx-danger" @click="confirmDeleteRow">
+            Supprimer la ligne {{ ctxMenu.displayRow }}
+          </button>
+        </div>
+      </template>
     </div>
   `,
 };

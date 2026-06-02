@@ -10,7 +10,7 @@ import {
   hydrateTransformSheet,
   loadSheetTransform,
   rawFingerprint,
-} from './sessionPersistence.js?v=persist-v5';
+} from './sessionPersistence.js?v=persist-v6';
 
 const GRID_URLS = {
   bd: '/public/data/bd-sheet-grid.json',
@@ -22,6 +22,7 @@ const packCache = new Map();
 export function hasSheetEdits(edits) {
   if (!edits) return false;
   if (edits.cells && edits.cells.length) return true;
+  if (edits.deletedRows && edits.deletedRows.length) return true;
   return Object.keys(edits.headerRows || {}).length > 0;
 }
 

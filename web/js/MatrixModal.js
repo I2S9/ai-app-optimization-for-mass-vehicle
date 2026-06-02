@@ -8,7 +8,7 @@ import {
   archiveSubsection,
   restoreSubsection,
   sortModelArchiveToEnd,
-} from './structureModel.js?v=matrix16';
+} from './structureModel.js?v=matrix17';
 
 const DEFAULT_SECTION_COLOR = '#ffff00';
 const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
@@ -77,12 +77,14 @@ function buildPaletteColors(model) {
 function formatSubLabel(name) {
   const t = String(name || '').trim();
   if (!t) return '';
+  if (/^=/.test(t) || /^IF\s*\(/i.test(t) || t.includes('#REF!')) return '';
   return t.startsWith('_') ? t.toUpperCase() : `_${t.toUpperCase()}`;
 }
 
 function formatSectionLabel(name) {
   const t = String(name || '').trim();
   if (!t) return '';
+  if (/^=/.test(t) || /^IF\s*\(/i.test(t) || t.includes('#REF!')) return '';
   return t.toUpperCase().replace(/\s+/g, ' ');
 }
 

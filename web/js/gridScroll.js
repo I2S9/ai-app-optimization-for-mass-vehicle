@@ -2,17 +2,24 @@
 
 export const ROW_H = 21;
 
-/** BD row window. */
-export const MAX_RENDERED_ROWS = 128;
+/**
+ * Render windows. Sized so that a fast fling stays inside the already-mounted
+ * DOM for ~1.5 viewports in every direction — this is what kills the grey/white
+ * "loading" gaps: the browser can scroll a long way before Vue re-renders, so
+ * the buffer must extend well past the visible area. Cell models are cached
+ * (keyed on edit/calc generation, not scroll position), so a larger window only
+ * costs DOM nodes, not recomputation, once a region has been visited.
+ */
+export const MAX_RENDERED_ROWS = 200;
 
 /** Synthesis row/column windows — viewport always covered, no full-sheet mount. */
-export const SYN_MAX_RENDERED_COLS = 72;
-export const SYN_MAX_RENDERED_ROWS = 96;
+export const SYN_MAX_RENDERED_COLS = 104;
+export const SYN_MAX_RENDERED_ROWS = 132;
 
-/** Rows above/below viewport (BD). */
-export function rowOverscan(viewportH, minRows = 12, maxRows = 40) {
+/** Rows above/below viewport (BD + Synthesis) — ~1.5 screens of buffer. */
+export function rowOverscan(viewportH, minRows = 28, maxRows = 64) {
   const visible = Math.max(1, Math.ceil(viewportH / ROW_H));
-  return Math.min(maxRows, Math.max(minRows, Math.ceil(visible * 0.75)));
+  return Math.min(maxRows, Math.max(minRows, Math.ceil(visible * 1.5)));
 }
 
 /** Horizontal pixels left/right of viewport. */
@@ -20,9 +27,9 @@ export function colOverscanPx(viewportW, minPx = 640) {
   return Math.min(4000, Math.max(minPx, Math.floor(viewportW * 2)));
 }
 
-/** Synthesis horizontal buffer. */
+/** Synthesis horizontal buffer — ~1.6 screens each side so fast horizontal flings stay covered. */
 export function synColOverscanPx(viewportW) {
-  return Math.min(1200, Math.max(320, Math.floor(viewportW * 1.5)));
+  return Math.min(2600, Math.max(900, Math.floor(viewportW * 1.6)));
 }
 
 /** Binary search on precomputed column layout (`left`, `width`). */

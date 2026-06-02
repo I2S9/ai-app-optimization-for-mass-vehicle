@@ -3691,6 +3691,25 @@ export function isSynPanelGapEntry(entry) {
   );
 }
 
+/** True when the ADAPTATION band (Excel 25–26, display ~26–27) is present. */
+export function synGridLooksHealthy(sheet, cellMap = null) {
+  if (!sheet) return false;
+  const map =
+    cellMap instanceof Map
+      ? cellMap
+      : sheet.cellMap instanceof Map
+        ? sheet.cellMap
+        : null;
+  if (!map) return false;
+  const l25 = String(synLabel(map, 25) || '').toUpperCase();
+  const l26 = String(synLabel(map, 26) || '');
+  if (!l25.includes('ADAPT')) return false;
+  if (!l26.startsWith('_')) return false;
+  const body = computeSynBodyRows(sheet, map, false);
+  const d26 = body.find((e) => e.displayRow === 26);
+  return Boolean(d26 && d26.excelRow === 25);
+}
+
 export function computeSynBodyRows(sheet, cellMap, outlineOnly = false) {
   const map = cellMap || new Map();
   const lastRow =
