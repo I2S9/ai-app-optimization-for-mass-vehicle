@@ -15,6 +15,8 @@ import { getCell, buildCellMap } from './bdStore.js?v=input-fix3';
 import { upsertRawCell } from './sessionPersistence.js?v=edit-fix2';
 import {
   isSynAdaptationSumCell,
+  affectsAdaptationSum,
+  synAdaptationSumRow,
   isSynSumproductDataCell,
   isSynSectionSumDataCell,
   isSynAbDiffCell,
@@ -543,6 +545,9 @@ export default {
     watch(
       () => props.externalEditTick,
       () => {
+        if (cellEditor && typeof cellEditor.clearIdleDisplays === 'function') {
+          cellEditor.clearIdleDisplays();
+        }
         editEpoch.value += 1;
         invalidateDisplayCache();
       }
@@ -554,9 +559,30 @@ export default {
           ? props.session.synCalcTick.value
           : 0,
       () => {
+        scrollActive.value = false;
         editEpoch.value += 1;
         invalidateDisplayCache();
       }
+    );
+
+    watch(
+      () =>
+        props.session && props.session.ready && props.session.ready.value
+          ? props.session.ready.value
+          : false,
+      (ready) => {
+        if (!ready || liveCalcReady.value) return;
+        const enable = () => {
+          // Avoid kicking off heavy SUMPRODUCT while the user is actively scrolling.
+          if (!scrollActive.value) liveCalcReady.value = true;
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(enable, { timeout: 1200 });
+        } else {
+          setTimeout(enable, 300);
+        }
+      },
+      { immediate: true }
     );
 
     watch(
@@ -597,6 +623,16 @@ export default {
       }
     );
 
+    function invalidateAdaptationSumCol(col) {
+      const sumRow = synAdaptationSumRow(props.sheet);
+      displayCache.delete(`${sumRow}:${col}`);
+      const needle = `:${sumRow}:${col}:`;
+      for (const sk of scrollStyleCache.keys()) {
+        if (sk.includes(needle)) scrollStyleCache.delete(sk);
+      }
+      bumpCellModelCache();
+    }
+
     function commitCellInput(row, col, value, previousValue) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
@@ -610,8 +646,13 @@ export default {
         delete cell.f;
       }
       if (props.rawSyn) upsertRawCell(props.rawSyn, row, col, value);
-      editEpoch.value += 1;
-      invalidateDisplayCache();
+      if (affectsAdaptationSum(row, col, props.sheet)) {
+        invalidateAdaptationSumCol(col);
+        editEpoch.value += 1;
+      } else {
+        editEpoch.value += 1;
+        invalidateDisplayCache();
+      }
       emit('cell-change', {
         row,
         col,
@@ -660,7 +701,7 @@ export default {
     /** Formula-driven cells (SUMPRODUCT, adaptation totals) are not manually editable. */
     function cellReadonly(row, col) {
       if (row == null) return true;
-      if (isSynAdaptationSumCell(row, col)) return true;
+      if (isSynAdaptationSumCell(row, col, props.sheet)) return true;
       const cell = getCell(cellMap.value, row, col);
       if (
         props.session &&
@@ -741,7 +782,7 @@ export default {
 
     function cellDisplayStatic(row, col, cell, label, rowClass) {
       let displayCell = cell;
-      if (isSynAdaptationSumCell(row, col)) {
+      if (isSynAdaptationSumCell(row, col, props.sheet)) {
         displayCell = null;
       }
       const shown = synDisplayValue(
@@ -755,8 +796,16 @@ export default {
       return isSynMetricRow(row) ? shown : formatVal(shown);
     }
 
+    const adaptationSumTick = computed(() =>
+      props.session &&
+      props.session.adaptationSumTick &&
+      props.session.adaptationSumTick.value != null
+        ? props.session.adaptationSumTick.value
+        : 0
+    );
+
     function cellDisplay(row, col) {
-      const cacheKey = `${synCalcTick.value}:${editEpoch.value}:${liveCalcReady.value ? 1 : 0}`;
+      const cacheKey = `${synCalcTick.value}:${adaptationSumTick.value}:${editEpoch.value}:${liveCalcReady.value ? 1 : 0}`;
       if (cacheKey !== displayCacheKey) {
         invalidateDisplayCache();
         displayCacheKey = cacheKey;
@@ -764,6 +813,21 @@ export default {
       if (row == null) return '';
       const hitKey = `${row}:${col}`;
       if (displayCache.has(hitKey)) return displayCache.get(hitKey);
+      // ADAPTATION total row — engine only (SUM rows adaptationSumFrom..To, cols C..J).
+      if (isSynAdaptationSumCell(row, col, props.sheet)) {
+        const cellForSum = getCell(cellMap.value, row, col);
+        if (props.session && props.session.getDisplayValue) {
+          const raw = props.session.getDisplayValue(
+            'SYNTHESIS',
+            row,
+            col,
+            cellForSum
+          );
+          const out = isSynMetricRow(row) ? raw : formatVal(raw);
+          displayCache.set(hitKey, out);
+          return out;
+        }
+      }
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         if (usesPillarLetterOverlay(col)) {
           displayCache.set(hitKey, '');
@@ -782,12 +846,20 @@ export default {
       const cell = getCell(cellMap.value, row, col);
       const label = synLabel(cellMap.value, row);
       const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
+      const isLiveCalc = isSynCalculatedMassCell(
+        cell,
+        row,
+        col,
+        props.sheet,
+        label,
+        rowClass
+      );
       const materialized =
         (props.sheet && props.sheet.materializedCalc) ||
-        (cell && cell.mat && !cell.userEdited);
-      const isLiveCalc =
-        isSynAdaptationSumCell(row, col) ||
-        isSynCalculatedMassCell(cell, row, col, props.sheet, label, rowClass);
+        (cell &&
+          cell.mat &&
+          !cell.userEdited &&
+          !isLiveCalc);
 
       if (
         isLiveCalc &&
@@ -1395,8 +1467,22 @@ export default {
     }
 
     watch(
-      () => [editEpoch.value, synCalcTick.value, liveCalcReady.value],
+      () =>
+        [
+          editEpoch.value,
+          synCalcTick.value,
+          adaptationSumTick.value,
+          liveCalcReady.value,
+        ],
       () => bumpCellModelCache()
+    );
+
+    watch(
+      () => adaptationSumTick.value,
+      () => {
+        editEpoch.value += 1;
+        invalidateDisplayCache();
+      }
     );
 
     function scrollCell(entry, colEntry, colIdx) {
@@ -1433,10 +1519,18 @@ export default {
     /** Row metadata — stable when only horizontal scroll changes. */
     const visibleRowMeta = computed(() => {
       if (!props.paneVisible) return [];
+      const map = cellMap.value;
+      const sheet = props.sheet;
       return visibleRows.value.map((entry) => ({
         key: rowEntryKey(entry),
         entry,
+        excelRow: entry.excelRow != null ? entry.excelRow : null,
         displayRow: entry.displayRow,
+        rowLabel:
+          entry.excelRow != null ? synLabel(map, entry.excelRow) : '',
+        isAdaptationSumRow:
+          entry.excelRow != null &&
+          entry.excelRow === synAdaptationSumRow(sheet),
         rowClasses: cachedEntryRowClasses(entry),
       }));
     });
@@ -1554,9 +1648,9 @@ export default {
           liveCalcReady.value = true;
         };
         if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(enable, { timeout: 2800 });
+          requestIdleCallback(enable, { timeout: 1500 });
         } else {
-          setTimeout(enable, 600);
+          setTimeout(enable, 350);
         }
       });
     });
@@ -1901,7 +1995,13 @@ export default {
               class="grid-row-cv"
               :class="row.rowClasses"
             >
-              <td class="row-num syn-row-num">{{ row.displayRow }}</td>
+              <td
+                class="row-num syn-row-num"
+                :class="{ 'syn-adaptation-sum-row-num': row.isAdaptationSumRow }"
+                :title="row.rowLabel || ''"
+              >
+                {{ row.excelRow != null ? row.excelRow : '' }}
+              </td>
               <td
                 v-for="cell in pinnedCellsByRowKey[row.key]"
                 :key="row.key + '-p-' + cell.col"

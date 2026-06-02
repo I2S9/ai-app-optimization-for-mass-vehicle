@@ -249,10 +249,32 @@ function isSynCalcRow(row, sheet) {
   return r <= last;
 }
 
-/** ADAPTATION block — row 26 = SUM(rows 27:41) per column, from display C (Excel H) through last data col. */
-export const SYN_ADAPTATION_SUM_ROW = 26;
+/** ADAPTATION block — default Excel rows (overridden per sheet via adaptationSumRow). */
+export const SYN_ADAPTATION_SUM_ROW = 25;
 export const SYN_ADAPTATION_SUM_FROM_ROW = 27;
 export const SYN_ADAPTATION_SUM_TO_ROW = 41;
+
+/** Excel row for ADAPTATION total (= row after “-ADAPTATION” label). */
+export function synAdaptationSumRow(sheet) {
+  if (sheet && sheet.adaptationSumRow != null) {
+    return Number(sheet.adaptationSumRow);
+  }
+  return SYN_ADAPTATION_SUM_ROW;
+}
+
+export function synAdaptationSumFromRow(sheet) {
+  if (sheet && sheet.adaptationSumFromRow != null) {
+    return Number(sheet.adaptationSumFromRow);
+  }
+  return SYN_ADAPTATION_SUM_FROM_ROW;
+}
+
+export function synAdaptationSumToRow(sheet) {
+  if (sheet && sheet.adaptationSumToRow != null) {
+    return Number(sheet.adaptationSumToRow);
+  }
+  return SYN_ADAPTATION_SUM_TO_ROW;
+}
 /** Excel H = display C — first column included in row-26 totals. */
 export const SYN_ROW26_SUM_EXCEL_COL_START = 'H';
 
@@ -264,14 +286,19 @@ function colToNumLocal(col) {
   return n;
 }
 
-/** Row 26 total column — all body cols from display C onward (not label F, pillars, spacers). */
+/** Row 26 total column — display C…J only (not label F, pillars, spacers). */
 export function isSynRow26SumCol(col) {
   if (!col || col === 'F') return false;
   if (isSynSpacerDisplayExcelCol(col)) return false;
   if (isSynSp2DisplayExcelCol(col)) return false;
   if (isSynSp2RestartDisplayExcelCol(col)) return false;
   if (isSynBuiltinPillarExcelCol(col)) return false;
-  return colToNumLocal(String(col)) >= colToNumLocal(SYN_ROW26_SUM_EXCEL_COL_START);
+  const displayCol = excelToDisplayCol(String(col));
+  // User requirement: row 26 is the SUM of rows 27..41 for the same column,
+  // but only for the main vehicle columns displayed as C..J.
+  if (!displayCol) return false;
+  const n = colToNumLocal(String(displayCol));
+  return n >= colToNumLocal('C') && n <= colToNumLocal('J');
 }
 
 /** @deprecated alias */
@@ -279,16 +306,16 @@ export function isSynAdaptationSumCol(col) {
   return isSynRow26SumCol(col);
 }
 
-export function isSynAdaptationSumCell(row, col) {
+export function isSynAdaptationSumCell(row, col, sheet = null) {
   return (
-    Number(row) === SYN_ADAPTATION_SUM_ROW && isSynAdaptationSumCol(col)
+    Number(row) === synAdaptationSumRow(sheet) && isSynAdaptationSumCol(col)
   );
 }
 
-export function affectsAdaptationSum(row, col) {
+export function affectsAdaptationSum(row, col, sheet = null) {
   const r = Number(row);
-  if (!Number.isFinite(r) || r < SYN_ADAPTATION_SUM_FROM_ROW) return false;
-  if (r > SYN_ADAPTATION_SUM_TO_ROW) return false;
+  if (!Number.isFinite(r) || r < synAdaptationSumFromRow(sheet)) return false;
+  if (r > synAdaptationSumToRow(sheet)) return false;
   return isSynAdaptationSumCol(col);
 }
 
@@ -623,7 +650,7 @@ export function isSynSumproductDataCell(
   if (cell && cell.userEdited) return false;
   if (!isSynVehicleMassCol(col)) return false;
   if (!isSynCalcRow(row, sheet)) return false;
-  if (Number(row) === SYN_ADAPTATION_SUM_ROW) return false;
+  if (Number(row) === synAdaptationSumRow(sheet)) return false;
   if (isSynAdaptationSumCell(row, col)) return false;
   if (!String(synLabel != null ? synLabel : '').trim()) return false;
   return isSynBlueSubsectionRow(row, sheet, synLabel, rowClass);
@@ -688,11 +715,11 @@ export function sanitizeSynLiveMassCells(cells = []) {
   return cells;
 }
 
-/** Drop stale export/session values on row 26 so the live SUM(27:41) always wins. */
-export function sanitizeSynAdaptationSumCells(cells = []) {
+/** Drop stale export values on the ADAPTATION total row so live SUM(27:41) wins. */
+export function sanitizeSynAdaptationSumCells(cells = [], sheet = null) {
   for (let i = cells.length - 1; i >= 0; i--) {
     const cell = cells[i];
-    if (!isSynAdaptationSumCell(cell.r, cell.c)) continue;
+    if (!isSynAdaptationSumCell(cell.r, cell.c, sheet)) continue;
     if (cell.userEdited) continue;
     cells.splice(i, 1);
   }

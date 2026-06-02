@@ -7,8 +7,24 @@ import { ref } from 'vue';
 export const NUMERIC_VALUE_ALERT_MSG =
   'The entered value must be a numeric value.';
 
+function normalizeNumericTyping(value) {
+  // Accept business-typical inputs like "1 234,5" (spaces) and "," decimals.
+  // Keep typing permissive; normalize strictly at commit time.
+  return String(value != null ? value : '').replace(/[\s\u00A0]/g, '');
+}
+
+function normalizeNumericCommit(value) {
+  let s = normalizeNumericTyping(value).trim();
+  if (s === '') return '';
+  // Allow trailing decimal separator on blur ("12," / "12.") => commit "12"
+  if (s.endsWith(',') || s.endsWith('.')) s = s.slice(0, -1);
+  // Canonicalize decimal separator for downstream engines.
+  s = s.replace(',', '.');
+  return s;
+}
+
 export function isAllowedNumericTyping(value) {
-  const s = String(value != null ? value : '');
+  const s = normalizeNumericTyping(value);
   if (s === '' || s === '-') return true;
   if (!/^-?\d*([.,]?\d*)?$/.test(s)) return false;
   const body = s.startsWith('-') ? s.slice(1) : s;
@@ -16,12 +32,10 @@ export function isAllowedNumericTyping(value) {
 }
 
 export function isCompleteNumericValue(value) {
-  const s = String(value != null ? value : '').trim();
+  const s = normalizeNumericCommit(value);
   if (s === '') return true;
   if (s === '-') return false;
-  if (!/^-?\d+([.,]\d+)?$/.test(s)) return false;
-  const body = s.replace(/^-/, '');
-  return (body.match(/[.,]/g) || []).length <= 1;
+  return /^-?\d+(\.\d+)?$/.test(s);
 }
 
 function cellKey(row, col) {
@@ -71,6 +85,10 @@ export function createGridCellEditor(opts) {
     const k = cellKey(row, col);
     if (idleDisplayByKey.has(k)) return idleDisplayByKey.get(k);
     return displayed;
+  }
+
+  function clearIdleDisplays() {
+    idleDisplayByKey.clear();
   }
 
   function clearEditState(el) {
@@ -150,7 +168,7 @@ export function createGridCellEditor(opts) {
     if (!isNumericAt(row, col)) {
       return { ok: true, value: raw };
     }
-    const v = String(raw != null ? raw : '').trim();
+    const v = normalizeNumericCommit(raw);
     if (!isCompleteNumericValue(v)) {
       return { ok: false };
     }
@@ -224,7 +242,6 @@ export function createGridCellEditor(opts) {
 
   function onCellBlur(row, col, event) {
     if (navigationLock) return;
-    if (activeKey.value !== cellKey(row, col)) return;
     finishEdit(row, col, event);
   }
 
@@ -240,6 +257,7 @@ export function createGridCellEditor(opts) {
     activeKey,
     isCellActive,
     cellShowValue,
+    clearIdleDisplays,
     onCellMouseDown,
     onCellSpanMouseDown,
     onCellFocus,

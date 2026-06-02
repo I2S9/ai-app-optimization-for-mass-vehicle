@@ -211,6 +211,9 @@ export default {
     watch(
       () => props.externalEditTick,
       () => {
+        if (cellEditor && typeof cellEditor.clearIdleDisplays === 'function') {
+          cellEditor.clearIdleDisplays();
+        }
         editEpoch.value += 1;
         invalidateDisplayCache();
       }
@@ -239,9 +242,9 @@ export default {
         sheet: props.sheetName || 'BD',
         previousValue: previousValue != null ? previousValue : '',
       });
-      if (props.session && props.session.ready && props.session.ready.value) {
+      if (props.session && typeof props.session.setCellValue === 'function') {
         void props.session
-          .setCellValue(props.sheetName, row, col, value)
+          .setCellValue(props.sheetName || 'BD', row, col, value)
           .catch((e) => console.warn('Engine setCellValue:', e));
       }
     }

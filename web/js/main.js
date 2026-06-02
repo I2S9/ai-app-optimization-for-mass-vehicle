@@ -1,4 +1,13 @@
-import { createApp, ref, computed, onMounted, onUnmounted, onErrorCaptured, nextTick } from 'vue';
+import {
+  createApp,
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  onErrorCaptured,
+  nextTick,
+} from 'vue';
 import BdGrid from './BdGrid.js?v=grid-perf9';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-p2';
 import { createEditHistory } from './editHistory.js?v=undo2';
@@ -123,8 +132,9 @@ const App = {
     });
 
     const overlayMessage = computed(() => {
-      if (isSynthesis.value && synthesisLoading.value) return 'Loading synthesis…';
-      if (isSynthesis.value && bdLoading.value) return 'Loading…';
+      if (isSynthesis.value && !synthesisSheet.value) {
+        return synthesisLoading.value ? 'Loading synthesis…' : 'Preparing synthesis…';
+      }
       if (bdLoading.value) return 'Loading database…';
       return 'Loading…';
     });
@@ -132,9 +142,7 @@ const App = {
     const showContentOverlay = computed(() => {
       if (error.value) return false;
       if (isDatabase.value) return false;
-      if (isSynthesis.value) {
-        return !synthesisSheet.value && synthesisLoading.value;
-      }
+      if (isSynthesis.value) return !synthesisSheet.value;
       return false;
     });
 
@@ -150,30 +158,23 @@ const App = {
       };
     }
 
-    function scheduleEngine() {
-      if (engineStarted || !bdSheet.value || !isGridPage.value) return;
-      let engineLoaded = false;
-      const run = () => {
-        if (engineLoaded || engineStarted) return;
-        engineLoaded = true;
-        engineStarted = true;
-        window.removeEventListener('pointerdown', onInteract, true);
-        window.removeEventListener('keydown', onInteract, true);
-        void session
-          .loadSheets([{ name: 'BD', data: slimBdEnginePayload(bdSheet.value) }])
-          .then(() => {
-            externalEditTick.value += 1;
-          });
-      };
-      const onInteract = () => run();
-      window.addEventListener('pointerdown', onInteract, true);
-      window.addEventListener('keydown', onInteract, true);
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(() => run(), { timeout: 4000 });
-      } else {
-        setTimeout(() => run(), 3000);
-      }
+    /** Build BD column index for live SYN SUMPRODUCT as soon as the grid sheet exists. */
+    function syncBdCalcEngine() {
+      if (!bdSheet.value) return;
+      void session
+        .loadSheets([{ name: 'BD', data: slimBdEnginePayload(bdSheet.value) }])
+        .then(() => {
+          engineStarted = true;
+          externalEditTick.value += 1;
+        });
     }
+
+    watch(
+      () => bdSheet.value,
+      (sheet) => {
+        if (sheet) syncBdCalcEngine();
+      }
+    );
 
     async function applyBdFromRaw(force = false) {
       if (!bdRaw.value) {
@@ -335,7 +336,7 @@ const App = {
             bumpBdSheetRevision();
             await applyBdFromRaw(false);
             gridPreparing.value = false;
-            scheduleEngine();
+            syncBdCalcEngine();
           },
         });
         bdRaw.value = full;
@@ -343,7 +344,7 @@ const App = {
           bumpBdSheetRevision();
           await applyBdFromRaw(false);
           gridPreparing.value = false;
-          scheduleEngine();
+          syncBdCalcEngine();
         } else {
           mergeExtraCellsIntoBd(full);
         }
@@ -409,6 +410,15 @@ const App = {
       if (routeParam && NAV_ITEMS.some((n) => n.id === routeParam)) {
         route.value = routeParam;
       }
+      if (typeof window !== 'undefined') {
+        syncInitialRouteToUrl();
+        window.addEventListener('popstate', onPopState);
+      }
+      // Optional perf tracing (edit → calc → render-ish).
+      // Enable via URL: ?perf=1
+      if (typeof window !== 'undefined') {
+        window.__perfEdits = new URLSearchParams(location.search).get('perf') === '1';
+      }
       const bench = createPerfBench(() => ({
         session,
         bdSheet: bdSheet.value,
@@ -418,11 +428,54 @@ const App = {
       }));
       if (typeof window !== 'undefined') {
         window.__runPerfBench = () => bench.run();
+        // Debug helpers (console) for verifying formula dependencies.
+        // Usage:
+        //   __synFormula(27,'G')  -> describes how the cell is computed
+        //   __bdCell(9,'V')       -> current BD raw value at row/col
+        //   __synCell(27,'G')     -> current SYN raw value at row/col (may be empty if computed)
+        window.__synFormula = (row, col) => {
+          try {
+            if (session && typeof session.getSynFormula === 'function') {
+              return session.getSynFormula(Number(row), String(col));
+            }
+            return '';
+          } catch (e) {
+            return String((e && e.message) || e);
+          }
+        };
+        window.__bdCell = (row, col) => {
+          try {
+            if (!bdRaw.value) return null;
+            const r = Number(row);
+            const c = String(col);
+            const hit = (bdRaw.value.cells || []).find((x) => x.r === r && x.c === c);
+            return hit ? hit.v : '';
+          } catch (e) {
+            return String((e && e.message) || e);
+          }
+        };
+        window.__synCell = (row, col) => {
+          try {
+            if (!synRaw.value) return null;
+            const r = Number(row);
+            const c = String(col);
+            const hit = (synRaw.value.cells || []).find((x) => x.r === r && x.c === c);
+            return hit ? hit.v : '';
+          } catch (e) {
+            return String((e && e.message) || e);
+          }
+        };
       }
       void bootApp();
       window.addEventListener('beforeunload', onBeforeUnload);
       window.addEventListener('pagehide', onBeforeUnload);
       window.addEventListener('keydown', onGlobalKeydown, true);
+    });
+
+    onUnmounted(() => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('popstate', onPopState);
+      }
     });
 
     async function bootApp() {
@@ -432,7 +485,7 @@ const App = {
       try {
         await nextTick();
         const [snapshot, apiCfg, preBd] = await Promise.all([
-          loadLocalSnapshot({ timeoutMs: 1500 }),
+          loadLocalSnapshot('default', { timeoutMs: 1500 }),
           probeSheetApi(),
           fetchPrecomputedPack('bd'),
         ]);
@@ -494,7 +547,7 @@ const App = {
           bdSheet.value = preBd.sheet;
           bdSheetBuiltAt = 0;
           gridPreparing.value = false;
-          scheduleEngine();
+          syncBdCalcEngine();
           void loadSheetRaw('bd').then((raw) => {
             if (raw && !bdRaw.value) bdRaw.value = raw;
           });
@@ -502,7 +555,7 @@ const App = {
           bumpBdSheetRevision();
           await applyBdFromRaw(false);
           gridPreparing.value = false;
-          scheduleEngine();
+          syncBdCalcEngine();
         } else {
           await loadBdFromServer({ progressive: chunkedApi.value });
         }
@@ -674,12 +727,12 @@ const App = {
           const map = grid.cellMap instanceof Map ? grid.cellMap : null;
           let cell = map ? map.get(key) : null;
           if (!cell) {
-            cell = { r: p.r, c: p.c, v: p.v, mat: true };
+            cell = { r: p.r, c: p.c, v: p.v };
             grid.cells.push(cell);
             if (map) map.set(key, cell);
           } else if (!cell.userEdited) {
             cell.v = p.v;
-            cell.mat = true;
+            delete cell.mat;
           }
         }
       }
@@ -704,10 +757,17 @@ const App = {
             ? bdRaw.value
             : null;
       if (raw) upsertRawCell(raw, row, col, value);
-      if (sheet === 'BD' && serverCalc.value && chunkedApi.value) {
-        void patchSheetCells('bd', [{ r: row, c: col, v: value }])
-          .then((res) => applySynPatches(res.synPatches))
-          .catch((e) => console.warn('Server Syn recalc:', e));
+      if (sheet === 'BD') {
+        if (bdSheet.value) {
+          void session
+            .setCellValue('BD', row, col, value)
+            .catch((e) => console.warn('BD → Syn live calc:', e));
+        }
+        if (serverCalc.value && chunkedApi.value) {
+          void patchSheetCells('bd', [{ r: row, c: col, v: value }])
+            .then((res) => applySynPatches(res.synPatches))
+            .catch((e) => console.warn('Server Syn recalc:', e));
+        }
       }
       dirty.value += 1;
       autoSave.schedule();
@@ -769,17 +829,42 @@ const App = {
       menuOpen.value = !menuOpen.value;
     }
 
-    function navigate(id) {
+    function urlForRoute(id) {
+      const u = new URL(window.location.href);
+      u.searchParams.set('route', id);
+      return u;
+    }
+
+    function applyRoute(id, { source = 'ui' } = {}) {
       closeMenu();
       closeSearch();
       if (id === route.value) return;
       route.value = id;
+      if (typeof window !== 'undefined' && source !== 'pop') {
+        const u = urlForRoute(id);
+        window.history.pushState({ route: id }, '', u.toString());
+      }
       requestAnimationFrame(() => {
         if (id === 'synthesis' && !synthesisSheet.value) {
           void loadSynthesis();
         }
-        scheduleEngine();
+        syncBdCalcEngine();
       });
+    }
+
+    function navigate(id) {
+      applyRoute(id, { source: 'ui' });
+    }
+
+    function onPopState() {
+      const id = new URLSearchParams(window.location.search).get('route');
+      const target = id && NAV_ITEMS.some((n) => n.id === id) ? id : DEFAULT_ROUTE;
+      applyRoute(target, { source: 'pop' });
+    }
+
+    function syncInitialRouteToUrl() {
+      const u = urlForRoute(route.value);
+      window.history.replaceState({ route: route.value }, '', u.toString());
     }
 
     function toggleOutline() {
@@ -1283,20 +1368,8 @@ const App = {
           >
             Préparation de la grille…
           </div>
-          <div
-            v-if="isSynthesis && synthesisLoading && !synthesisSheet"
-            class="loading-overlay"
-          >
-            Chargement Synthesis…
-          </div>
           <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
-          <div
-            v-else-if="isSynthesis && !synthesisSheet && !synthesisLoading"
-            class="loading-overlay error-text"
-          >
-            Données Synthesis indisponibles
-          </div>
           <EmptyPage
             v-else-if="!isDatabase && !isSynthesis"
             :title="currentNav.label"

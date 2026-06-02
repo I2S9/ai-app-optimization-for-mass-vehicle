@@ -54,6 +54,8 @@ import {
   SYN_CALC_FIRST_ROW,
   SYN_ADAPTATION_SUM_ROW,
   SYN_ADAPTATION_SUM_FROM_ROW,
+  synAdaptationSumRow,
+  isSynAdaptationSumCol,
 } from './synthesisCalc.js?v=syn-apbb8';
 
 export {
@@ -3487,14 +3489,6 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       }
       return '';
     }
-    if (isSynAdaptationSumCell(row, col)) {
-      const getCellAt = (r, c) => getCell(map, r, c);
-      const n = computeAdaptationRowSum(
-        (r, c) => getSynAdaptBandNumeric(getCellAt, r, c),
-        col
-      );
-      return synTranslateText(formatSynNumericDisplay(String(n)), col);
-    }
     if (
       isSynAbDiffCell(row, col, sheet)
     ) {
@@ -3559,7 +3553,11 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
       }
       if (isSynMaaGreySpacerExcelRow(row)) return '';
     }
-    if (row === SYN_ZERO_FILL_FIRST_ROW && !liveSectionSum) {
+    if (
+      row === SYN_ZERO_FILL_FIRST_ROW &&
+      !liveSectionSum &&
+      !isSynAdaptationSumCell(row, col, sheet)
+    ) {
       const raw25 = cell ? displayValue(cell) : '';
       if (raw25 && String(raw25).trim() !== '') {
         if (isSynNumericRaw(raw25)) {
@@ -3568,6 +3566,22 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
         return synTranslateText(raw25, col);
       }
       return '0,00';
+    }
+    if (
+      sheet &&
+      sheet.adaptationHeaderRow != null &&
+      Number(row) === Number(sheet.adaptationHeaderRow) + 1 &&
+      isSynAdaptationSumCol(col) &&
+      !isSynAdaptationSumCell(row, col, sheet)
+    ) {
+      const raw = cell ? displayValue(cell) : '';
+      if (raw && String(raw).trim() !== '') {
+        if (isSynNumericRaw(raw)) {
+          return synTranslateText(formatSynNumericDisplay(raw), col);
+        }
+        return synTranslateText(String(raw).trim(), col);
+      }
+      return '';
     }
     if (liveSectionSum) {
       return synTranslateText(formatSynNumericDisplay('0'), col);
@@ -3649,6 +3663,8 @@ function isSynRowArchived(sheet, row) {
 }
 
 export function synRowHasContent(map, row, sheet) {
+  // Row 26 is a computed SUM row (27..41) and must always be present in the grid.
+  if (Number(row) === synAdaptationSumRow(sheet)) return true;
   if (isSynRowArchived(sheet, row)) return false;
   if (isSynPanelGapRow(row)) return true;
   if (isSynHeaderPanelRow(row)) return true;

@@ -34,6 +34,9 @@ import {
   describeSynCellFormula,
   synVehicleMassExcelCol,
   affectsAdaptationSum,
+  synAdaptationSumRow,
+  synAdaptationSumFromRow,
+  synAdaptationSumToRow,
 } from './synthesisCalc.js?v=grid-perf9';
 import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=grid-perf2';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
@@ -44,6 +47,8 @@ export function createWorkbookSession() {
   const displayTick = ref(0);
   /** Synthesis live-calc invalidation (BD edit → Syn SUMPRODUCT only). */
   const synCalcTick = ref(0);
+  /** ADAPTATION row-26 SUM only (cols C..J) — lightweight, no SUMPRODUCT. */
+  const adaptationSumTick = ref(0);
   let displayDirtyAll = true;
   const displayDirtyKeys = new Set();
   const ready = ref(false);
@@ -66,6 +71,8 @@ export function createWorkbookSession() {
   let synRowClassGetter = null;
   let synSectionRows = [];
   const sumproductCache = new Map();
+  /** Last BD payload passed to loadSheets — lazy index if an edit arrives early. */
+  let lastBdPayload = null;
 
   function bumpDisplay(all = true, keys = []) {
     if (all) {
@@ -264,6 +271,16 @@ export function createWorkbookSession() {
     bumpDisplay(false, [`${row}:${col}`]);
   }
 
+  function ensureBdColsFromPayload() {
+    if (bdCols || !lastBdPayload) return false;
+    bdCols = buildBdColumnIndex(lastBdPayload);
+    rebuildBdDisplayContext(lastBdPayload);
+    rebuildSumproductIndex();
+    vehColFilterIndex.clear();
+    ready.value = true;
+    return true;
+  }
+
   function applyBdEditInvalidation(row, col) {
     const isMass = col === BD_MASS_COL;
     const isFilter = col === 'O' || col === 'P';
@@ -275,7 +292,12 @@ export function createWorkbookSession() {
       invalidateSumproductForL2(bdL2KeyAtRow(row), { sectionSums: true });
       vehColFilterIndex.clear();
     } else if (isMass) {
-      invalidateSumproductForL2(bdL2KeyAtRow(row), { sectionSums: true });
+      const l2 = bdL2KeyAtRow(row);
+      if (synGridGetter) {
+        invalidateSumproductForL2(l2, { sectionSums: true });
+      } else {
+        invalidateSumproductCaches();
+      }
     } else if (isFilter) {
       vehColFilterIndex.clear();
       for (const k of [...sumproductCache.keys()]) {
@@ -336,8 +358,13 @@ export function createWorkbookSession() {
 
   function resolveSynNumericAt(row, col) {
     const cell = synGridGetter ? synGridGetter(row, col) : null;
-    if (isSynAdaptationSumCell(row, col)) {
-      return computeAdaptationRowSum(getAdaptationBlockNumeric, col);
+    if (isSynAdaptationSumCell(row, col, synSheetMeta)) {
+      return computeAdaptationRowSum(
+        getAdaptationBlockNumeric,
+        col,
+        synAdaptationSumFromRow(synSheetMeta),
+        synAdaptationSumToRow(synSheetMeta)
+      );
     }
     if (cell && cell.userEdited) {
       return parseSynNum(displayValue(cell));
@@ -406,6 +433,7 @@ export function createWorkbookSession() {
     try {
       const bdEntry = sheets.find((s) => s.name === 'BD');
       if (bdEntry) {
+        lastBdPayload = bdEntry.data;
         // Live SOMMEPROD — index BD first; never block UI on HyperFormula worker load.
         bdCols = buildBdColumnIndex(bdEntry.data);
         rebuildBdDisplayContext(bdEntry.data);
@@ -413,6 +441,7 @@ export function createWorkbookSession() {
         vehColFilterIndex.clear();
         invalidateSumproductCaches();
         ready.value = true;
+        synCalcTick.value += 1;
         revision.value += 1;
         bumpDisplay(true);
         loading.value = false;
@@ -452,7 +481,9 @@ export function createWorkbookSession() {
     }
     boundSynSheet = sheet;
     synSheetMeta = sheet;
+    rebuildSynSectionRows();
     invalidateSumproductCaches();
+    synCalcTick.value += 1;
     revision.value += 1;
     bumpDisplay(true);
   }
@@ -493,7 +524,11 @@ export function createWorkbookSession() {
   }
 
   async function setCellValue(sheetName, row, col, value) {
+    const perfOn =
+      typeof window !== 'undefined' && Boolean(window.__perfEdits);
+    const t0 = perfOn ? performance.now() : 0;
     if (sheetName === 'BD') {
+      ensureBdColsFromPayload();
       if (bdCols) {
         if (!bdCols[col]) bdCols[col] = [];
         bdCols[col][row] = value;
@@ -510,6 +545,7 @@ export function createWorkbookSession() {
         }
         applyBdEditInvalidation(row, col);
       }
+      const tInv = perfOn ? performance.now() : 0;
       if (ready.value && engine.hasFormula(sheetName, row, col)) {
         try {
           await engine.setCellValue(sheetName, row, col, value);
@@ -517,7 +553,17 @@ export function createWorkbookSession() {
           console.warn('HyperFormula setCellValue failed:', e);
         }
       }
+      const tEng = perfOn ? performance.now() : 0;
       invalidateAfterBdEdit(row, col);
+      if (perfOn) {
+        const t1 = performance.now();
+        console.log(
+          `[perf] edit BD ${col}${row}: total ${Math.round(t1 - t0)}ms | ` +
+            `invalidate ${Math.round(tInv - t0)}ms | ` +
+            `engine ${Math.round(tEng - tInv)}ms | ` +
+            `post ${Math.round(t1 - tEng)}ms`
+        );
+      }
       return;
     } else if (sheetName === 'SYNTHESIS' && synGridGetter) {
       const cell = synGridGetter(row, col);
@@ -525,11 +571,13 @@ export function createWorkbookSession() {
         cell.v = value;
         delete cell.f;
       }
-      if (affectsAdaptationSum(row, col)) {
-        for (const k of sumproductCache.keys()) {
-          if (k.startsWith('d:')) sumproductCache.delete(k);
-        }
-        synCalcTick.value += 1;
+      if (affectsAdaptationSum(row, col, synSheetMeta)) {
+        adaptationSumTick.value += 1;
+        bumpDisplay(false, [
+          `${synAdaptationSumRow(synSheetMeta)}:${col}`,
+        ]);
+        revision.value += 1;
+        return;
       }
       if (isSynFilterEdit(row, col)) {
         invalidateSumproductCaches(col);
@@ -544,18 +592,39 @@ export function createWorkbookSession() {
     }
     revision.value += 1;
     bumpDisplay(false, [`${row}:${col}`]);
+    if (perfOn) {
+      const t1 = performance.now();
+      console.log(
+        `[perf] edit ${sheetName} ${col}${row}: ${Math.round(t1 - t0)}ms`
+      );
+    }
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
-    if (sheetName === 'SYNTHESIS' && cell && cell.mat && !cell.userEdited) {
-      return displayValue(cell);
-    }
-    if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
+    if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col, synSheetMeta)) {
       if (!synGridGetter) return '0';
-      const n = computeAdaptationRowSum(getAdaptationBlockNumeric, col);
+      const n = computeAdaptationRowSum(
+        getAdaptationBlockNumeric,
+        col,
+        synAdaptationSumFromRow(synSheetMeta),
+        synAdaptationSumToRow(synSheetMeta)
+      );
       return String(n);
     }
-    if (cell && cell.userEdited && !isSynAdaptationSumCell(row, col)) {
+    if (sheetName === 'SYNTHESIS' && cell && cell.mat && !cell.userEdited) {
+      const synLabel = getSynLabel(row);
+      const rowClass = getSynRowClass(row);
+      const isLiveMass = isSynCalculatedMassCell(
+        cell,
+        row,
+        col,
+        synSheetMeta,
+        synLabel,
+        rowClass
+      );
+      if (!isLiveMass) return displayValue(cell);
+    }
+    if (cell && cell.userEdited && !isSynAdaptationSumCell(row, col, synSheetMeta)) {
       return displayValue(cell);
     }
     if (
@@ -647,7 +716,7 @@ export function createWorkbookSession() {
   }
 
   function isFormulaCell(sheetName, row, col, cell) {
-    if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col)) {
+    if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col, synSheetMeta)) {
       return true;
     }
     const synLabel = sheetName === 'SYNTHESIS' ? getSynLabel(row) : '';
@@ -667,6 +736,7 @@ export function createWorkbookSession() {
     const synLabel = getSynLabel(row);
     const rowClass = getSynRowClass(row);
     return (
+      isSynAdaptationSumCell(row, col, synSheetMeta) ||
       isSynAbDiffCell(row, col, synSheetMeta) ||
       isSynSectionSumDataCell(row, col, synSheetMeta, cell, synLabel, rowClass) ||
       isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
@@ -688,6 +758,7 @@ export function createWorkbookSession() {
     synRowClassGetter = null;
     synSectionRows = [];
     sumproductCache.clear();
+    lastBdPayload = null;
     ready.value = false;
   }
 
@@ -695,6 +766,7 @@ export function createWorkbookSession() {
     revision,
     displayTick,
     synCalcTick,
+    adaptationSumTick,
     takeDisplayDirty,
     ready,
     loading,

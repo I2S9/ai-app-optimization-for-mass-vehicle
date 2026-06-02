@@ -39,6 +39,7 @@ import {
 import { runInChunks, yieldToMain } from './yieldMain.js?v=2';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 import { sanitizeSynAdaptationSumCells, sanitizeSynLiveMassCells } from './synthesisCalc.js?v=syn-apbb8';
+import { findSynAdaptationRow } from './synStore.js';
 
 const POSITION_INSERT_AFTER = 'AD';
 const POSITION_INSERT_COUNT = 2;
@@ -521,7 +522,6 @@ export async function transformSynthesisSheetAsync(sheet) {
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
   applySynRowsApbbPresetCells(cells);
-  sanitizeSynAdaptationSumCells(cells);
   sanitizeSynLiveMassCells(cells);
   await yieldToMain();
   const headerRows = applySynRowsApbbPresetHeaderRows(
@@ -548,16 +548,33 @@ export async function transformSynthesisSheetAsync(sheet) {
     computeSynEffectiveLastRow({ ...sheet, cells }, cellMap),
     SYN_MAX_EXCEL_ROW
   );
+  const adaptationHeaderRow = findSynAdaptationRow(cellMap, sheet);
+  /** Totals on “-ADAPTATION” row; row below (_ADDBLUE) keeps its own C..J values. */
+  const adaptationSumRow = adaptationHeaderRow;
+  const adaptationSumFromRow = adaptationHeaderRow + 2;
+  const adaptationSumToRow = Math.min(41, effectiveLastRow);
+  const adaptationMeta = {
+    adaptationHeaderRow,
+    adaptationSumRow,
+    adaptationSumFromRow,
+    adaptationSumToRow,
+  };
+  sanitizeSynAdaptationSumCells(cells, adaptationMeta);
+  const cellMapFinal = buildCellMap(cells, headerRows);
   return {
     ...sheet,
     columns,
     headers,
     cells,
     headerRows,
-    cellMap,
+    cellMap: cellMapFinal,
     pillarColumns,
     effectiveLastRow,
     lastRow: effectiveLastRow,
+    adaptationHeaderRow,
+    adaptationSumRow,
+    adaptationSumFromRow,
+    adaptationSumToRow,
     dataStartRow: sheet.dataStartRow || 15,
     filterRows: sheet.filterRows || [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
     rowBands: sheet.rowBands || {},
@@ -584,7 +601,6 @@ export function transformSynthesisSheet(sheet) {
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
   applySynRowsApbbPresetCells(cells);
-  sanitizeSynAdaptationSumCells(cells);
   sanitizeSynLiveMassCells(cells);
   const headerRows = applySynRowsApbbPresetHeaderRows(
     applySynRowsAcanPresetHeaderRows(
@@ -610,16 +626,33 @@ export function transformSynthesisSheet(sheet) {
     computeSynEffectiveLastRow({ ...sheet, cells }, cellMap),
     SYN_MAX_EXCEL_ROW
   );
+  const adaptationHeaderRow = findSynAdaptationRow(cellMap, sheet);
+  /** Totals on “-ADAPTATION” row; row below (_ADDBLUE) keeps its own C..J values. */
+  const adaptationSumRow = adaptationHeaderRow;
+  const adaptationSumFromRow = adaptationHeaderRow + 2;
+  const adaptationSumToRow = Math.min(41, effectiveLastRow);
+  const adaptationMeta = {
+    adaptationHeaderRow,
+    adaptationSumRow,
+    adaptationSumFromRow,
+    adaptationSumToRow,
+  };
+  sanitizeSynAdaptationSumCells(cells, adaptationMeta);
+  const cellMapFinal = buildCellMap(cells, headerRows);
   return {
     ...sheet,
     columns,
     headers,
     cells,
     headerRows,
-    cellMap,
+    cellMap: cellMapFinal,
     pillarColumns,
     effectiveLastRow,
     lastRow: effectiveLastRow,
+    adaptationHeaderRow,
+    adaptationSumRow,
+    adaptationSumFromRow,
+    adaptationSumToRow,
     dataStartRow: sheet.dataStartRow || 15,
     filterRows: sheet.filterRows || [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
     rowBands: sheet.rowBands || {},
