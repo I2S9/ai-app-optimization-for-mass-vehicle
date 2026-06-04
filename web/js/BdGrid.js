@@ -62,6 +62,7 @@ export default {
     session: { type: Object, default: null },
     rawBd: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
+    outlineMode: { type: Number, default: 0 },
     paneVisible: { type: Boolean, default: true },
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
@@ -101,30 +102,69 @@ export default {
 
     const columns = computed(() => props.sheet.columns || []);
 
-    const bodyRowsRaw = computed(() => {
-      if (props.outlineOnly) {
-        return (
-          (props.sheet.outlineBodyDisplayRows != null
-            ? props.sheet.outlineBodyDisplayRows
-            : props.sheet.bodyDisplayRows != null
-              ? props.sheet.bodyDisplayRows
-              : null) ||
-          computeBodyDisplayRows(props.sheet)
-        );
-      }
-      return props.sheet.bodyDisplayRows != null
-        ? props.sheet.bodyDisplayRows
-        : computeBodyDisplayRows(props.sheet);
+    /** Outline view: 0 = full, 1 = sections + sub-sections, 2 = sections only. */
+    const effectiveOutlineMode = computed(() => {
+      const m = Number(props.outlineMode);
+      if (Number.isFinite(m) && m >= 0 && m <= 2) return m;
+      return props.outlineOnly ? 1 : 0;
     });
 
+    /** Excel rows of yellow sections folded via the row-1 fold column. */
+    const collapsedSections = ref(new Set());
+
+    function toggleSection(excelRow) {
+      if (excelRow == null) return;
+      const next = new Set(collapsedSections.value);
+      if (next.has(excelRow)) next.delete(excelRow);
+      else next.add(excelRow);
+      collapsedSections.value = next;
+    }
+
+    const sectionHeaderRows = computed(() => props.sheet.sectionHeaderRows);
+
+    const baseBodyRows = computed(() =>
+      props.sheet.bodyDisplayRows != null
+        ? props.sheet.bodyDisplayRows
+        : computeBodyDisplayRows(props.sheet)
+    );
+
+    /**
+     * Apply the outline mode (eye) and per-section fold. A folded yellow section
+     * hides everything under it up to the next yellow section (the header stays).
+     */
     const bodyRows = computed(() => {
-      const base = bodyRowsRaw.value;
+      const base = baseBodyRows.value;
+      const mode = effectiveOutlineMode.value;
+      const collapsed = collapsedSections.value;
+      const map = cellMap.value;
+      const sh = sectionHeaderRows.value;
       const out = [];
       let displayRow = BD_BODY_DISPLAY_ROW_START;
+      let sectionCollapsed = false;
       for (const e of base) {
-        if (BD_HIDDEN_DISPLAY_ROWS.has(e.excelRow)) continue;
-        if (deletedRows.value.has(e.excelRow)) continue;
-        out.push({ excelRow: e.excelRow, displayRow: displayRow++ });
+        const r = e.excelRow;
+        if (BD_HIDDEN_DISPLAY_ROWS.has(r)) continue;
+        if (deletedRows.value.has(r)) continue;
+        const cls = rowStyleClass(map, r, sh);
+        if (cls === 'row-section') {
+          sectionCollapsed = collapsed.has(r);
+          out.push({
+            excelRow: r,
+            displayRow: displayRow++,
+            isSection: true,
+            sectionCollapsed,
+          });
+          continue;
+        }
+        if (sectionCollapsed) continue;
+        if (mode === 2) continue;
+        if (mode === 1 && cls !== 'row-subsection') continue;
+        out.push({
+          excelRow: r,
+          displayRow: displayRow++,
+          isSection: false,
+          sectionCollapsed: false,
+        });
       }
       return out;
     });
@@ -170,7 +210,6 @@ export default {
       return Math.max(0, remaining * ROW_H);
     });
 
-    const sectionHeaderRows = computed(() => props.sheet.sectionHeaderRows);
     const subsystemL1Col = computed(() => bdSubsystemL1Col(props.sheet));
     const subsystemL2Col = computed(() => bdSubsystemL2Col(props.sheet));
     const designDeptCol = computed(() => bdDesignDeptCol(props.sheet));
@@ -337,6 +376,8 @@ export default {
     }
 
     const BD_ROW_NUM_W = 42;
+    /** Width of the section fold/unfold column inserted before the row numbers. */
+    const BD_FOLD_W = 24;
     const BD_HEADER_H = ROW_H * 2;
 
     // ── Column virtualization (only the sticky col A + the on-screen scrollable
@@ -362,7 +403,7 @@ export default {
       return l.length ? l[l.length - 1].left + l[l.length - 1].width : 0;
     });
     const stickyWidth = computed(
-      () => BD_ROW_NUM_W + (widthMap.value.get(STICKY_COL) || 72)
+      () => BD_FOLD_W + BD_ROW_NUM_W + (widthMap.value.get(STICKY_COL) || 72)
     );
     const virtualizeCols = computed(() =>
       shouldVirtualizeCols(stickyWidth.value + scrollableWidth.value, viewportW.value)
@@ -445,7 +486,7 @@ export default {
       flushScroll: () => scrollSync.flush(),
       getRowTop: (rowIndex) => BD_HEADER_H + rowIndex * ROW_H,
       getColLeft: (col) => {
-        let left = BD_ROW_NUM_W;
+        let left = BD_FOLD_W + BD_ROW_NUM_W;
         for (const c of columns.value) {
           if (c === col) return left;
           left += widthMap.value.get(c) || 72;
@@ -660,12 +701,21 @@ export default {
     );
 
     watch(
-      () => props.outlineOnly,
+      () => effectiveOutlineMode.value,
       () => {
         rowScrollCache.reset();
         scrollTop.value = 0;
         if (scrollEl.value) scrollEl.value.scrollTop = 0;
         invalidateDisplayCache();
+      }
+    );
+
+    watch(
+      () => collapsedSections.value,
+      () => {
+        rowScrollCache.reset();
+        invalidateDisplayCache();
+        nextTick(() => scrollSync.flush());
       }
     );
 
@@ -713,7 +763,7 @@ export default {
         const map = cellMap.value;
         const sh = sectionHeaderRows.value;
         const base = rowStyleClass(map, row, sh);
-        const stripe = props.outlineOnly
+        const stripe = effectiveOutlineMode.value !== 0
           ? ''
           : rowDataStripeClass(map, row, sh, props.sheet.dataStartRow);
         return [base, stripe].filter(Boolean).join(' ');
@@ -746,6 +796,7 @@ export default {
       onCellInput,
       onCellBlur,
       onCellKeydown,
+      toggleSection,
     };
   },
   template: `
@@ -754,6 +805,7 @@ export default {
         <table class="bd-table" role="grid">
           <thead>
             <tr class="hdr-row-letters">
+              <th class="bd-fold-col bd-fold-col-hdr"></th>
               <th class="corner"></th>
               <template v-for="(col, idx) in renderColumns" :key="'letter-' + col">
                 <th v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></th>
@@ -766,6 +818,7 @@ export default {
               <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
             </tr>
             <tr class="hdr-row-1">
+              <th class="bd-fold-col bd-fold-col-hdr"></th>
               <th class="corner">1</th>
               <template v-for="(col, idx) in renderColumns" :key="'h1-' + col">
                 <th v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></th>
@@ -781,7 +834,7 @@ export default {
           </thead>
           <tbody>
             <tr v-if="topSpacer > 0" class="bd-spacer-top">
-              <td :colspan="columns.length + 1" :style="{ height: topSpacer + 'px', padding: 0, border: 'none' }"></td>
+              <td :colspan="columns.length + 2" :style="{ height: topSpacer + 'px', padding: 0, border: 'none' }"></td>
             </tr>
             <tr
               v-for="entry in visibleRows"
@@ -790,6 +843,18 @@ export default {
               :class="rowStyleClass(entry.excelRow)"
               @contextmenu="onRowContextMenu(entry, $event)"
             >
+              <td
+                class="bd-fold-col"
+                :class="{ 'bd-fold-col-section': entry.isSection }"
+              >
+                <button
+                  v-if="entry.isSection"
+                  type="button"
+                  class="bd-fold-btn"
+                  :title="(entry.sectionCollapsed ? 'Déplier' : 'Plier') + ' la section'"
+                  @click="toggleSection(entry.excelRow)"
+                >{{ entry.sectionCollapsed ? '+' : '\u2212' }}</button>
+              </td>
               <td class="row-num">{{ entry.displayRow }}</td>
               <template v-for="(col, idx) in renderColumns" :key="entry.excelRow + '-' + col">
                 <td v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></td>
@@ -834,7 +899,7 @@ export default {
               <td v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></td>
             </tr>
             <tr v-if="bottomSpacer > 0" class="bd-spacer-bottom">
-              <td :colspan="columns.length + 1" :style="{ height: bottomSpacer + 'px', padding: 0, border: 'none' }"></td>
+              <td :colspan="columns.length + 2" :style="{ height: bottomSpacer + 'px', padding: 0, border: 'none' }"></td>
             </tr>
           </tbody>
         </table>

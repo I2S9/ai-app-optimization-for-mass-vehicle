@@ -9,13 +9,13 @@ import {
   onErrorCaptured,
   nextTick,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=scroll-perf2';
+import BdGrid from './BdGrid.js?v=bd-fold1';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-fold1';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
-import { NAV_ITEMS, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
+import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
 import { synGridLooksHealthy } from './synStore.js?v=syn-nuke1';
 import { createWorkbookSession } from './workbookSession.js?v=realtime-sync1';
@@ -152,7 +152,7 @@ const App = {
     );
 
     const currentNav = computed(
-      () => NAV_ITEMS.find((n) => n.id === route.value) || NAV_ITEMS[0]
+      () => NAV_ROUTES.find((n) => n.id === route.value) || NAV_ROUTES[0]
     );
 
     const isDatabase = computed(() => route.value === 'database');
@@ -602,7 +602,7 @@ const App = {
     onMounted(() => {
       document.title = 'WGHT Dashboard';
       const routeParam = new URLSearchParams(location.search).get('route');
-      if (routeParam && NAV_ITEMS.some((n) => n.id === routeParam)) {
+      if (routeParam && NAV_ROUTES.some((n) => n.id === routeParam)) {
         route.value = routeParam;
       }
       if (typeof window !== 'undefined') {
@@ -1308,7 +1308,7 @@ const App = {
 
     function onPopState() {
       const id = new URLSearchParams(window.location.search).get('route');
-      const target = id && NAV_ITEMS.some((n) => n.id === id) ? id : DEFAULT_ROUTE;
+      const target = id && NAV_ROUTES.some((n) => n.id === id) ? id : DEFAULT_ROUTE;
       applyRoute(target, { source: 'pop' });
     }
 
@@ -1836,6 +1836,7 @@ const App = {
               :session="session"
               :raw-bd="bdRaw"
               :outline-only="outlineOnly"
+              :outline-mode="outlineMode"
               :pane-visible="isDatabase"
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
