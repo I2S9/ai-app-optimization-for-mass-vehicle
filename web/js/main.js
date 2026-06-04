@@ -1160,6 +1160,36 @@ const App = {
     }
 
     /**
+     * Derived Synthesis cells (e.g. green-row auto-totals) computed in the grid.
+     * Persisted like a normal edit — real-time single-cell PATCH to Supabase plus
+     * the debounced session snapshot — but kept out of the undo history since the
+     * user never typed them.
+     */
+    function onDerivedChange(changes) {
+      if (!Array.isArray(changes) || !changes.length) return;
+      const raw = synRaw.value;
+      const patch = [];
+      for (const ch of changes) {
+        if (!ch) continue;
+        const row = Number(ch.row);
+        const col = String(ch.col);
+        const value = ch.value != null ? ch.value : '';
+        if (!Number.isFinite(row)) continue;
+        if (raw) upsertRawCell(raw, row, col, value);
+        if (synthesisSheet.value) syncSheetCell(synthesisSheet.value, row, col, value);
+        patch.push({ r: row, c: col, v: value });
+      }
+      if (!patch.length) return;
+      dirty.value += 1;
+      if (chunkedApi.value) {
+        void patchSheetCells('synthesis', patch).catch((e) =>
+          console.warn('Derived Synthesis PATCH:', e)
+        );
+      }
+      autoSave.schedule();
+    }
+
+    /**
      * Soft-delete a grid row: hide it (persisted in raw.deletedRows so it survives
      * reload) and clear every cell it holds so it no longer feeds calculations.
      */
@@ -1645,6 +1675,7 @@ const App = {
       session,
       onCellChange,
       onRowDelete,
+      onDerivedChange,
       navigate,
       toggleOutline,
       searchOpen,
@@ -1864,6 +1895,7 @@ const App = {
               :search-cmd="gridSearchCmd"
               @cell-change="onCellChange"
               @row-delete="onRowDelete"
+              @derived-change="onDerivedChange"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"
             />

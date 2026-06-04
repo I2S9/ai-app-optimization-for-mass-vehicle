@@ -2127,6 +2127,20 @@ export function isSynRow16FluoEvery3Col(row, col) {
   return isSynHdrSummaryTableCol(col);
 }
 
+/**
+ * Row 16 — M…AA block only, first column of each triplet (display M, P, S, V, Y):
+ * fluorescent yellow. These cells otherwise turn green with the rest of the M…AA
+ * band, so the fluo fill makes the triplet starts stand out inside the bold frame.
+ */
+export function isSynRow16MaaFluoFirstCol(row, col) {
+  if (Number(row) !== 16) return false;
+  const n = colToNum(col);
+  const lo = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_START));
+  const hi = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END));
+  if (n < lo || n > hi) return false;
+  return (n - lo) % 3 === 0;
+}
+
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
 export function isSynApbbP3sBlackCol(row, col) {
   if (Number(row) !== 5) return false;

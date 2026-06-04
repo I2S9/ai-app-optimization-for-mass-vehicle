@@ -19,6 +19,7 @@ import {
   synAdaptationSumRow,
   computeAdaptationRowSum,
   isSynCalculatedMassCell,
+  isSynMassCalcCol,
 } from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
@@ -87,6 +88,7 @@ import {
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3Col,
+  isSynRow16MaaFluoFirstCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbRow18GreyCol,
@@ -173,6 +175,7 @@ import {
   synStickyColWidth,
   synPillarColWidth,
   isSynBuiltinPillarExcelCol,
+  isSynHeaderPanelVehicleCol,
   colToNum,
   numToCol,
 } from './synthesisPerf.js?v=syn-pillar-cg2';
@@ -205,6 +208,19 @@ const SYN_MIRROR_FIRST_ROW = 25;
 function isSynMirrorLfromMCell(row, col) {
   return col === SYN_MIRROR_DST_EXCEL_COL && Number(row) >= SYN_MIRROR_FIRST_ROW;
 }
+
+/** Excel columns that carry an automatic green total (display M…AA and AC…AN). */
+const SYN_GREEN_TOTAL_EXCEL_COLS = (() => {
+  const out = [];
+  const addRange = (startDisp, endDisp) => {
+    for (let n = colToNum(startDisp); n <= colToNum(endDisp); n++) {
+      out.push(displayToExcelCol(numToCol(n)));
+    }
+  };
+  addRange('M', 'AA');
+  addRange('AC', 'AN');
+  return out;
+})();
 
 /**
  * Row-1 (column-letter header) collapse groups. Clicking the "−" button on the
@@ -253,7 +269,13 @@ export default {
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
   },
-  emits: ['cell-change', 'row-delete', 'search-row-hidden', 'search-navigated'],
+  emits: [
+    'cell-change',
+    'row-delete',
+    'search-row-hidden',
+    'search-navigated',
+    'derived-change',
+  ],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -564,6 +586,28 @@ export default {
         if (rows[i].excelRow != null) m.set(rows[i].excelRow, i);
       }
       return m;
+    });
+
+    /**
+     * Green-row aggregation source map: each green row (display number in
+     * SYN_DISPLAY_GREEN_ROWS) maps to the ordered list of Excel rows beneath it,
+     * up to (but excluding) the next green row. A green cell sums these rows for
+     * its column. Built from the full body (baseBodyRows) so collapsing/folding a
+     * section never changes the computed total.
+     */
+    const greenSumSourceRows = computed(() => {
+      const map = new Map();
+      let bucket = null;
+      for (const e of baseBodyRows.value) {
+        const isGreen = SYN_DISPLAY_GREEN_ROWS.has(Number(e.displayRow));
+        if (isGreen && e.excelRow != null) {
+          bucket = [];
+          map.set(e.excelRow, bucket);
+          continue;
+        }
+        if (bucket && e.excelRow != null) bucket.push(e.excelRow);
+      }
+      return map;
     });
 
     const rowScrollCache = createRowScrollCache(SYN_MAX_RENDERED_ROWS, {
@@ -937,9 +981,10 @@ export default {
     }
 
     /**
-     * Only the ADAPTATION total row (=SOMME(...)) stays locked. Every other cell —
-     * including blue SUMPRODUCT, green section sums and the AB diff — is editable in
-     * real time; typing a value overrides the live formula (userEdited path).
+     * Locked cells: the ADAPTATION total row (=SOMME(...)), grey display-row blocks
+     * (blank), green display-row totals (auto Σ of the rows beneath), the row 16
+     * curb total, and the row 20 Control difference (row16 − row18). Blue
+     * SUMPRODUCT and the AB diff stay editable (typing overrides the live formula).
      */
     /** Grey display-row blocks (from display M) hold no value and cannot be edited. */
     function isSynGreyLockedCell(row, col) {
@@ -948,11 +993,205 @@ export default {
       return isSynDisplayRowGreyMaaCol(displayRow, col);
     }
 
+    /**
+     * Green display-row cells (the green-coloured columns from display M) are an
+     * automatic total: Σ of the same column for every row beneath, up to the next
+     * green row. They are computed live and therefore not directly editable.
+     */
+    function isSynGreenSumCell(row, col) {
+      if (row == null) return false;
+      const displayRow = displayRowByExcel.value.get(row);
+      return (
+        isSynDisplayRowGreenMaaCol(displayRow, col) ||
+        isSynDisplayRowGreenAcanCol(displayRow, col)
+      );
+    }
+
+    /**
+     * Unformatted underlying value of a cell — used so green totals sum the precise
+     * numbers (the on-screen display is rounded to 4 significant figures, which
+     * would otherwise make the total drift). Mirrors cellDisplay's value resolution
+     * (user edit → live SUMPRODUCT → materialized/static) but skips the formatting.
+     */
+    function cellRawValue(row, col) {
+      if (row == null) return '';
+      if (isSynGreyLockedCell(row, col)) return '';
+      if (isSynMirrorLfromMCell(row, col)) {
+        return cellRawValue(row, SYN_MIRROR_SRC_EXCEL_COL);
+      }
+      if (isSynPillarColAtRow(col, row, pillarColumns.value)) return '';
+      const cell = getCell(cellMap.value, row, col);
+      if (cell && cell.userEdited) return cell.v != null ? cell.v : '';
+      const label = synLabel(cellMap.value, row);
+      const rowClass = synRowStyleClass(cellMap.value, row, props.sheet);
+      const isLiveCalc = isSynCalculatedMassCell(
+        cell,
+        row,
+        col,
+        props.sheet,
+        label,
+        rowClass
+      );
+      const sheetMaterialized =
+        Boolean(props.sheet && props.sheet.materializedCalc) && !liveBdEdited.value;
+      const materialized =
+        sheetMaterialized || (cell && cell.mat && !cell.userEdited && !isLiveCalc);
+      if (
+        isLiveCalc &&
+        !materialized &&
+        liveCalcReady.value &&
+        props.session &&
+        props.session.getDisplayValue &&
+        props.session.ready &&
+        props.session.ready.value
+      ) {
+        const fromSession = props.session.getDisplayValue('SYNTHESIS', row, col, cell);
+        if (fromSession != null) return fromSession;
+      }
+      return synDisplayValue(
+        cell,
+        cellMap.value,
+        row,
+        col,
+        props.sheet,
+        pillarColumns.value
+      );
+    }
+
+    /** Numeric Σ of a green row's source rows for a column (null when no value). */
+    function computeGreenRowSumNumber(row, col) {
+      const sources = greenSumSourceRows.value.get(row);
+      if (!sources || !sources.length) return null;
+      let sum = 0;
+      let any = false;
+      for (const r of sources) {
+        const raw = cellRawValue(r, col);
+        if (raw == null || String(raw).trim() === '') continue;
+        const n = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.'));
+        if (!Number.isFinite(n)) continue;
+        sum += n;
+        any = true;
+      }
+      if (!any) return null;
+      return Math.round(sum * 10000) / 10000;
+    }
+
+    function computeGreenRowSum(row, col) {
+      const n = computeGreenRowSumNumber(row, col);
+      if (n == null) return '';
+      return formatVal(String(n));
+    }
+
+    /**
+     * Row 16 (CURB MASS) green-total columns — the summary-table columns that
+     * carry an automatic green total beneath them (display M…AA and AC…AN).
+     * Every green row has its green cells in those same columns, so a fixed
+     * reference green display row (26) is enough to test the column.
+     */
+    const SYN_ROW16_GREEN_REF_DR = 26;
+    function isSynRow16CurbTotalCol(col) {
+      return (
+        isSynDisplayRowGreenMaaCol(SYN_ROW16_GREEN_REF_DR, col) ||
+        isSynDisplayRowGreenAcanCol(SYN_ROW16_GREEN_REF_DR, col)
+      );
+    }
+
+    /**
+     * Row 16 cell value = Σ of every green-row total in the same column,
+     * suffixed with " kg". Each green cell already holds its own column total
+     * (computeGreenRowSum), so this sums those green totals across all green
+     * rows. Empty (no "kg") when the column has no green value at all.
+     */
+    function computeSynRow16CurbTotalNumber(col) {
+      let sum = 0;
+      let any = false;
+      for (const greenRow of greenSumSourceRows.value.keys()) {
+        const n = computeGreenRowSumNumber(greenRow, col);
+        if (n == null) continue;
+        sum += n;
+        any = true;
+      }
+      if (!any) return null;
+      return Math.round(sum * 10000) / 10000;
+    }
+
+    function computeSynRow16CurbTotal(col) {
+      const n = computeSynRow16CurbTotalNumber(col);
+      if (n == null) return '';
+      return `${formatVal(String(n))} kg`;
+    }
+
+    /**
+     * Row 20 (display) / Excel row 19 — "Control": the live difference between
+     * row 16 ("Curb mass") and row 18 ("Curb mass : last update") in the same
+     * column. Row 16's effective value is its curb total (Σ of green totals) in
+     * the summary columns and its raw metric value in the C…J band; row 18 is a
+     * stored baseline. The cell recomputes instantly whenever a value feeding
+     * row 16 or row 18 changes.
+     */
+    const SYN_CTRL_DIFF_ROW = 19; // displayed as row 20 — "Control"
+    const SYN_CTRL_DIFF_MINUEND_ROW = 16; // displayed 16 — "Curb mass"
+    const SYN_CTRL_DIFF_SUBTRAHEND_ROW = 18; // displayed 18 — "Curb mass : last update"
+
+    function synParseNumOrNull(v) {
+      if (v == null) return null;
+      const s = String(v).trim();
+      if (s === '') return null;
+      const n = parseFloat(s.replace(/\s/g, '').replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    }
+
+    /** Effective numeric value of a Control source row (as displayed). */
+    function controlSourceNumber(row, col) {
+      if (row === SYN_CTRL_DIFF_MINUEND_ROW && isSynRow16CurbTotalCol(col)) {
+        return computeSynRow16CurbTotalNumber(col);
+      }
+      const cell = getCell(cellMap.value, row, col);
+      if (!cell) return null;
+      return synParseNumOrNull(cell.v);
+    }
+
+    /** row16 − row18 for a column, or null when either side has no number. */
+    function controlDiffNumber(col) {
+      const a = controlSourceNumber(SYN_CTRL_DIFF_MINUEND_ROW, col);
+      const b = controlSourceNumber(SYN_CTRL_DIFF_SUBTRAHEND_ROW, col);
+      if (a == null || b == null) return null;
+      return a - b;
+    }
+
+    /** Matches the existing Control formatting: kg in the C…J band, 1 decimal elsewhere. */
+    function formatControlDiff(diff, col) {
+      if (isSynHeaderPanelVehicleCol(col)) {
+        return `${Math.round(diff)} kg`;
+      }
+      const rounded = Math.round(diff * 10) / 10;
+      const neg = rounded < 0;
+      return (neg ? '-' : '') + Math.abs(rounded).toFixed(1).replace('.', ',');
+    }
+
+    /** True for Control cells that carry a live row16 − row18 difference. */
+    function isSynControlDiffCell(row, col) {
+      if (Number(row) !== SYN_CTRL_DIFF_ROW) return false;
+      if (!isSynMassCalcCol(col)) return false;
+      return controlDiffNumber(col) != null;
+    }
+
+    /** Formatted Control difference, or null when the column has no difference. */
+    function computeControlDiffDisplay(col) {
+      const diff = controlDiffNumber(col);
+      return diff == null ? null : formatControlDiff(diff, col);
+    }
+
     function cellReadonly(row, col) {
       if (row == null) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
       if (isSynMirrorLfromMCell(row, col)) return true;
       if (isSynGreyLockedCell(row, col)) return true;
+      if (isSynGreenSumCell(row, col)) return true;
+      // Row 16 (CURB MASS) holds an automatic Σ of the column's green totals.
+      if (Number(row) === 16 && isSynRow16CurbTotalCol(col)) return true;
+      // Row 20 (Control) is the live row16 − row18 difference.
+      if (isSynControlDiffCell(row, col)) return true;
       return isSynAdaptationSumCell(row, col, props.sheet);
     }
 
@@ -1076,6 +1315,24 @@ export default {
         displayCache.set(hitKeyGrey, '');
         return '';
       }
+      // Green display-row cells = live Σ of the rows beneath until the next green
+      // row (same column). Computed on the fly (never cached) so any change to a
+      // source cell is reflected instantly.
+      if (isSynGreenSumCell(row, col)) {
+        return computeGreenRowSum(row, col);
+      }
+      // Row 16 (CURB MASS) = live Σ of every green-row total in the column,
+      // suffixed " kg". Computed on the fly (never cached) so it tracks any
+      // change to the green totals it sums.
+      if (Number(row) === 16 && isSynRow16CurbTotalCol(col)) {
+        return computeSynRow16CurbTotal(col);
+      }
+      // Row 20 (Control, Excel 19) = live row16 − row18 difference. Computed on
+      // the fly (never cached) so it tracks any change to row 16 or row 18.
+      if (Number(row) === SYN_CTRL_DIFF_ROW && isSynMassCalcCol(col)) {
+        const ctrl = computeControlDiffDisplay(col);
+        if (ctrl != null) return ctrl;
+      }
       const hitKey = `${row}:${col}`;
       if (displayCache.has(hitKey)) return displayCache.get(hitKey);
       // ADAPTATION total row — SUM(rows adaptationSumFrom..adaptationSumTo), cols C..J.
@@ -1152,6 +1409,117 @@ export default {
       displayCache.set(hitKey, out);
       return out;
     }
+
+    /**
+     * Green totals are derived in the display layer. To keep Supabase in sync we
+     * mirror each computed green total back into the grid sheet (as a userEdited
+     * cell so the auto-save snapshot picks it up) and emit `derived-change` so the
+     * host issues a real-time single-cell PATCH. Runs debounced after any edit /
+     * live recompute. The baseline is seeded from values already stored in the
+     * sheet, so a reload re-writes only totals that actually differ (and records
+     * brand-new ones once), never the whole table on every load.
+     */
+    const lastPersistedGreen = new Map();
+    let greenBaselineLoaded = false;
+    let greenPersistTimer = null;
+
+    function loadGreenBaseline() {
+      for (const greenRow of greenSumSourceRows.value.keys()) {
+        for (const col of SYN_GREEN_TOTAL_EXCEL_COLS) {
+          const c = cellMap.value.get(`${greenRow}:${col}`);
+          if (c && c.userEdited && c.v != null) {
+            lastPersistedGreen.set(`${greenRow}:${col}`, String(c.v));
+          }
+        }
+      }
+      // Control row (row 20) already holds its values in the sheet — seed the
+      // baseline from the live computation so a reload only writes Control cells
+      // that actually change (after a row 16 / row 18 edit), never on load.
+      for (const col of (props.sheet && props.sheet.columns) || []) {
+        if (!isSynControlDiffCell(SYN_CTRL_DIFF_ROW, col)) continue;
+        lastPersistedGreen.set(
+          `${SYN_CTRL_DIFF_ROW}:${col}`,
+          computeControlDiffDisplay(col)
+        );
+      }
+      greenBaselineLoaded = true;
+    }
+
+    function persistGreenTotals() {
+      if (!(props.session && props.session.ready && props.session.ready.value)) {
+        return;
+      }
+      if (!greenBaselineLoaded) loadGreenBaseline();
+      const changes = [];
+      for (const greenRow of greenSumSourceRows.value.keys()) {
+        const sources = greenSumSourceRows.value.get(greenRow);
+        if (!sources || !sources.length) continue;
+        for (const col of SYN_GREEN_TOTAL_EXCEL_COLS) {
+          const value = computeGreenRowSum(greenRow, col);
+          const key = `${greenRow}:${col}`;
+          if (lastPersistedGreen.get(key) === value) continue;
+          let cell = cellMap.value.get(key);
+          // Don't materialize a brand-new empty cell (nothing to record/clear).
+          if (value === '' && !(cell && cell.userEdited)) {
+            lastPersistedGreen.set(key, value);
+            continue;
+          }
+          lastPersistedGreen.set(key, value);
+          if (!cell) {
+            cell = { r: greenRow, c: col, v: value, userEdited: true };
+            props.sheet.cells.push(cell);
+            cellMap.value.set(key, cell);
+          } else {
+            cell.v = value;
+            cell.userEdited = true;
+            delete cell.f;
+          }
+          changes.push({ row: greenRow, col, value });
+        }
+      }
+      // Control row (row 20, Excel 19) = live row16 − row18 difference. Mirror it
+      // back the same way so edits to row 16 / row 18 propagate to Supabase.
+      for (const col of (props.sheet && props.sheet.columns) || []) {
+        if (!isSynControlDiffCell(SYN_CTRL_DIFF_ROW, col)) continue;
+        const value = computeControlDiffDisplay(col) || '';
+        const key = `${SYN_CTRL_DIFF_ROW}:${col}`;
+        if (lastPersistedGreen.get(key) === value) continue;
+        lastPersistedGreen.set(key, value);
+        let cell = cellMap.value.get(key);
+        if (!cell) {
+          cell = { r: SYN_CTRL_DIFF_ROW, c: col, v: value, userEdited: true };
+          props.sheet.cells.push(cell);
+          cellMap.value.set(key, cell);
+        } else {
+          cell.v = value;
+          cell.userEdited = true;
+          delete cell.f;
+        }
+        changes.push({ row: SYN_CTRL_DIFF_ROW, col, value });
+      }
+      if (changes.length) emit('derived-change', changes);
+    }
+
+    function scheduleGreenPersist() {
+      if (greenPersistTimer) clearTimeout(greenPersistTimer);
+      greenPersistTimer = setTimeout(persistGreenTotals, 500);
+    }
+
+    // Real edits only (in-grid + BD-driven Synthesis changes) and live recalcs —
+    // not scroll-driven editEpoch bumps — so totals re-sync without scroll churn.
+    watch(
+      () => [props.externalEditTick, synCalcTick.value],
+      () => scheduleGreenPersist()
+    );
+
+    watch(
+      () =>
+        Boolean(props.session && props.session.ready && props.session.ready.value),
+      (ready) => {
+        if (ready) scheduleGreenPersist();
+      },
+      { immediate: true }
+    );
 
     let searchIndex = null;
     let searchIndexEpoch = -1;
@@ -1421,6 +1789,9 @@ export default {
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
+      if (isSynRow16MaaFluoFirstCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
       if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
         return { ...base, ...synYellowFluoGreenFromMStyle() };
       }
@@ -1516,6 +1887,9 @@ export default {
       if (isSynProjHeaderRedCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-red', display);
       }
+      if (isSynRow16MaaFluoFirstCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
         const combined = withHdrPanelBold(row, col, hdrCls, display);
@@ -1580,12 +1954,15 @@ export default {
     /** One pass for all scroll-column CSS classes (avoids 30+ template checks per cell). */
     function scrollCellClassNames(entry, col, colIdx, colsLen, display) {
       if (isGapEntry(entry)) {
-        if (!isGapGreenPillarCol(col)) return '';
-        // Keep the pillar accent (K → green, CG → light green) on gap rows so
-        // column K stays #92d050 instead of falling back to the grey pillar fill.
-        return ['syn-panel-gap-pillar', 'syn-pillar-col', synPillarAccentClass(col)]
-          .filter(Boolean)
-          .join(' ');
+        const gapParts = [];
+        if (isGapGreenPillarCol(col)) {
+          // Keep the pillar accent (K → green, CG → light green) on gap rows so
+          // column K stays #92d050 instead of falling back to the grey pillar fill.
+          gapParts.push('syn-panel-gap-pillar', 'syn-pillar-col', synPillarAccentClass(col));
+        }
+        // The blank "between 18–19" gap row (display 19) stays clean: no M…AA frame
+        // edge here, so the L and AB gutters carry no bold line between rows 19–20.
+        return gapParts.filter(Boolean).join(' ');
       }
       const row = entry.excelRow;
       const parts = [
@@ -1959,6 +2336,7 @@ export default {
     });
     onUnmounted(() => {
       if (scrollEndTimer) clearTimeout(scrollEndTimer);
+      if (greenPersistTimer) clearTimeout(greenPersistTimer);
       window.removeEventListener('resize', updateViewport);
       scrollSync.dispose();
     });
