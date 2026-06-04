@@ -1960,8 +1960,17 @@ export default {
           // column K stays #92d050 instead of falling back to the grey pillar fill.
           gapParts.push('syn-panel-gap-pillar', 'syn-pillar-col', synPillarAccentClass(col));
         }
-        // The blank "between 18–19" gap row (display 19) stays clean: no M…AA frame
-        // edge here, so the L and AB gutters carry no bold line between rows 19–20.
+        // Gutters L (Excel Q) and AB must carry their gutter class on the blank
+        // "between 18–19" row too, otherwise the panel's bold horizontal separator
+        // (which only spares .syn-spacer-col-l / .syn-force-white-col) draws a black
+        // line across L and AB between rows 19 and 20.
+        if (isSynForceWhiteExcelCol(col)) gapParts.push('syn-force-white-col');
+        const gapSpacerCls = synSpacerColClass(col);
+        if (gapSpacerCls) gapParts.push(gapSpacerCls);
+        // Keep the bold M…AA frame edges continuous across the blank gap row so the
+        // left (M) and right (AA) contour lines have no break.
+        if (isSynHdrLmDividerLeftEntry(entry, col)) gapParts.push('syn-hdr-edge-lm-left');
+        if (isSynHdrAaDividerRightEntry(entry, col)) gapParts.push('syn-hdr-edge-aa-right');
         return gapParts.filter(Boolean).join(' ');
       }
       const row = entry.excelRow;
