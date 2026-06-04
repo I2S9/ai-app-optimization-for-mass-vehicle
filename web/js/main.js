@@ -9,8 +9,8 @@ import {
   onErrorCaptured,
   nextTick,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=scroll-perf1';
-import SynthesisGrid from './SynthesisGrid.js?v=scroll-perf1';
+import BdGrid from './BdGrid.js?v=scroll-perf2';
+import SynthesisGrid from './SynthesisGrid.js?v=mirror-lm1';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
@@ -26,13 +26,18 @@ import {
   resolveGridSheet,
   hasSheetEdits,
 } from './gridBoot.js?v=row-del-persist1';
-import { loadSheetRaw, probeSheetApi, patchSheetCells } from './sheetDataApi.js?v=p2';
+import {
+  loadSheetRaw,
+  probeSheetApi,
+  patchSheetCells,
+  fetchSession,
+} from './sheetDataApi.js?v=p2';
 import {
   buildMatrixState,
   applyMatrixSave,
   alignSynModelToBd,
   cloneStructure,
-} from './structureModel.js?v=matrix-ca-syn1';
+} from './structureModel.js?v=bookmark-sync1';
 import {
   upsertRawCell,
   loadLocalSnapshot,
@@ -44,7 +49,8 @@ import {
   syncGridEditsToRaw,
   synRawLooksHealthy,
   clearSheetTransform,
-} from './sessionPersistence.js?v=syn-nuke1';
+  dropStaleStructure,
+} from './sessionPersistence.js?v=canonical-structure1';
 
 const App = {
   components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
@@ -56,6 +62,7 @@ const App = {
     const dataLoadProgress = ref(null);
     const chunkedApi = ref(false);
     const serverCalc = ref(false);
+    const remoteOnly = ref(false);
     const error = ref(null);
     // Large data objects (149k+ cells + cellMap): shallowRef avoids Vue deep-proxying
     // every cell, which otherwise blocks the main thread for seconds on load and on
@@ -96,6 +103,7 @@ const App = {
     let matrixSessionBefore = null;
     let matrixSessionDirty = false;
     let matrixApplyQueued = false;
+    let matrixApplyDebounceTimer = null;
     /** Keep last known synthesis raw when BD-only saves run before Syn is opened. */
     let preservedSynRaw = null;
     let synRawLoadPromise = null;
@@ -114,11 +122,18 @@ const App = {
         if (!syn) syn = synRaw.value;
         if (syn) syncGridEditsToRaw(synthesisSheet.value, syn);
       }
+      const structRev = structureRevision.value;
+      const bd =
+        bdRaw.value != null
+          ? { ...bdRaw.value, structureRevision: structRev }
+          : null;
+      const synOut =
+        syn != null ? { ...syn, structureRevision: structRev } : null;
       return {
-        bd: bdRaw.value,
-        syn,
+        bd,
+        syn: synOut,
         revision: dirty.value,
-        structureRevision: structureRevision.value,
+        structureRevision: structRev,
       };
     }
 
@@ -180,9 +195,21 @@ const App = {
       };
     }
 
-    /** Build BD column index for live SYN SUMPRODUCT as soon as the grid sheet exists. */
-    function syncBdCalcEngine() {
+    /** Sheet object last pushed into the calc engine — guards against redundant reloads. */
+    let engineLoadedForSheet = null;
+
+    /**
+     * Build BD column index for live SYN SUMPRODUCT as soon as the grid sheet exists.
+     * Reloading the engine re-indexes ~149k cells, clears every SUMPRODUCT cache and
+     * re-posts the whole BD payload to the worker — so it must run ONCE per BD sheet,
+     * never on every navigation. `bdSheet.value` is a fresh object whenever the data
+     * actually changes (applyBdFromRaw / matrix / reset reassign it), so comparing the
+     * reference is enough to skip the no-op reloads that made page switches crawl.
+     */
+    function syncBdCalcEngine(force = false) {
       if (!bdSheet.value) return;
+      if (!force && engineStarted && engineLoadedForSheet === bdSheet.value) return;
+      engineLoadedForSheet = bdSheet.value;
       void session
         .loadSheets([{ name: 'BD', data: slimBdEnginePayload(bdSheet.value) }])
         .then(() => {
@@ -656,8 +683,78 @@ const App = {
           probeSheetApi(),
           fetchPrecomputedPack('bd'),
         ]);
+        // A frozen full-BD snapshot from an older structure schema would override the
+        // fresh base data + current code and bring back old/duplicated bookmarks. Drop
+        // its structural part so the structure is rebuilt from the project JSON; the
+        // user's plain cell edits are kept.
+        if (dropStaleStructure(snapshot)) {
+          console.info(
+            'Local session: stale structure snapshot discarded — rebuilding from project files.'
+          );
+        }
+
         chunkedApi.value = Boolean(apiCfg && apiCfg.chunkedLoad);
         serverCalc.value = Boolean(apiCfg && apiCfg.serverCalc);
+        remoteOnly.value = Boolean(apiCfg && apiCfg.remoteOnly);
+
+        if (remoteOnly.value && (!apiCfg || apiCfg.mode === 'static')) {
+          error.value =
+            'Supabase requis : 1) api\\go-api.bat  2) run-bd-server.bat  3) SUPABASE_SERVICE_KEY dans api\\.env  4) go-ingest-supabase.bat si premiere fois';
+          return;
+        }
+        if (apiCfg?.apiUnreachable) {
+          error.value =
+            'API Supabase injoignable — lancez api\\go-api.bat puis run-bd-server.bat';
+          return;
+        }
+
+        let remoteWon = false;
+        let remoteRev = -1;
+        let remoteStruct = 0;
+
+        const cloudApi =
+          apiCfg &&
+          (apiCfg.cloudPersist ||
+            apiCfg.mode === 'databricks' ||
+            apiCfg.mode === 'supabase' ||
+            apiCfg.mode === 'postgres');
+        if (cloudApi) {
+          try {
+            const remote = await fetchSession(apiCfg.projectId || 'default');
+            if (remote && remote.bd) {
+              remoteRev = Number(remote.revision) || 0;
+              const localRev =
+                snapshot && snapshot.revision != null ? Number(snapshot.revision) : -1;
+              remoteStruct =
+                Number(remote.structureRevision) ||
+                Number(remote.bd.structureRevision) ||
+                0;
+              const localStruct =
+                snapshot && snapshot.structureRevision != null
+                  ? Number(snapshot.structureRevision)
+                  : 0;
+              if (
+                !snapshot ||
+                remoteRev > localRev ||
+                (remoteRev === localRev && remoteStruct > localStruct)
+              ) {
+                bdRaw.value = remote.bd;
+                if (remote.syn) {
+                  synRaw.value = remote.syn;
+                  preservedSynRaw = remote.syn;
+                }
+                structureRevision.value = remoteStruct;
+                remoteWon = true;
+                dirty.value = Math.max(dirty.value, remoteRev);
+                saveStatus.value = 'saved';
+                bumpBdSheetRevision();
+                bumpSynSheetRevision();
+              }
+            }
+          } catch (e) {
+            console.warn('Cloud session load:', e);
+          }
+        }
 
         const bdHasEdits =
           (snapshot && snapshot.version === 3 && hasSheetEdits(snapshot.bdEdits)) ||
@@ -668,39 +765,79 @@ const App = {
         const hasBdFull = snapshot && snapshot.version === 3 && snapshot.bdFull;
         const hasSynFull = snapshot && snapshot.version === 3 && snapshot.synFull;
 
+        const localRev =
+          snapshot && snapshot.revision != null ? Number(snapshot.revision) : 0;
+        const localStruct =
+          snapshot && snapshot.structureRevision != null
+            ? Number(snapshot.structureRevision)
+            : 0;
+        const localWinsData =
+          remoteOnly.value
+            ? false
+            : !remoteWon ||
+              localRev > remoteRev ||
+              (localRev === remoteRev && localStruct > remoteStruct);
+
+        function mergeLocalEditsOntoCurrent() {
+          if (bdHasEdits && bdRaw.value) {
+            applySheetEdits(bdRaw.value, snapshot.bdEdits);
+            bumpBdSheetRevision();
+          }
+          if (synHasEdits && synRaw.value) {
+            applySheetEdits(synRaw.value, snapshot.synEdits);
+            bumpSynSheetRevision();
+          }
+          if (bdHasEdits || synHasEdits) {
+            loadedFromLocal.value = true;
+            if (session && session.liveBdEdited) session.liveBdEdited.value = true;
+          }
+        }
+
         if (snapshot && snapshot.version === 3) {
-          if (snapshot.bdFull) {
-            bdRaw.value = snapshot.bdFull;
-          } else if (bdHasEdits) {
-            await fetchBdFromServer();
-            applySheetEdits(bdRaw.value, snapshot.bdEdits);
-            bumpBdSheetRevision();
+          if (localWinsData) {
+            if (snapshot.bdFull) {
+              bdRaw.value = snapshot.bdFull;
+            } else if (bdHasEdits) {
+              if (!bdRaw.value) await fetchBdFromServer();
+              applySheetEdits(bdRaw.value, snapshot.bdEdits);
+              bumpBdSheetRevision();
+            }
+            if (!synRaw.value) await fetchSynFromServer();
+            preservedSynRaw = synRaw.value;
+            if (synHasEdits && synRaw.value) {
+              applySheetEdits(synRaw.value, snapshot.synEdits);
+            }
+            bumpSynSheetRevision();
+            structureRevision.value = localStruct;
+            loadedFromLocal.value = true;
+            saveStatus.value = 'saved';
+            dirty.value = Math.max(dirty.value, localRev);
+          } else if (remoteWon) {
+            mergeLocalEditsOntoCurrent();
+            structureRevision.value = Math.max(structureRevision.value, localStruct);
+            dirty.value = Math.max(dirty.value, localRev);
           }
-          await fetchSynFromServer();
-          preservedSynRaw = synRaw.value;
-          if (synHasEdits) {
-            applySheetEdits(synRaw.value, snapshot.synEdits);
-          }
-          bumpSynSheetRevision();
-          structureRevision.value =
-            snapshot.structureRevision != null ? snapshot.structureRevision : 0;
-          loadedFromLocal.value = true;
-          saveStatus.value = 'saved';
         } else if (snapshot && snapshot.version === 2) {
-          if (snapshot.bdEdits && hasSheetEdits(snapshot.bdEdits)) {
-            await fetchBdFromServer();
-            applySheetEdits(bdRaw.value, snapshot.bdEdits);
-            bumpBdSheetRevision();
+          if (localWinsData || !remoteWon) {
+            if (snapshot.bdEdits && hasSheetEdits(snapshot.bdEdits)) {
+              if (!bdRaw.value) await fetchBdFromServer();
+              applySheetEdits(bdRaw.value, snapshot.bdEdits);
+              bumpBdSheetRevision();
+            }
+            if (!synRaw.value) await fetchSynFromServer();
+            preservedSynRaw = synRaw.value;
+            if (snapshot.synEdits && hasSheetEdits(snapshot.synEdits)) {
+              applySheetEdits(synRaw.value, snapshot.synEdits);
+            }
+            bumpSynSheetRevision();
+            loadedFromLocal.value = true;
+            saveStatus.value = 'saved';
+            dirty.value = Math.max(dirty.value, localRev);
+          } else if (remoteWon) {
+            mergeLocalEditsOntoCurrent();
+            dirty.value = Math.max(dirty.value, localRev);
           }
-          await fetchSynFromServer();
-          preservedSynRaw = synRaw.value;
-          if (snapshot.synEdits && hasSheetEdits(snapshot.synEdits)) {
-            applySheetEdits(synRaw.value, snapshot.synEdits);
-          }
-          bumpSynSheetRevision();
-          loadedFromLocal.value = true;
-          saveStatus.value = 'saved';
-        } else if (snapshot && snapshot.bd) {
+        } else if (snapshot && snapshot.bd && !remoteWon) {
           bdRaw.value = snapshot.bd;
           loadedFromLocal.value = true;
           saveStatus.value = 'saved';
@@ -727,7 +864,7 @@ const App = {
 
         gridPreparing.value = true;
 
-        if (!bdRaw.value && preBd && preBd.sheet) {
+        if (!remoteOnly.value && !bdRaw.value && preBd && preBd.sheet) {
           await yieldToMain();
           bdSheet.value = preBd.sheet;
           bdSheetBuiltAt = 0;
@@ -844,6 +981,7 @@ const App = {
         await session.loadSheets([
           { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
         ]);
+        engineLoadedForSheet = bdSheet.value;
       }
       dirty.value += 1;
       autoSave.schedule();
@@ -872,7 +1010,6 @@ const App = {
 
       dirty.value += 1;
       autoSave.schedule();
-      void autoSave.saveNow();
     }
 
     async function performUndo() {
@@ -975,7 +1112,6 @@ const App = {
             if (synthesisSheet.value) syncSheetCell(synthesisSheet.value, row, col, value);
             dirty.value += 1;
             autoSave.schedule();
-            void autoSave.saveNow();
           })
           .catch((e) => console.warn('Syn raw load on edit:', e));
         return;
@@ -991,6 +1127,9 @@ const App = {
         if (bdSheet.value) {
           void session
             .setCellValue('BD', row, col, value)
+            .then(() => {
+              externalEditTick.value += 1;
+            })
             .catch((e) => console.warn('BD → Syn live calc:', e));
         }
         if (serverCalc.value && chunkedApi.value) {
@@ -998,10 +1137,21 @@ const App = {
             .then((res) => applySynPatches(res.synPatches))
             .catch((e) => console.warn('Server Syn recalc:', e));
         }
+      } else if (sheet === 'SYNTHESIS') {
+        externalEditTick.value += 1;
       }
       dirty.value += 1;
+      if (chunkedApi.value && (sheet === 'BD' || sheet === 'SYNTHESIS')) {
+        const sheetId = sheet === 'BD' ? 'bd' : 'synthesis';
+        void patchSheetCells(sheetId, [{ r: row, c: col, v: value }]).catch((e) =>
+          console.warn('Remote cell PATCH:', e)
+        );
+      }
+      // Debounced only: a full-sheet snapshot + server POST on every keystroke made
+      // editing crawl. The 400ms debounce, navigation flush and unload handler all
+      // call flush/saveNow, so nothing is lost — but typing stays instant. Per-cell
+      // realtime sync still happens above via patchSheetCells (single-cell PATCH).
       autoSave.schedule();
-      void autoSave.saveNow();
     }
 
     /**
@@ -1053,7 +1203,6 @@ const App = {
       externalEditTick.value += 1;
       dirty.value += 1;
       autoSave.schedule();
-      void autoSave.saveNow();
       if (sheet === 'BD') {
         bumpBdSheetRevision();
         void applyBdFromRaw(false);
@@ -1077,12 +1226,16 @@ const App = {
         return;
       }
       await clearLocalSnapshot();
+      // Also drop the cached grid transforms (precomputed grid) so the reset truly
+      // rebuilds from the project JSON instead of re-serving a stale cached grid.
+      await Promise.all([clearSheetTransform('bd'), clearSheetTransform('syn')]);
       editHistory.clear();
       historyTick.value = editHistory.revision;
       if (session && session.liveBdEdited) session.liveBdEdited.value = false;
       structureRevision.value = 0;
       loadedFromLocal.value = false;
       engineStarted = false;
+      engineLoadedForSheet = null;
       synthesisLoadPromise = null;
       synthesisPreparePromise = null;
       synthesisSheet.value = null;
@@ -1103,6 +1256,7 @@ const App = {
           { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
         ]);
         engineStarted = true;
+        engineLoadedForSheet = bdSheet.value;
         dirty.value = 0;
         saveStatus.value = 'saved';
       } catch (e) {
@@ -1295,16 +1449,19 @@ const App = {
       matrixOpen.value = true;
       try {
         if (!synRaw.value) {
-          void startSynBackgroundPrepare();
           try {
-            const raw = await loadSheetRaw('synthesis');
-            if (raw) synRaw.value = raw;
+            await ensureSynRaw();
           } catch {
             /* BD-only matrix still usable */
           }
+        } else {
+          void startSynBackgroundPrepare();
         }
-        const synSource = synRaw.value != null ? synRaw.value : null;
-        matrixState.value = buildMatrixState(bdSheet.value, synSource);
+        let synSheetForMatrix = synthesisSheet.value;
+        if (!synSheetForMatrix && synRaw.value) {
+          synSheetForMatrix = await transformSynthesisSheetAsync(synRaw.value);
+        }
+        matrixState.value = buildMatrixState(bdSheet.value, synSheetForMatrix);
         matrixSessionBefore = {
           bd: cloneRawSheet(bdRaw.value),
           syn: synRaw.value ? cloneRawSheet(synRaw.value) : null,
@@ -1377,16 +1534,18 @@ const App = {
           await applySynFromRaw(true);
         }
         externalEditTick.value += 1;
+        if (session && session.liveBdEdited) session.liveBdEdited.value = true;
         if (engineStarted && bdSheet.value) {
           await session.loadSheets([
             { name: 'BD', data: slimBdEnginePayload(bdSheet.value) },
           ]);
+          engineLoadedForSheet = bdSheet.value;
         }
         if (bdSheet.value) {
-          matrixState.value = buildMatrixState(
-            bdSheet.value,
-            synthesisSheet.value || null
-          );
+          const synForMatrix =
+            synthesisSheet.value ||
+            (synRaw.value ? await transformSynthesisSheetAsync(synRaw.value) : null);
+          matrixState.value = buildMatrixState(bdSheet.value, synForMatrix);
         } else {
           matrixState.value = {
             bd: cloneStructure(result.bdModel),
@@ -1418,9 +1577,19 @@ const App = {
     function onMatrixChange({ bd }) {
       if (!bd) return;
       matrixPendingModel = bd;
+      if (matrixApplyDebounceTimer) clearTimeout(matrixApplyDebounceTimer);
+      matrixApplyDebounceTimer = setTimeout(() => {
+        matrixApplyDebounceTimer = null;
+        const pending = matrixPendingModel;
+        if (pending && matrixOpen.value) void applyMatrixFromModel(pending);
+      }, 400);
     }
 
     async function closeMatrix() {
+      if (matrixApplyDebounceTimer) {
+        clearTimeout(matrixApplyDebounceTimer);
+        matrixApplyDebounceTimer = null;
+      }
       const pending = matrixPendingModel;
       matrixPendingModel = null;
       if (pending) {

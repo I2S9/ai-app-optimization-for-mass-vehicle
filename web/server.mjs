@@ -13,6 +13,11 @@ import { createSynCalcContext } from './js/synMaterialize.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 5173;
 const HOST = '127.0.0.1';
+/** FastAPI + Supabase — port 8000 (go-api.bat) */
+const PROXY_API = (process.env.WGHT_PROXY_API || 'http://127.0.0.1:8000').replace(
+  /\/$/,
+  ''
+);
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -247,20 +252,86 @@ function serveStatic(req, res, urlPath) {
   });
 }
 
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+async function proxyApiToBackend(req, res, fullUrl, urlPath) {
+  const target = `${PROXY_API}${fullUrl}`;
+  const method = req.method || 'GET';
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (k.toLowerCase() === 'host') continue;
+    headers[k] = v;
+  }
+  let body;
+  if (method !== 'GET' && method !== 'HEAD') {
+    body = await readRawBody(req);
+  }
+  try {
+    const upstream = await fetch(target, {
+      method,
+      headers,
+      body: body && body.length ? body : undefined,
+    });
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.writeHead(upstream.status, {
+      'Content-Type': upstream.headers.get('content-type') || 'application/json',
+      'Cache-Control': 'no-store',
+      'Content-Length': buf.length,
+    });
+    res.end(buf);
+    return true;
+  } catch (e) {
+    const msg = String(e.message || e);
+    sendJson(
+      res,
+      {
+        ok: false,
+        error: `API Python injoignable sur ${PROXY_API}`,
+        detail: msg,
+        hint: 'Ouvrez une fenetre et lancez: api\\go-api.bat  puis rechargez cette page',
+        urlPath,
+      },
+      503
+    );
+    return true;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const fullUrl = req.url || '/';
   const urlPath = fullUrl.split('?')[0];
   if (urlPath.startsWith('/api/')) {
+    // Local-first : on sert config / sheets (meta, cells, PATCH) directement
+    // depuis les fichiers JSON de web/public/data. run-bd-server fonctionne donc
+    // sans Supabase/Python. Le proxy vers l'API Python (port 8000) ne sert que
+    // de repli pour les routes que ce serveur ne gere pas (ex : /sessions).
     if (await handleApi(req, res, urlPath, fullUrl)) return;
-    sendJson(res, { error: 'Not found' }, 404);
+    if (await proxyApiToBackend(req, res, fullUrl, urlPath)) return;
+    sendJson(
+      res,
+      {
+        error: 'Route API inconnue',
+        path: urlPath,
+        hint: 'Demarrez api\\go-api.bat puis http://127.0.0.1:5173/api/v1/config',
+      },
+      404
+    );
     return;
   }
   serveStatic(req, res, urlPath);
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`WGHT app: http://${HOST}:${PORT}/`);
-  console.log('API: GET /api/v1/config  PATCH /api/v1/sheets/bd/cells  (P2 server calc)');
+  console.log(`WGHT app:     http://${HOST}:${PORT}/`);
+  console.log(`API config:   http://${HOST}:${PORT}/api/v1/config  → proxy ${PROXY_API}`);
+  console.log('Si config echoue: lancez api\\go-api.bat dans une autre fenetre');
 });
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

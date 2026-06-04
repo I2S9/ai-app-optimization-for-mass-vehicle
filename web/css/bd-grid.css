@@ -439,6 +439,16 @@
   color: #000 !important;
   font-weight: 700;
 }
+/* Section rows: bold EVERY value cell, including the spacer / forced-white
+   columns the rule above excludes (they keep their own white background). */
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-spacer-col-l,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-force-white-col,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-spacer-col-l .grid-cell-display,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-force-white-col .grid-cell-display,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-spacer-col-l input,
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-force-white-col input {
+  font-weight: 700 !important;
+}
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.readonly:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
 .synthesis-grid .bd-table tbody tr.syn-row-subsection td.col-sticky-label,
@@ -459,6 +469,39 @@
   background: #d9d9d9 !important;
   color: #333 !important;
   font-weight: 600;
+}
+/* Dedicated collapse-toggle row (+/−) above the column letters — pillars B / K / CG */
+.synthesis-grid .bd-table thead tr.hdr-row-toggle th {
+  background: #d9d9d9 !important;
+  border-bottom: none !important;
+  padding: 0 !important;
+  height: 16px;
+  text-align: center;
+  vertical-align: middle;
+}
+.synthesis-grid .bd-table thead tr.hdr-row-toggle th.syn-col-toggle-btn,
+.synthesis-grid .bd-table thead tr.hdr-row-toggle th .syn-col-toggle-btn {
+  flex: 0 0 auto;
+}
+.synthesis-grid .bd-table thead tr.hdr-row-toggle .syn-col-toggle-btn {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #888;
+  border-radius: 2px;
+  background: #fff;
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.synthesis-grid .bd-table thead tr.hdr-row-toggle .syn-col-toggle-btn:hover {
+  background: #eaeaea;
 }
 .synthesis-grid .bd-table thead tr.hdr-row-letters th.corner.syn-row-num-hdr {
   background: #d9d9d9 !important;

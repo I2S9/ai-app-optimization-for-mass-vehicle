@@ -10,7 +10,7 @@ export const ROW_H = 21;
  * (keyed on edit/calc generation, not scroll position), so a larger window only
  * costs DOM nodes, not recomputation, once a region has been visited.
  */
-export const MAX_RENDERED_ROWS = 200;
+export const MAX_RENDERED_ROWS = 120;
 
 /** Synthesis row/column windows — viewport always covered, no full-sheet mount. */
 export const SYN_MAX_RENDERED_COLS = 104;
@@ -27,9 +27,13 @@ export function colOverscanPx(viewportW, minPx = 640) {
   return Math.min(4000, Math.max(minPx, Math.floor(viewportW * 2)));
 }
 
-/** Synthesis horizontal buffer — ~1.6 screens each side so fast horizontal flings stay covered. */
+/**
+ * Synthesis horizontal buffer (~0.6 screen each side). The old 1.6-screen buffer
+ * mounted ~65 cols/row (≈8900 cells) and made every horizontal scroll a heavy
+ * layout/paint; scrollLeft is synced without lag so a tighter buffer stays covered.
+ */
 export function synColOverscanPx(viewportW) {
-  return Math.min(2600, Math.max(900, Math.floor(viewportW * 1.6)));
+  return Math.min(1200, Math.max(500, Math.floor(viewportW * 0.6)));
 }
 
 /** Binary search on precomputed column layout (`left`, `width`). */

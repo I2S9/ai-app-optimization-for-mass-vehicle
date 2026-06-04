@@ -46,12 +46,18 @@ export function createGridCellNavigation(opts) {
 
   let colIndex = new Map();
   let rowIndex = new Map();
-  let cachedCols = [];
-  let cachedRows = [];
+  let cachedCols = null;
+  let cachedRows = null;
 
+  /**
+   * Rebuild the row/col → index maps only when the underlying arrays actually
+   * change. Callers expose stable (memoized) arrays, so a fast reference check
+   * skips rebuilding two Maps over thousands of rows on every arrow keypress.
+   */
   function rebuildIndex() {
     const cols = getColumns();
     const rows = getRows();
+    if (cols === cachedCols && rows === cachedRows) return;
     cachedCols = cols;
     cachedRows = rows;
     colIndex = new Map(cols.map((c, i) => [c, i]));
@@ -98,8 +104,8 @@ export function createGridCellNavigation(opts) {
 
     if (!force && findInput(scrollEl, row, col)) return;
 
-    const rows = getRows();
-    const ri = rows.indexOf(row);
+    rebuildIndex();
+    const ri = rowIndex.has(row) ? rowIndex.get(row) : -1;
     if (ri >= 0 && getRowTop) {
       const top = getRowTop(ri, row);
       if (top != null) {

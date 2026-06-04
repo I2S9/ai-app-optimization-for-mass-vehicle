@@ -12,6 +12,8 @@ import {
   HEADER_FR_EN,
   translateValue,
   translateSubsystemLabel,
+  repairClimateTypo,
+  formatCaBandStoredLabel,
 } from './bdTranslate.js';
 import { colToIndex, indexToCol } from './formulaUtil.js';
 import {
@@ -349,8 +351,13 @@ export function transformBdSheet(sheet) {
     .filter((c) => !hiddenCols.has(c.c))
     .map((c) => {
       let entry = { ...c };
+      if (entry.v != null && entry.v !== '') {
+        entry.v = repairClimateTypo(String(entry.v));
+      }
       if (isCaBandTitleCell(c)) {
-        // Keep the raw CA-chapter label; the grid translates it at render time.
+        if (entry.v != null && entry.v !== '') {
+          entry.v = formatCaBandStoredLabel(String(entry.v));
+        }
       } else if (isSubsystemDataCol(c.c) && entry.v != null) {
         entry.v = stripExcelErrors(String(entry.v));
         if (entry.v === '') delete entry.v;
@@ -412,7 +419,13 @@ function finalizeBdPrepared(prepared) {
 
 function mapBdCell(c) {
   let entry = { ...c };
+  if (entry.v != null && entry.v !== '') {
+    entry.v = repairClimateTypo(String(entry.v));
+  }
   if (isCaBandTitleCell(c)) {
+    if (entry.v != null && entry.v !== '') {
+      entry.v = formatCaBandStoredLabel(String(entry.v));
+    }
     return entry;
   }
   if (isSubsystemDataCol(c.c) && entry.v != null) {

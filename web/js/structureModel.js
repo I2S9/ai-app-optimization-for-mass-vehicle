@@ -16,8 +16,9 @@ import {
   computeOutlineRows,
   bdSubsystemL1Col,
   bdSubsystemL2Col,
-  isBdL2BookmarkStart,
   getBdL2BookmarkLabel,
+  isSubSectionRow,
+  getAsLabel,
 } from './bdStore.js';
 import {
   synLabel,
@@ -28,7 +29,31 @@ import {
   SYN_SKIPPED_ROWS,
   SYN_MAX_EXCEL_ROW,
 } from './synStore.js?v=syn-cicy1';
-import { translateSubsystemLabel, translateValue } from './bdTranslate.js';
+import { translateSubsystemLabel, translateValue, repairClimateTypo, formatSectionDisplayLabel, formatCaBandStoredLabel } from './bdTranslate.js';
+
+/** Canonical EN bookmark label (BD, Synthesis, Matrix share this). */
+export function canonicalBookmarkLabel(raw) {
+  const t = sanitizeStructureLabel(raw);
+  if (!t) return '';
+  return translateSubsystemLabel(t);
+}
+
+/** Persisted catalog — single source for bookmark row titles. */
+export function buildBookmarkCatalog(model) {
+  if (!model || !model.sections) return { version: 1, sections: [] };
+  return {
+    version: 1,
+    sections: model.sections.map((sec) => ({
+      id: sec.id,
+      label: canonicalBookmarkLabel(sec.label),
+      caBand: Boolean(sec.caBand),
+      subsections: (sec.subsections || []).map((sub) => ({
+        id: sub.id,
+        label: canonicalBookmarkLabel(formatBlueBandLabel(sub.label)),
+      })),
+    })),
+  };
+}
 
 /** Same as bd-grid.css row-section / row-subsection */
 const DEFAULT_SECTION_COLOR = '#ffff00';
@@ -74,16 +99,20 @@ export function extractBdStructure(sheet) {
       i + 1 < headers.length ? headers[i + 1] - 1 : sheet.lastRow;
     const subStarts = [];
     for (let r = headerRow + 1; r <= endRow; r++) {
-      if (isBdL2BookmarkStart(map, r, sh, l2Col)) subStarts.push(r);
+      // Only true `_`-prefixed L2 sub-sections become matrix sub-sections, so the
+      // Bookmark Matrix shows the SAME list as the Synthesis page and the eye view.
+      // Component-level blue bands (shouldDateColBlue) stay inside the section range.
+      if (isSubSectionRow(map, r, sh, l2Col)) subStarts.push(r);
     }
     const subsections = [];
     for (let j = 0; j < subStarts.length; j++) {
       const startRow = subStarts[j];
       const subEnd =
         j + 1 < subStarts.length ? subStarts[j + 1] - 1 : endRow;
-      const label =
+      const label = canonicalBookmarkLabel(
         getBdL2BookmarkLabel(map, startRow, sheet, sh, l2Col) ||
-        `_Row ${startRow}`;
+          `_Row ${startRow}`
+      );
       subsections.push({
         id: uid('sub'),
         label,
@@ -94,7 +123,7 @@ export function extractBdStructure(sheet) {
     }
     sections.push({
       id: uid('sec'),
-      label: getBdSectionLabel(map, headerRow, sheet),
+      label: canonicalBookmarkLabel(getBdSectionLabel(map, headerRow, sheet)),
       headerRow,
       endRow,
       color: colors[headerRow] || DEFAULT_SECTION_COLOR,
@@ -152,7 +181,9 @@ export function extractSynStructure(sheet) {
         j + 1 < subStarts.length ? subStarts[j + 1] - 1 : endRow;
       subsections.push({
         id: uid('sub'),
-        label: translateSubsystemLabel(synLabel(map, startRow) || `_Row ${startRow}`),
+        label: canonicalBookmarkLabel(
+          synLabel(map, startRow) || `_Row ${startRow}`
+        ),
         startRow,
         endRow: subEnd,
         color: colors[startRow] || DEFAULT_SUBSECTION_COLOR,
@@ -161,7 +192,9 @@ export function extractSynStructure(sheet) {
     }
     sections.push({
       id: uid('sec'),
-      label: translateSubsystemLabel(synLabel(map, headerRow) || `Section ${headerRow}`),
+      label: canonicalBookmarkLabel(
+        synLabel(map, headerRow) || `Section ${headerRow}`
+      ),
       headerRow,
       endRow,
       color: colors[headerRow] || DEFAULT_SECTION_COLOR,
@@ -303,19 +336,55 @@ function insertNewBdRows(sheet, model) {
   }
 }
 
+/** Keep L1 / blue-band titles in a section band aligned with matrix bookmark names. */
+function propagateBookmarkLabelsInBdBands(sheet, model) {
+  const l1Col = bdSubsystemL1Col(sheet);
+  const l2Col = bdSubsystemL2Col(sheet);
+  const sh = sheet.sectionHeaderRows || [];
+  for (const sec of model.sections) {
+    const map = buildCellMap(sheet.cells, sheet.headerRows);
+    if (sec.headerRow == null || sec.caBand) continue;
+    const label = canonicalBookmarkLabel(sec.label);
+    if (!label) continue;
+    const end = sec.endRow != null ? sec.endRow : sec.headerRow;
+    for (let r = sec.headerRow; r <= end; r++) {
+      if (isSubSectionRow(map, r, sh, l2Col)) {
+        const sub = sec.subsections.find((s) => s.startRow === r);
+        if (sub) {
+          const subLbl = formatBlueBandLabel(canonicalBookmarkLabel(sub.label));
+          setCell(sheet, r, 'A', subLbl);
+          setCell(sheet, r, l2Col, subLbl);
+        }
+        setCell(sheet, r, l1Col, label);
+        continue;
+      }
+      const l1 = displayValue(getCell(map, r, l1Col));
+      if (l1 && String(l1).trim().startsWith('_')) continue;
+      if (r === sec.headerRow || (l1 && String(l1).trim())) {
+        setCell(sheet, r, l1Col, label);
+      }
+    }
+  }
+}
+
 function applyBdLabels(sheet, model) {
   const l1Col = bdSubsystemL1Col(sheet);
   const l2Col = bdSubsystemL2Col(sheet);
+  // Snapshot of original L2 values to detect inherited data rows (built once).
+  const map0 = buildCellMap(sheet.cells, sheet.headerRows);
   if (!sheet.canonicalSectionByLabel) sheet.canonicalSectionByLabel = {};
   for (const sec of model.sections) {
     const hr = sec.headerRow;
-    const label = sanitizeStructureLabel(sec.label);
+    const label = canonicalBookmarkLabel(sec.label);
     if (!label) continue;
     sec.label = label;
     if (sec.caBand || isCaChapterRow(hr)) {
-      // CA chapter label lives in column W (its canonical display cell).
-      setCell(sheet, hr, 'W', label);
-      sheet.canonicalSectionByLabel[label] = hr;
+      const disp = formatSectionDisplayLabel(label);
+      const stored = formatCaBandStoredLabel(label);
+      sec.label = disp;
+      setCell(sheet, hr, 'W', stored);
+      sheet.canonicalSectionByLabel[stored] = hr;
+      if (disp) sheet.canonicalSectionByLabel[disp] = hr;
     } else {
       setCell(sheet, hr, l1Col, label);
       if (isSectionLabel(label)) {
@@ -323,15 +392,27 @@ function applyBdLabels(sheet, model) {
       }
     }
     for (const sub of sec.subsections) {
-      const lbl = formatBlueBandLabel(sub.label);
+      const lbl = formatBlueBandLabel(canonicalBookmarkLabel(sub.label));
+      sub.label = lbl;
+      if (sub.startRow == null) continue;
       setCell(sheet, sub.startRow, 'A', lbl);
       setCell(sheet, sub.startRow, l2Col, lbl);
+      // Propagate the L2 label onto every inherited data row of the band so a
+      // rename does not leave stale raw values that render as duplicate bands.
+      const subEnd = sub.endRow != null ? sub.endRow : sub.startRow;
+      for (let r = sub.startRow + 1; r <= subEnd; r++) {
+        const existing = getAsLabel(map0, r, l2Col);
+        if (existing && String(existing).trim().startsWith('_')) {
+          setCell(sheet, r, l2Col, lbl);
+        }
+      }
     }
     for (const line of sec.customLines || []) {
       if (line.isNew) continue;
       setCell(sheet, line.startRow, 'A', line.label);
     }
   }
+  propagateBookmarkLabelsInBdBands(sheet, model);
   return sheet;
 }
 
@@ -692,13 +773,14 @@ function applySynRowOrder(synRaw, synModel, bdModel) {
 
 function applySynLabels(sheet, model) {
   for (const sec of model.sections) {
-    const label = sanitizeStructureLabel(sec.label);
+    const label = canonicalBookmarkLabel(sec.label);
     if (!label || sec.headerRow == null) continue;
     sec.label = label;
     setCell(sheet, sec.headerRow, 'F', label);
     for (const sub of sec.subsections) {
       if (sub.startRow == null) continue;
-      const lbl = formatBlueBandLabel(sub.label);
+      const lbl = formatBlueBandLabel(canonicalBookmarkLabel(sub.label));
+      sub.label = lbl;
       setCell(sheet, sub.startRow, 'F', lbl);
     }
   }
@@ -708,7 +790,9 @@ function applySynLabels(sheet, model) {
 function collectMatrixColors(model) {
   const colors = {};
   for (const sec of model.sections) {
-    colors[sec.headerRow] = sec.color || DEFAULT_SECTION_COLOR;
+    colors[sec.headerRow] = sec.caBand
+      ? DEFAULT_SECTION_COLOR
+      : sec.color || DEFAULT_SECTION_COLOR;
     for (const sub of sec.subsections) {
       colors[sub.startRow] = sub.color || DEFAULT_SUBSECTION_COLOR;
     }
@@ -868,7 +952,18 @@ function attachBdStructureMeta(sheet, model) {
   return sheet;
 }
 
+function repairBookmarkClimateInRaw(sheet) {
+  if (!sheet || !sheet.cells) return;
+  const cols = new Set(['A', 'W', 'AU', 'AS', 'AP', 'AR']);
+  for (const c of sheet.cells) {
+    if (!cols.has(c.c) || c.v == null) continue;
+    const s = String(c.v);
+    if (/HVACATE/i.test(s)) c.v = repairClimateTypo(s);
+  }
+}
+
 export function applyStructureToBdRaw(bdRaw, model) {
+  repairBookmarkClimateInRaw(bdRaw);
   const m = cloneStructure(model);
   const { oldToNew, newLastRow } = buildBdRowMap(bdRaw, m);
   let sheet = remapSheetRows(bdRaw, oldToNew, newLastRow);
@@ -878,6 +973,7 @@ export function applyStructureToBdRaw(bdRaw, model) {
   sheet = attachBdStructureMeta(sheet, m);
   sheet.structureArchive = structureArchiveFromModel(m);
   sheet.archivedRowBands = collectArchivedRowBands(m);
+  sheet.bookmarkCatalog = buildBookmarkCatalog(m);
   // New rows are now materialised — drop the "new" flag so re-applying the
   // same session model does not allocate duplicate rows.
   for (const sec of m.sections) {
@@ -901,6 +997,7 @@ export function applyStructureToSynRaw(synRaw, synModel, bdModel) {
   applySynLabels(sheet, m);
   sheet.structureArchive = structureArchiveFromModel(m);
   sheet.archivedRowBands = collectArchivedRowBands(m);
+  sheet.bookmarkCatalog = buildBookmarkCatalog(m);
   return { sheet, model: m };
 }
 
@@ -909,11 +1006,15 @@ export function applyMatrixSave(bdRaw, synRaw, bdModel, synModel) {
   const syn = synModel
     ? applyStructureToSynRaw(synRaw, synModel, bd.model)
     : { sheet: synRaw, model: null };
+  const catalog = buildBookmarkCatalog(bd.model);
+  bd.sheet.bookmarkCatalog = catalog;
+  if (syn.sheet) syn.sheet.bookmarkCatalog = catalog;
   return {
     bdRaw: bd.sheet,
     synRaw: syn.sheet,
     bdModel: bd.model,
     synModel: syn.model,
+    bookmarkCatalog: catalog,
   };
 }
 

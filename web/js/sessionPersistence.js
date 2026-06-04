@@ -1,11 +1,26 @@
 /**
- * Local persistence (IndexedDB) until Databricks API is available.
+ * Local persistence (IndexedDB) + optional Databricks session snapshots.
  * Survives F5 on the same machine / browser profile.
  */
 import { buildCellMap } from './bdStore.js';
+import { probeSheetApi, saveSession } from './sheetDataApi.js';
 
 const DB_NAME = 'vehicle-mass-platform';
 const DB_VERSION = 2;
+/**
+ * Bump when the grid transform output changes (e.g. outline/bookmark structure)
+ * so cached transforms (precomputed pack + IndexedDB L1) are invalidated even
+ * though the raw source data is unchanged.
+ */
+const TRANSFORM_VERSION = 'tv5-identical-structure';
+/**
+ * Bump when the *structure* logic changes (section/sub-section detection, canonical
+ * labels, outline rows). A persisted `bdFull` snapshot freezes the whole BD sheet;
+ * if it was produced by an older schema it must NOT override the fresh base data +
+ * current code, otherwise old/duplicated structure keeps coming back. On mismatch the
+ * loader discards `bdFull` and rebuilds from the project JSON (cell edits still apply).
+ */
+export const STRUCTURE_SCHEMA_VERSION = 'ss4-identical-structure';
 const STORE = 'snapshots';
 const STORE_TRANSFORMS = 'transforms';
 const DEFAULT_KEY = 'default';
@@ -167,6 +182,7 @@ export function buildPersistRecord({
     version: PERSIST_VERSION,
     revision: revision != null ? revision : 0,
     structureRevision: structureRevision != null ? structureRevision : 0,
+    structureSchema: STRUCTURE_SCHEMA_VERSION,
     savedAt: new Date().toISOString(),
   };
 
@@ -182,6 +198,34 @@ export function buildPersistRecord({
   }
 
   return record;
+}
+
+/**
+ * A persisted full-structure snapshot is stale when it was produced by an older
+ * structure schema. Such a snapshot must be discarded so the current code rebuilds
+ * the structure from the project JSON (otherwise old/duplicated bookmarks return).
+ */
+export function isStructureSnapshotStale(snapshot) {
+  if (!snapshot) return false;
+  const hasFrozenStructure =
+    Boolean(snapshot.bdFull) ||
+    Boolean(snapshot.synFull) ||
+    Number(snapshot.structureRevision) > 0;
+  if (!hasFrozenStructure) return false;
+  return snapshot.structureSchema !== STRUCTURE_SCHEMA_VERSION;
+}
+
+/**
+ * Strip the frozen-structure parts of a stale snapshot in place, keeping plain
+ * cell edits so the user's typed values survive while the structure is rebuilt.
+ * @returns {boolean} true when the snapshot was modified.
+ */
+export function dropStaleStructure(snapshot) {
+  if (!isStructureSnapshotStale(snapshot)) return false;
+  delete snapshot.bdFull;
+  delete snapshot.synFull;
+  snapshot.structureRevision = 0;
+  return true;
 }
 
 /** @returns {boolean} true if legacy full snapshot was applied */
@@ -358,7 +402,38 @@ export function createAutoSave(getPayload, { debounceMs = 1500, onStatus } = {})
     saving = true;
     if (onStatus) onStatus('saving');
     try {
-      await saveLocalSnapshot(data);
+      const cfg = await probeSheetApi();
+      const cloud =
+        cfg &&
+        (cfg.cloudPersist ||
+          cfg.mode === 'databricks' ||
+          cfg.mode === 'supabase' ||
+          cfg.mode === 'postgres');
+      const remoteOnly = Boolean(cfg && cfg.remoteOnly);
+      if (!remoteOnly) {
+        await saveLocalSnapshot(data);
+      }
+      if (cloud && (data.bd || data.syn)) {
+        const structRev =
+          data.structureRevision != null ? data.structureRevision : 0;
+        const res = await saveSession(cfg.projectId || 'default', {
+          revision: data.revision != null ? data.revision : 0,
+          bd: data.bd,
+          syn: data.syn,
+          updated_by: 'web',
+          structure_revision: structRev,
+          structureRevision: structRev,
+        });
+        if (res && res.conflict) {
+          const err = new Error(
+            `Conflit de revision (serveur ${res.revision}, local ${data.revision})`
+          );
+          err.code = 'REVISION_CONFLICT';
+          throw err;
+        }
+      } else if (remoteOnly) {
+        throw new Error('API Supabase inaccessible — lancez go-api.bat');
+      }
       if (onStatus) onStatus('saved');
     } catch (e) {
       console.error('Auto-save failed:', e);
@@ -425,7 +500,7 @@ export function rawFingerprint(raw) {
     ? [...raw.deletedRows].map(Number).filter(Number.isFinite).sort((a, b) => a - b)
     : [];
   const delKey = delRows.length ? delRows.join(',') : '';
-  return `${cells}:${cols}:${lastRow}:${edited}:${editHash.toString(36)}:del${delKey}`;
+  return `${TRANSFORM_VERSION}:${cells}:${cols}:${lastRow}:${edited}:${editHash.toString(36)}:del${delKey}`;
 }
 
 export function serializeTransformSheet(sheet) {

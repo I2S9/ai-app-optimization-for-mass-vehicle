@@ -11,6 +11,7 @@ import {
   loadSheetTransform,
   rawFingerprint,
 } from './sessionPersistence.js?v=persist-v6';
+import { fetchGridPack } from './sheetDataApi.js?v=p2';
 
 const GRID_URLS = {
   bd: '/public/data/bd-sheet-grid.json',
@@ -35,20 +36,25 @@ export async function fetchJson(url) {
 /** @returns {{ fingerprint: string, sheet: object } | null} */
 export async function fetchPrecomputedPack(sheetId) {
   if (packCache.has(sheetId)) return packCache.get(sheetId);
-  const url = GRID_URLS[sheetId];
-  if (!url) return null;
-  try {
-    const pack = await fetchJson(url);
-    if (!pack || !pack.sheet) return null;
-    const hydrated = {
-      fingerprint: pack.fingerprint || '',
-      sheet: hydrateTransformSheet(pack.sheet),
-    };
-    packCache.set(sheetId, hydrated);
-    return hydrated;
-  } catch {
-    return null;
+  // Prefer the DB-served grid (JSON-free path); fall back to the static file so the
+  // app keeps working while the migration is in progress / in pure static mode.
+  let pack = await fetchGridPack(sheetId);
+  if (!pack || !pack.sheet) {
+    const url = GRID_URLS[sheetId];
+    if (!url) return null;
+    try {
+      pack = await fetchJson(url);
+    } catch {
+      return null;
+    }
   }
+  if (!pack || !pack.sheet) return null;
+  const hydrated = {
+    fingerprint: pack.fingerprint || '',
+    sheet: hydrateTransformSheet(pack.sheet),
+  };
+  packCache.set(sheetId, hydrated);
+  return hydrated;
 }
 
 /**

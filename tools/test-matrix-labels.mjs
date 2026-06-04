@@ -41,8 +41,9 @@ const res = sm.applyMatrixSave(
 const bdSheet = transformBdSheet(res.bdRaw);
 const map = buildCellMap(bdSheet.cells, bdSheet.headerRows);
 const w5 = cellLabelValue(getCell(map, 5, 'W'));
-if (w5 !== 'ADAPTATION') fail('BD row 5 W after CA rename', w5);
-else ok('BD row 5 W = ADAPTATION after matrix rename');
+// CA chapter renames are stored in column W with the leading '-' marker.
+if (w5 !== '-ADAPTATION') fail('BD row 5 W after CA rename', w5);
+else ok('BD row 5 W = -ADAPTATION after matrix rename');
 
 const rowLabel = getRowLabel(map, 5, bdSheet.sectionHeaderRows);
 if (rowLabel !== 'ADAPTATION') fail('Database getRowLabel row 5', rowLabel);

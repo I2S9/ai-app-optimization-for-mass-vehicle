@@ -8,13 +8,13 @@
     <meta http-equiv="Expires" content="0" />
     <title>WGHT Dashboard</title>
     <link rel="stylesheet" href="/css/app.css?v=persist2" />
-    <link rel="stylesheet" href="/css/bd-grid.css?v=row-del1" />
+    <link rel="stylesheet" href="/css/bd-grid.css?v=section-bold1" />
     <link rel="stylesheet" href="/css/sidebar.css?v=20260520-syn-perf3" />
     <link rel="stylesheet" href="/css/matrix-modal.css?v=matrix16" />
     <script type="importmap">
       {
         "imports": {
-          "vue": "/vendor/vue.esm-browser.js",
+          "vue": "/vendor/vue.esm-browser.prod.js",
           "hyperformula": "/js/hyperformula.esm.js"
         }
       }
@@ -76,6 +76,8 @@
         }
       });
     </script>
-    <script type="module" src="/js/main.js?v=matrix-labels1"></script>
+    <!-- API Supabase : via proxy sur le meme port que l'app (run-bd-server.ps1) -->
+    <!-- Ne pas definir __WGHT_API_BASE__ sauf debug -->
+    <script type="module" src="/js/main.js?v=mirror-lm1"></script>
   </body>
 </html>

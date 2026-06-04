@@ -1,5 +1,5 @@
 /** SYNTHESIS sheet display helpers (filter band, labels, merges). */
-import { displayValue, getCell, isSectionLabel } from './bdStore.js';
+import { displayValue, getCell, isSectionLabel, formatBlueBandLabel } from './bdStore.js';
 import { translateValue, translateSubsystemLabel } from './bdTranslate.js';
 import {
   displayToExcelCol,
@@ -2879,24 +2879,56 @@ export function isSynL2SubsectionLabel(label) {
   return t.startsWith('_');
 }
 
-/** Rows under an L1 title until the next L1 (e.g. between AILES and ALTERNATEUR). */
-export function isSynBetweenL1SectionRows(map, row, sheet) {
-  if (isSynL1SectionLabel(synLabel(map, row))) return false;
+/**
+ * Per-map cache of the L1-section structure (which rows carry an L1 title).
+ * `isSynBetweenL1SectionRows` used to rescan every row of the sheet for every
+ * cell on every render — the dominant scroll hotspot in Synthesis (~50% of CPU).
+ * The L1 layout only depends on the label column, so we compute it once per map
+ * (single pass) and answer subsequent queries in O(1).
+ */
+const _synL1Cache = new WeakMap();
+
+function getSynL1Info(map, sheet) {
   const last =
     sheet && sheet.effectiveLastRow != null
       ? sheet.effectiveLastRow
       : sheet && sheet.lastRow != null
         ? sheet.lastRow
         : SYN_MAX_EXCEL_ROW;
-  let lastL1 = 0;
-  for (let r = SYN_GRID_FIRST_ROW; r < row; r++) {
-    if (isSynL1SectionLabel(synLabel(map, r))) lastL1 = r;
+  if (!map) return { last, set: new Set(), min: null, max: null };
+  let info = _synL1Cache.get(map);
+  if (info && info.last === last) return info;
+  const set = new Set();
+  let min = null;
+  let max = null;
+  for (let r = SYN_GRID_FIRST_ROW; r <= last; r++) {
+    if (isSynL1SectionLabel(synLabel(map, r))) {
+      set.add(r);
+      if (min === null) min = r;
+      max = r;
+    }
   }
-  if (!lastL1) return false;
-  for (let r = row + 1; r <= last; r++) {
-    if (isSynL1SectionLabel(synLabel(map, r))) return true;
-  }
-  return false;
+  info = { last, set, min, max };
+  _synL1Cache.set(map, info);
+  return info;
+}
+
+/** Memoized row→class map (a row's band class is identical across all columns). */
+const _synRowClassCache = new WeakMap();
+
+/** Drop cached structure for a map (call when a label/band cell is edited). */
+export function clearSynStructureCache(map) {
+  if (!map) return;
+  _synL1Cache.delete(map);
+  _synRowClassCache.delete(map);
+}
+
+/** Rows under an L1 title until the next L1 (e.g. between AILES and ALTERNATEUR). */
+export function isSynBetweenL1SectionRows(map, row, sheet) {
+  const info = getSynL1Info(map, sheet);
+  if (info.set.has(row)) return false;
+  if (info.min === null || info.max === null) return false;
+  return info.min < row && info.max > row;
 }
 
 export function isSynSectionLabelRow(map, row, sheet) {
@@ -2911,6 +2943,23 @@ export function isSynSectionLabelRow(map, row, sheet) {
 
 /** Row band from Excel label column (F) export, else label-prefix fallback. */
 export function synRowStyleClass(map, row, sheet) {
+  let rowCache = map ? _synRowClassCache.get(map) : null;
+  if (rowCache) {
+    const hit = rowCache.get(row);
+    if (hit !== undefined) return hit;
+  }
+  const cls = computeSynRowStyleClass(map, row, sheet);
+  if (map) {
+    if (!rowCache) {
+      rowCache = new Map();
+      _synRowClassCache.set(map, rowCache);
+    }
+    rowCache.set(row, cls);
+  }
+  return cls;
+}
+
+function computeSynRowStyleClass(map, row, sheet) {
   if (isSynPanelGapRow(row)) return 'syn-panel-gap';
   const band =
     (sheet && sheet.rowBands && sheet.rowBands[String(row)]) ||
@@ -3605,8 +3654,18 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (!cell) return '';
   if (col === SYN_LABEL_COL) {
     const label = synLabel(map, row);
-    if (isSynSectionLabelRow(map, row, sheet) && label) {
-      return synTranslateText(label, SYN_LABEL_COL);
+    if (label) {
+      const rowCls = synRowStyleClass(map, row, sheet);
+      const translated = synTranslateText(label, SYN_LABEL_COL);
+      // Yellow L1 sections: NO leading prefix. Blue sub-sections: "_" + UPPERCASE,
+      // exactly like the Database page and the Bookmark Matrix (formatBlueBandLabel),
+      // so every blue sub-section reads "_NAME" with no space after the underscore.
+      if (rowCls === 'syn-row-section') {
+        return translated.replace(/^[-\u2013_\s]+/, '');
+      }
+      if (rowCls === 'syn-row-subsection') {
+        return formatBlueBandLabel(translated);
+      }
     }
   }
   const raw = displayValue(cell);
@@ -3620,14 +3679,12 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   return synTranslateText(raw, col);
 }
 
-/** Yellow section / blue subsection / separator rows (outline / eye view). */
+/** Yellow section / blue subsection rows (outline / eye view).
+ * Separators (e.g. the "PROJECT" band) are intentionally excluded so the eye view
+ * shows the SAME section + sub-section list as the Database page and Bookmark Matrix. */
 export function isSynOutlineRow(map, row, sheet) {
   const cls = synRowStyleClass(map, row, sheet);
-  return (
-    cls === 'syn-row-section' ||
-    cls === 'syn-row-subsection' ||
-    cls === 'syn-row-separator'
-  );
+  return cls === 'syn-row-section' || cls === 'syn-row-subsection';
 }
 
 /** Last Excel row with label, structure band, or vehicle-column data. */

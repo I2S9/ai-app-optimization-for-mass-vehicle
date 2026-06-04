@@ -8,7 +8,8 @@ import {
   archiveSubsection,
   restoreSubsection,
   sortModelArchiveToEnd,
-} from './structureModel.js?v=matrix17';
+} from './structureModel.js?v=bookmark-sync1';
+import { formatSectionDisplayLabel } from './bdTranslate.js';
 
 const DEFAULT_SECTION_COLOR = '#ffff00';
 const DEFAULT_SUBSECTION_COLOR = '#00b0f0';
@@ -85,7 +86,7 @@ function formatSectionLabel(name) {
   const t = String(name || '').trim();
   if (!t) return '';
   if (/^=/.test(t) || /^IF\s*\(/i.test(t) || t.includes('#REF!')) return '';
-  return t.toUpperCase().replace(/\s+/g, ' ');
+  return formatSectionDisplayLabel(t) || t.toUpperCase().replace(/^_+/, '').replace(/^-+/, '').replace(/\s+/g, ' ');
 }
 
 function subSortIndex(model, subId) {
@@ -273,7 +274,7 @@ export default {
 
     function notifyChange() {
       if (!model.value || model.value.sections.length < 2) return;
-      // Draft only — parent applies once on Done (not on every drag).
+      publishDraft();
     }
 
     function publishDraft() {
@@ -741,7 +742,11 @@ export default {
     }
 
     function sectionStyle(sec) {
-      const style = { background: sec.color || DEFAULT_SECTION_COLOR };
+      const style = {
+        background: sec.caBand
+          ? DEFAULT_SECTION_COLOR
+          : sec.color || DEFAULT_SECTION_COLOR,
+      };
       if (sec.archived) {
         style.filter = 'grayscale(1)';
         style.opacity = '0.52';
@@ -1181,7 +1186,7 @@ export default {
             <div class="matrix-confirm" role="alertdialog" aria-modal="true">
               <p class="matrix-confirm-text">
                 Delete <strong>{{ confirmDelete.name }}</strong>?
-                Applied when you click Done.
+                Changes apply live to Database and Synthesis (saved automatically).
               </p>
               <div class="matrix-confirm-actions">
                 <button type="button" class="matrix-editor-cancel" @click="cancelDelete">Cancel</button>

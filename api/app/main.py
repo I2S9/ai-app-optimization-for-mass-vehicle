@@ -1,17 +1,20 @@
-"""FastAPI — progressive sheet load + Databricks session snapshots."""
+"""FastAPI — données 100 %% Supabase (HTTPS) quand DATA_BACKEND=supabase."""
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import settings
 from .local_store import LocalSheetStore
 
-app = FastAPI(title="WGHT Vehicle Mass API", version="0.1.0")
+app = FastAPI(title="WGHT Vehicle Mass API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +26,7 @@ app.add_middleware(
 
 local_store = LocalSheetStore(settings.local_data_path)
 DEFAULT_PROJECT = "default"
+logger = logging.getLogger(__name__)
 
 
 def _sheet_key(sheet_id: str) -> str:
@@ -32,24 +36,61 @@ def _sheet_key(sheet_id: str) -> str:
     return s
 
 
-def _databricks_sheet_name(sheet_id: str) -> str:
+def _cloud_sheet_name(sheet_id: str) -> str:
     return "BD" if sheet_id == "bd" else "SYNTHESIS"
+
+
+def _remote_store():
+    if settings.use_supabase_rest:
+        from . import supabase_rest
+
+        return supabase_rest
+    if settings.use_postgres_direct:
+        from . import supabase_store
+
+        return supabase_store
+    if settings.use_databricks:
+        from . import databricks_store
+
+        return databricks_store
+    return None
+
+
+def _require_remote():
+    store = _remote_store()
+    if not store:
+        raise HTTPException(
+            503,
+            "Supabase non configure : SUPABASE_URL + SUPABASE_SERVICE_KEY dans api/.env",
+        )
+    return store
 
 
 @app.get("/api/v1/health")
 def health():
     return {
         "ok": True,
-        "backend": "databricks" if settings.use_databricks else "local",
+        "backend": settings.api_mode,
+        "remoteOnly": settings.remote_only,
     }
+
+
+def _store_has_grid_cache() -> bool:
+    store = _remote_store()
+    return bool(store and hasattr(store, "fetch_grid_pack"))
 
 
 @app.get("/api/v1/config")
 def config():
     return {
-        "mode": "databricks" if settings.use_databricks else "local",
-        "chunkedLoad": True,
-        "version": 1,
+        "mode": settings.api_mode,
+        "chunkedLoad": settings.use_remote_store,
+        "cloudPersist": settings.use_remote_store,
+        "remoteOnly": settings.remote_only,
+        # When true the frontend can fetch the precomputed display grid from the DB
+        # (GET /sheets/{id}/grid) instead of the static /public/data/*-grid.json file.
+        "gridInDb": _store_has_grid_cache(),
+        "version": 2,
         "projectId": DEFAULT_PROJECT,
     }
 
@@ -57,15 +98,23 @@ def config():
 @app.get("/api/v1/sheets/{sheet_id}/meta")
 def sheet_meta(sheet_id: str, project_id: str = DEFAULT_PROJECT):
     sheet_id = _sheet_key(sheet_id)
-    if settings.use_databricks:
+    if settings.remote_only:
+        store = _require_remote()
+        meta = store.fetch_meta(project_id, _cloud_sheet_name(sheet_id))
+        if not meta:
+            raise HTTPException(
+                404,
+                f"No meta for {sheet_id} — run: python tools/ingest_supabase_rest.py",
+            )
+        return meta
+    store = _remote_store()
+    if store:
         try:
-            from . import databricks_store
-
-            meta = databricks_store.fetch_meta(project_id, _databricks_sheet_name(sheet_id))
+            meta = store.fetch_meta(project_id, _cloud_sheet_name(sheet_id))
             if meta:
                 return meta
         except Exception as exc:
-            raise HTTPException(503, f"Databricks meta: {exc}") from exc
+            raise HTTPException(503, str(exc)) from exc
     try:
         return local_store.get_meta(sheet_id)
     except FileNotFoundError as exc:
@@ -82,20 +131,22 @@ def sheet_cells(
     if rowMax < rowMin:
         raise HTTPException(400, "rowMax must be >= rowMin")
     sheet_id = _sheet_key(sheet_id)
-    if settings.use_databricks:
+    if settings.remote_only:
+        store = _require_remote()
+        cells = store.fetch_cells(
+            project_id, _cloud_sheet_name(sheet_id), rowMin, rowMax
+        )
+        return {"cells": cells, "rowMin": rowMin, "rowMax": rowMax}
+    store = _remote_store()
+    if store:
         try:
-            from . import databricks_store
-
-            cells = databricks_store.fetch_cells(
-                project_id,
-                _databricks_sheet_name(sheet_id),
-                rowMin,
-                rowMax,
+            cells = store.fetch_cells(
+                project_id, _cloud_sheet_name(sheet_id), rowMin, rowMax
             )
-            if cells:
+            if cells is not None:
                 return {"cells": cells, "rowMin": rowMin, "rowMax": rowMax}
         except Exception as exc:
-            raise HTTPException(503, f"Databricks cells: {exc}") from exc
+            raise HTTPException(503, str(exc)) from exc
     try:
         cells = local_store.get_cells(sheet_id, rowMin, rowMax)
         return {"cells": cells, "rowMin": rowMin, "rowMax": rowMax}
@@ -103,8 +154,52 @@ def sheet_cells(
         raise HTTPException(404, str(exc)) from exc
 
 
+@app.get("/api/v1/sheets/{sheet_id}/grid")
+def sheet_grid(sheet_id: str, project_id: str = DEFAULT_PROJECT):
+    """Precomputed display grid pack from the DB (replaces static *-grid.json)."""
+    sheet_id = _sheet_key(sheet_id)
+    store = _remote_store()
+    if not store or not hasattr(store, "fetch_grid_pack"):
+        raise HTTPException(501, "Grid cache requires Supabase REST")
+    try:
+        pack = store.fetch_grid_pack(project_id, _cloud_sheet_name(sheet_id))
+    except Exception as exc:
+        raise HTTPException(503, str(exc)) from exc
+    if not pack:
+        raise HTTPException(
+            404,
+            f"No grid pack for {sheet_id} — run: python -m tools.upload_grids_to_supabase",
+        )
+    return pack
+
+
+class CellPatchBody(BaseModel):
+    changes: list[dict[str, Any]]
+
+
+@app.patch("/api/v1/sheets/{sheet_id}/cells")
+def patch_sheet_cells(
+    sheet_id: str,
+    body: CellPatchBody,
+    project_id: str = DEFAULT_PROJECT,
+):
+    sheet_id = _sheet_key(sheet_id)
+    changes = body.changes or []
+    if not changes:
+        raise HTTPException(400, "changes[] required")
+    store = _require_remote() if settings.remote_only else _remote_store()
+    if not store or not hasattr(store, "upsert_cells"):
+        raise HTTPException(501, "Cell PATCH requires Supabase REST")
+    try:
+        store.upsert_cells(project_id, _cloud_sheet_name(sheet_id), changes)
+        return {"ok": True, "count": len(changes)}
+    except Exception as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
 class SessionPutBody(BaseModel):
     revision: int = 0
+    structure_revision: int = 0
     bd: dict[str, Any] | None = None
     syn: dict[str, Any] | None = None
     updated_by: str = "web"
@@ -112,14 +207,13 @@ class SessionPutBody(BaseModel):
 
 @app.get("/api/v1/sessions/{project_id}")
 def get_session(project_id: str):
-    if not settings.use_databricks:
-        raise HTTPException(501, "Session API requires Databricks (set DATA_BACKEND=databricks)")
+    store = _require_remote() if settings.remote_only else _remote_store()
+    if not store:
+        raise HTTPException(501, "Session API requires Supabase")
     try:
-        from . import databricks_store
-
-        session = databricks_store.fetch_session(project_id)
+        session = store.fetch_session(project_id)
         if not session:
-            raise HTTPException(404, "Session not found")
+            raise HTTPException(404, "Session not found — run ingest")
         return session
     except HTTPException:
         raise
@@ -129,17 +223,31 @@ def get_session(project_id: str):
 
 @app.put("/api/v1/sessions/{project_id}")
 def put_session(project_id: str, body: SessionPutBody):
-    if not settings.use_databricks:
-        raise HTTPException(501, "Session API requires Databricks")
+    store = _require_remote() if settings.remote_only else _remote_store()
+    if not store:
+        raise HTTPException(501, "Session API requires Supabase")
     try:
-        from . import databricks_store
-
-        return databricks_store.upsert_session(
+        struct_rev = body.structure_revision
+        if not struct_rev and body.bd:
+            struct_rev = int(body.bd.get("structureRevision") or 0)
+        return store.upsert_session(
             project_id,
             body.revision,
             body.bd,
             body.syn,
             body.updated_by,
+            structure_revision=struct_rev,
         )
     except Exception as exc:
         raise HTTPException(503, str(exc)) from exc
+
+
+# Sert l'app web (index.html, /js, /css, /public/data, ...) sur le meme port que
+# l'API. Monte en DERNIER pour que les routes /api/v1/... gardent la priorite.
+# C'est ce qui corrige le "HTTP 404 for /public/data/bd-sheet.json" : le front
+# n'a plus besoin de __WGHT_API_BASE__, tout est servi en same-origin.
+WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
+if WEB_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+else:
+    logger.warning("Dossier web introuvable, fichiers statiques non servis: %s", WEB_DIR)

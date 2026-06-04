@@ -1,0 +1,23 @@
+# Base Postgres locale (meme schema que Supabase) — pas bloquee par le reseau Stellantis
+# Demarrer : docker compose up -d
+services:
+  wght-db:
+    image: postgres:16-alpine
+    container_name: wght-postgres
+    environment:
+      POSTGRES_USER: wght
+      POSTGRES_PASSWORD: wght
+      POSTGRES_DB: wght
+    ports:
+      - "5432:5432"
+    volumes:
+      - wght_pgdata:/var/lib/postgresql/data
+      - ./api/sql/supabase_001_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wght -d wght"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  wght_pgdata:

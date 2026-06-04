@@ -21,7 +21,7 @@ import {
   isSynCalculatedMassCell,
 } from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
-import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-search4';
+import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -47,6 +47,7 @@ import {
   synMetricCjWhiteColClass,
   formatSynNumericDisplay,
   synRowStyleClass,
+  clearSynStructureCache,
   isSynPillarCol,
   isSynPillarColAtRow,
   synPillarLetterForRow,
@@ -166,9 +167,12 @@ import {
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
+  displayToExcelCol,
   synStickyColWidth,
   synPillarColWidth,
   isSynBuiltinPillarExcelCol,
+  colToNum,
+  numToCol,
 } from './synthesisPerf.js?v=syn-pillar-cg2';
 import {
   ROW_H,
@@ -185,6 +189,54 @@ import {
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 
+/**
+ * Display column L (Excel Q) mirrors display column M (Excel R): L always shows
+ * M's live value. Applied on the body/value rows (row 26+ → Excel row >= 25) so
+ * the white header gutter (rows 3–22) stays empty.
+ */
+const SYN_MIRROR_DST_EXCEL_COL = displayToExcelCol('L'); // Q
+const SYN_MIRROR_SRC_EXCEL_COL = displayToExcelCol('M'); // R
+const SYN_MIRROR_FIRST_ROW = 25;
+
+function isSynMirrorLfromMCell(row, col) {
+  return col === SYN_MIRROR_DST_EXCEL_COL && Number(row) >= SYN_MIRROR_FIRST_ROW;
+}
+
+/**
+ * Row-1 (column-letter header) collapse groups. Clicking the "−" button on the
+ * pillar column hides the display columns it owns; "+" restores them. Pillars
+ * themselves (B/K/CG) always stay visible so the toggle remains reachable.
+ */
+const SYN_COL_GROUPS = [
+  {
+    key: 'B',
+    toggleDisplayCol: 'B',
+    hideDisplayCols: ['C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'],
+  },
+  {
+    key: 'K',
+    toggleDisplayCol: 'K',
+    hideDisplayRange: { start: 'L', end: 'CF' },
+  },
+];
+const SYN_COL_GROUP_BY_LETTER = new Map(
+  SYN_COL_GROUPS.map((g) => [g.toggleDisplayCol, g])
+);
+
+/** Excel columns hidden when a collapse group is active (display list or range). */
+function synGroupHiddenExcelCols(group) {
+  const out = [];
+  if (group.hideDisplayCols) {
+    for (const d of group.hideDisplayCols) out.push(displayToExcelCol(d));
+  }
+  if (group.hideDisplayRange) {
+    const lo = colToNum(group.hideDisplayRange.start);
+    const hi = colToNum(group.hideDisplayRange.end);
+    for (let n = lo; n <= hi; n++) out.push(displayToExcelCol(numToCol(n)));
+  }
+  return out;
+}
+
 export default {
   name: 'SynthesisGrid',
   props: {
@@ -196,7 +248,7 @@ export default {
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
   },
-  emits: ['cell-change', 'cell-select', 'row-delete', 'search-row-hidden', 'search-navigated'],
+  emits: ['cell-change', 'row-delete', 'search-row-hidden', 'search-navigated'],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -229,7 +281,38 @@ export default {
       return map;
     });
 
-    const displayColumns = computed(() => props.sheet.columns || []);
+    const collapsedColGroups = ref(new Set(['B']));
+
+    const hiddenExcelCols = computed(() => {
+      const set = new Set();
+      for (const g of SYN_COL_GROUPS) {
+        if (!collapsedColGroups.value.has(g.key)) continue;
+        for (const c of synGroupHiddenExcelCols(g)) set.add(c);
+      }
+      return set;
+    });
+
+    function isColGroupToggle(letter) {
+      return SYN_COL_GROUP_BY_LETTER.has(letter);
+    }
+    function isColGroupCollapsed(letter) {
+      const g = SYN_COL_GROUP_BY_LETTER.get(letter);
+      return g ? collapsedColGroups.value.has(g.key) : false;
+    }
+    function toggleColGroup(letter) {
+      const g = SYN_COL_GROUP_BY_LETTER.get(letter);
+      if (!g) return;
+      const next = new Set(collapsedColGroups.value);
+      if (next.has(g.key)) next.delete(g.key);
+      else next.add(g.key);
+      collapsedColGroups.value = next;
+    }
+
+    const displayColumns = computed(() => {
+      const cols = props.sheet.columns || [];
+      if (!hiddenExcelCols.value.size) return cols;
+      return cols.filter((c) => !hiddenExcelCols.value.has(c));
+    });
 
     const widthByCol = computed(() => {
       const m = new Map();
@@ -362,6 +445,14 @@ export default {
       return base.filter((e) => e.excelRow == null || !deletedRows.value.has(e.excelRow));
     });
     const rowCount = computed(() => bodyRows.value.length);
+
+    /** Stable navigable excel-row list — memoized for cell-nav/search reference checks. */
+    const navExcelRows = computed(() =>
+      bodyRows.value
+        .filter((e) => !isSynPanelGapEntry(e))
+        .map((e) => e.excelRow)
+        .filter((r) => r != null)
+    );
 
     const displayRowByExcel = computed(() => {
       const m = new Map();
@@ -527,12 +618,6 @@ export default {
         editEpoch.value += 1;
       }, 80);
     }
-    const selectedCell = ref(null);
-    const calcRevision = computed(() =>
-      props.session && props.session.revision && props.session.revision.value != null
-        ? props.session.revision.value
-        : 0
-    );
     const synCalcTick = computed(() =>
       props.session && props.session.synCalcTick && props.session.synCalcTick.value != null
         ? props.session.synCalcTick.value
@@ -702,6 +787,9 @@ export default {
         cell.userEdited = true;
         delete cell.f;
       }
+      // Editing the label column (F, or its D fallback) can change the L1/band
+      // structure — drop the memoized row-band/L1 caches so colours stay correct.
+      if (col === 'F' || col === 'D') clearSynStructureCache(cellMap.value);
       if (props.rawSyn) upsertRawCell(props.rawSyn, row, col, value);
       if (affectsAdaptationSum(row, col, props.sheet)) {
         invalidateAdaptationSumCol(col);
@@ -746,12 +834,10 @@ export default {
     } = cellEditor;
 
     function onCellSpanMouseDown(row, col, event) {
-      onReadonlyCellSelect(row, col, event);
       onCellSpanMouseDownBase(row, col, event);
     }
 
     function onCellFocus(row, col, event) {
-      selectCell(row, col);
       onCellFocusBase(row, col, event);
     }
 
@@ -762,16 +848,14 @@ export default {
      */
     function cellReadonly(row, col) {
       if (row == null) return true;
+      // Column L mirrors column M — its value is derived, so it is not editable.
+      if (isSynMirrorLfromMCell(row, col)) return true;
       return isSynAdaptationSumCell(row, col, props.sheet);
     }
 
     const cellNavigation = createGridCellNavigation({
       getColumns: () => displayColumns.value,
-      getRows: () =>
-        bodyRows.value
-          .filter((e) => !isSynPanelGapEntry(e))
-          .map((e) => e.excelRow)
-          .filter((r) => r != null),
+      getRows: () => navExcelRows.value,
       isNavigable: (row, col) => !cellReadonly(row, col),
       getScrollEl: () => scrollEl.value,
       flushScroll: () => scrollSync.flush(),
@@ -797,34 +881,6 @@ export default {
       const el = event.target;
       if (!el) return;
       previewAdaptationBandInput(row, col, el.value);
-    }
-
-    function selectCell(row, col) {
-      if (row == null || !col) return;
-      selectedCell.value = { row, col };
-      emit('cell-select', { row, col });
-    }
-
-    const formulaText = computed(() => {
-      void calcRevision.value;
-      const sel = selectedCell.value;
-      if (!sel) return '';
-      if (props.session && props.session.getSynFormula) {
-        const v = props.session.getSynFormula(sel.row, sel.col);
-        return v != null ? v : '';
-      }
-      return '';
-    });
-
-    const formulaCellRef = computed(() => {
-      const sel = selectedCell.value;
-      if (!sel) return '';
-      return `${excelToDisplayCol(sel.col)}${sel.row}`;
-    });
-
-    function onReadonlyCellSelect(row, col, event) {
-      if (event.button !== 0) return;
-      selectCell(row, col);
     }
 
     /** Only real data rows below the header panel can be removed. */
@@ -906,6 +962,11 @@ export default {
         displayCacheKey = cacheKey;
       }
       if (row == null) return '';
+      // Column L (Excel Q) mirrors column M (Excel R) live. Delegate to M without
+      // caching under L so a granular M-only invalidation can't leave L stale.
+      if (isSynMirrorLfromMCell(row, col)) {
+        return cellDisplay(row, SYN_MIRROR_SRC_EXCEL_COL);
+      }
       const hitKey = `${row}:${col}`;
       if (displayCache.has(hitKey)) return displayCache.get(hitKey);
       // ADAPTATION total row — SUM(rows adaptationSumFrom..adaptationSumTo), cols C..J.
@@ -1011,11 +1072,7 @@ export default {
 
     const gridSearch = createGridSearchController({
       getSearchIndex: getSearchIndexForGrid,
-      getBodyExcelRows: () =>
-        bodyRows.value
-          .filter((e) => !isSynPanelGapEntry(e))
-          .map((e) => e.excelRow)
-          .filter((r) => r != null),
+      getBodyExcelRows: () => navExcelRows.value,
       getScrollEl: () => scrollEl.value,
       scrollCellIntoView: (row, col) =>
         cellNavigation.scrollCellIntoViewForced(row, col),
@@ -1699,6 +1756,15 @@ export default {
     );
 
     watch(
+      () => hiddenExcelCols.value,
+      () => {
+        colScrollCache.reset();
+        bumpCellModelCache();
+        nextTick(() => scrollSync.flush());
+      }
+    );
+
+    watch(
       () => props.outlineOnly,
       () => {
         scrollTop.value = 0;
@@ -2021,22 +2087,17 @@ export default {
       onCellInputLive,
       onCellBlur,
       onCellKeydown,
-      selectedCell,
-      formulaText,
-      formulaCellRef,
-      onReadonlyCellSelect,
       ctxMenu,
       onRowContextMenu,
       closeCtxMenu,
       confirmDeleteRow,
+      isColGroupToggle,
+      isColGroupCollapsed,
+      toggleColGroup,
     };
   },
   template: `
     <div class="bd-grid-root synthesis-grid">
-      <div v-if="selectedCell" class="syn-formula-bar" role="status">
-        <span class="syn-formula-bar-ref">{{ formulaCellRef }}</span>
-        <span class="syn-formula-bar-text">{{ formulaText || '—' }}</span>
-      </div>
       <div class="bd-grid-scroll syn-scroll" ref="scrollEl" @scroll.passive="onScroll">
         <div
           class="syn-table-wrap"
@@ -2071,6 +2132,29 @@ export default {
           :style="{ width: tableWidth + 'px', minWidth: tableWidth + 'px' }"
         >
           <thead>
+            <tr class="hdr-row-toggle">
+              <th class="corner syn-row-num-hdr syn-col-toggle-corner"></th>
+              <th
+                v-for="entry in pinnedCols"
+                :key="'T-' + entry.col"
+                class="syn-col-toggle-cell col-sticky-label"
+                :style="[colStyle(entry.col, entry.width), stickyStyle(entry.col)]"
+              ></th>
+              <th v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></th>
+              <th
+                v-for="entry in visibleScrollCols"
+                :key="'T-' + entry.col"
+                class="syn-col-toggle-cell"
+                :style="colStyle(entry.col, entry.width)"
+              ><button
+                  v-if="isColGroupToggle(entry.letter)"
+                  type="button"
+                  class="syn-col-toggle-btn"
+                  :title="(isColGroupCollapsed(entry.letter) ? 'Déplier' : 'Plier') + ' colonne ' + entry.letter"
+                  @click="toggleColGroup(entry.letter)"
+                >{{ isColGroupCollapsed(entry.letter) ? '+' : '\u2212' }}</button></th>
+              <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
+            </tr>
             <tr class="hdr-row-letters">
               <th class="corner syn-row-num-hdr"></th>
               <th
@@ -2126,7 +2210,7 @@ export default {
                 :style="cell.style"
               >
                 <template v-if="cell.gap || cell.readonly">
-                  <span @mousedown="onReadonlyCellSelect(cell.row, cell.col, $event)">{{ cell.display }}</span>
+                  <span>{{ cell.display }}</span>
                 </template>
                 <input
                   v-else-if="isCellActive(cell.row, cell.col)"
@@ -2165,7 +2249,7 @@ export default {
                 :style="cell.style"
               >
                 <template v-if="cell.gap || cell.readonly">
-                  <span @mousedown="onReadonlyCellSelect(cell.row, cell.col, $event)">{{ cell.display }}</span>
+                  <span>{{ cell.display }}</span>
                 </template>
                 <input
                   v-else-if="isCellActive(cell.row, cell.col)"

@@ -4,7 +4,7 @@ $vendor = Join-Path $PSScriptRoot "..\web\vendor"
 New-Item -ItemType Directory -Force -Path $vendor | Out-Null
 
 $files = @{
-    "vue.esm-browser.js" = "https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.esm-browser.js"
+    "vue.esm-browser.prod.js" = "https://cdn.jsdelivr.net/npm/vue@3.5.13/dist/vue.esm-browser.prod.js"
     "hyperformula.full.min.js" = "https://cdn.jsdelivr.net/npm/hyperformula@3.0.0/dist/hyperformula.full.min.js"
 }
 

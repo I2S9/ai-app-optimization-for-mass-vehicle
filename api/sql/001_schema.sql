@@ -1,13 +1,24 @@
 -- Databricks / Unity Catalog — run once in SQL warehouse (IT or notebook).
--- Replace catalog/schema if your naming differs.
-
--- Pick a catalog you have access to (prefer a *_lab catalog for dev).
--- Example:
---   USE CATALOG eng_lab;
---   CREATE SCHEMA IF NOT EXISTS vehicle_mass;
 --
--- If you don't know which one: start with eng_lab (or your team's *_lab).
-USE CATALOG eng_lab;
+-- PERMISSION_DENIED on CREATE SCHEMA?
+--   → Do NOT use eng_lab unless IT gave you CREATE SCHEMA on that catalog.
+--   → Run the discovery queries below, pick a catalog + schema you own, then
+--     set api/.env:  DATABRICKS_CATALOG=<catalog>  DATABRICKS_SCHEMA=<schema>
+--
+-- ── Step 0: discover what you can use (SQL Editor) ──
+-- SHOW CATALOGS;
+-- SHOW SCHEMAS IN <your_catalog>;
+-- If CREATE SCHEMA fails, ask IT for an existing schema or use one you already have.
+
+-- ── Step 1: replace these two lines with YOUR catalog + schema ──
+-- Examples IT often provisions:
+--   USE CATALOG main;
+--   CREATE SCHEMA IF NOT EXISTS vehicle_mass;
+-- Or use an existing team schema (no CREATE needed):
+--   USE CATALOG my_team_catalog;
+--   USE SCHEMA existing_schema_name;
+
+USE CATALOG main;
 CREATE SCHEMA IF NOT EXISTS vehicle_mass;
 
 -- Full session snapshots (v1 — simple save/load)

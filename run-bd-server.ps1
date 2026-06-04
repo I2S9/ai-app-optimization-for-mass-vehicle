@@ -1,4 +1,4 @@
-# Launch BD web page - NO Node.js, NO admin rights. Opens Microsoft Edge by default.
+# Launch BD web page - requires Node.js for /api proxy to Supabase.
 param(
     [int]$Port = 5173,
     [switch]$NoBrowser
@@ -20,7 +20,7 @@ if (-not (Test-Path $json)) {
 $sizeMb = [math]::Round((Get-Item $json).Length / 1MB, 2)
 Write-Host "Fichier donnees OK ($sizeMb Mo)" -ForegroundColor Green
 
-$vendorVue = Join-Path $root "web\vendor\vue.esm-browser.js"
+$vendorVue = Join-Path $root "web\vendor\vue.esm-browser.prod.js"
 if (-not (Test-Path $vendorVue)) {
     Write-Host "Installation Vue + HyperFormula..." -ForegroundColor Yellow
     & (Join-Path $root "scripts\setup-web-vendor.ps1")
@@ -82,31 +82,56 @@ function Open-InMicrosoftEdge([string]$url) {
     }
 }
 
-$nodeExe = Get-Command node -ErrorAction SilentlyContinue
-$serverMjs = Join-Path $root "web\server.mjs"
-if ($nodeExe -and (Test-Path $serverMjs)) {
-    $env:PORT = "$Port"
-    $url = "http://127.0.0.1:$Port/"
-    Set-Content -Path $pidFile -Value $PID -Encoding ASCII -NoNewline
-    Write-Host ""
-    Write-Host "BD page: $url" -ForegroundColor Green
-    Write-Host "Serveur Node (JSON direct - rapide). Chunks: `$env:WGHT_CHUNKED_LOAD=1" -ForegroundColor Cyan
-    Write-Host "Ctrl+C pour arreter." -ForegroundColor Gray
-    Write-Host ""
-    if ($openBrowser) {
-        Open-InMicrosoftEdge $url
+function Resolve-NodeExe {
+    # 1) node dans le PATH (cas normal apres installation Node.js LTS)
+    $cmd = Get-Command node -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    # 2) emplacements d'installation classiques + Node embarque dans Cursor
+    $candidates = @(
+        (Join-Path $env:ProgramFiles 'nodejs\node.exe'),
+        (Join-Path ${env:ProgramFiles(x86)} 'nodejs\node.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\nodejs\node.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\cursor\resources\app\resources\helpers\node.exe')
+    )
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path $c)) { return $c }
     }
-    Push-Location (Join-Path $root "web")
-    try {
-        & node server.mjs
-    } finally {
-        Pop-Location
-        if (Test-Path $pidFile) { Remove-Item $pidFile -Force -ErrorAction SilentlyContinue }
+    # 3) installations nvm-windows
+    $nvm = Join-Path $env:APPDATA 'nvm'
+    if (Test-Path $nvm) {
+        $found = Get-ChildItem -Path $nvm -Recurse -Filter 'node.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($found) { return $found.FullName }
     }
-    exit $LASTEXITCODE
+    return $null
 }
 
-Write-Host "Node.js absent - serveur statique (sans API chunks)." -ForegroundColor Yellow
-Write-Host "Installez Node ou lancez: node web/server.mjs" -ForegroundColor Yellow
+$nodePath = Resolve-NodeExe
+$serverMjs = Join-Path $root "web\server.mjs"
+if (-not $nodePath -or -not (Test-Path $serverMjs)) {
+    Write-Host ""
+    Write-Host "ERREUR: Node.js introuvable (necessaire pour /api/v1/config)." -ForegroundColor Red
+    Write-Host "Installez Node.js LTS (https://nodejs.org) puis relancez run-bd-server.bat" -ForegroundColor Yellow
+    Write-Host ""
+    exit 1
+}
+Write-Host "Node utilise : $nodePath" -ForegroundColor Green
 
-& (Join-Path $root "scripts\serve-web.ps1") -Port $Port -WebRoot $webRoot -OpenBrowser:$openBrowser
+$env:PORT = "$Port"
+$env:WGHT_PROXY_API = "http://127.0.0.1:8000"
+$url = "http://127.0.0.1:$Port/"
+Set-Content -Path $pidFile -Value $PID -Encoding ASCII -NoNewline
+Write-Host ""
+Write-Host "Application : $url" -ForegroundColor Green
+Write-Host "Laissez cette fenetre ouverte. Ctrl+C pour arreter." -ForegroundColor Gray
+Write-Host ""
+if ($openBrowser) {
+    Open-InMicrosoftEdge $url
+}
+Push-Location (Join-Path $root "web")
+try {
+    & $nodePath server.mjs
+} finally {
+    Pop-Location
+    if (Test-Path $pidFile) { Remove-Item $pidFile -Force -ErrorAction SilentlyContinue }
+}
+exit $LASTEXITCODE

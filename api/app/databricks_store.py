@@ -44,14 +44,28 @@ def fetch_session(project_id: str) -> dict[str, Any] | None:
             if not row:
                 return None
             revision, bd_snap, syn_snap, updated_at, updated_by = row
+            bd = decompress_json(bd_snap)
+            syn = decompress_json(syn_snap)
+            struct_rev = 0
+            if bd and isinstance(bd, dict):
+                struct_rev = int(bd.get("structureRevision") or 0)
             return {
                 "project_id": project_id,
                 "revision": int(revision or 0),
-                "bd": decompress_json(bd_snap),
-                "syn": decompress_json(syn_snap),
+                "structureRevision": struct_rev,
+                "bd": bd,
+                "syn": syn,
                 "updated_at": str(updated_at) if updated_at else None,
                 "updated_by": updated_by,
             }
+
+
+def _stamp_structure_revision(sheet: dict | None, structure_revision: int) -> dict | None:
+    if not sheet or not structure_revision:
+        return sheet
+    out = dict(sheet)
+    out["structureRevision"] = structure_revision
+    return out
 
 
 def upsert_session(
@@ -60,6 +74,7 @@ def upsert_session(
     bd: dict | None,
     syn: dict | None,
     updated_by: str = "api",
+    structure_revision: int = 0,
 ) -> dict[str, Any]:
     q = f"""
         MERGE INTO {_table('workbook_sessions')} AS t
@@ -77,10 +92,24 @@ def upsert_session(
           updated_by = s.updated_by
         WHEN NOT MATCHED THEN INSERT *
     """
-    bd_json = compress_json(bd) if bd else None
-    syn_json = compress_json(syn) if syn else None
+    bd_stamped = _stamp_structure_revision(bd, structure_revision)
+    syn_stamped = _stamp_structure_revision(syn, structure_revision)
+    bd_json = compress_json(bd_stamped) if bd_stamped else None
+    syn_json = compress_json(syn_stamped) if syn_stamped else None
     with databricks_connection() as conn:
         with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT revision FROM {_table('workbook_sessions')} WHERE project_id = ? LIMIT 1",
+                (project_id,),
+            )
+            existing = cur.fetchone()
+            if existing and int(existing[0] or 0) > revision:
+                return {
+                    "project_id": project_id,
+                    "revision": int(existing[0]),
+                    "ok": False,
+                    "conflict": True,
+                }
             if bd_json and syn_json and len(bd_json) + len(syn_json) > 1_900_000:
                 cur.execute(
                     q,
@@ -99,7 +128,12 @@ def upsert_session(
                     q,
                     (project_id, revision, bd_json, syn_json, updated_by),
                 )
-    return {"project_id": project_id, "revision": revision, "ok": True}
+    return {
+        "project_id": project_id,
+        "revision": revision,
+        "structureRevision": structure_revision,
+        "ok": True,
+    }
 
 
 def fetch_meta(project_id: str, sheet: str) -> dict[str, Any] | None:

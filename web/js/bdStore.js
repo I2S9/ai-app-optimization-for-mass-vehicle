@@ -2,6 +2,9 @@
 import {
   translateValue,
   translateSubsystemLabel,
+  repairClimateTypo,
+  formatSectionDisplayLabel,
+  formatCaBandStoredLabel,
   SECTION_ALLOWLIST,
 } from './bdTranslate.js';
 import {
@@ -23,7 +26,7 @@ import {
   BD_MODULAR_TYPE_COL,
   BD_TRADE_COL,
 } from './bdColumnConfig.js';
-import { colToIndex } from './formulaUtil.js';
+import { colToIndex, indexToCol } from './formulaUtil.js';
 
 /** Column letter for yellow L1 section titles (AP in JSON, AR after transform). */
 export function bdSubsystemL1Col(sheet) {
@@ -218,12 +221,34 @@ export function cellLabelValue(cell) {
   return '';
 }
 
+/**
+ * Fixed canonical title for the two template CA chapter bands (rows 5 / 139).
+ * These are structural chapters that must always match the Synthesis page, so
+ * stray inline edits (e.g. "ADAPTATION TEST") are ignored in favour of the
+ * canonical name.
+ */
+export function caBandCanonicalTitle(row) {
+  if (row === 5) return 'ADAPTATION';
+  if (row === 139) return 'CABIN CLIMATE TREATMENT SYSTEM';
+  return '';
+}
+
+/**
+ * Effective title for a CA chapter band (rows 5 / 139). A matrix rename is
+ * persisted in column W (`-NEW NAME`); when present it wins so the chapter can
+ * be renamed like any other section. When W is empty (untouched template) the
+ * fixed canonical title is used, so the default display never regresses.
+ */
+export function caBandStoredTitle(map, row) {
+  const w = cellLabelValue(getCell(map, row, 'W'));
+  const stored = w ? formatSectionDisplayLabel(w) : '';
+  return stored || caBandCanonicalTitle(row);
+}
+
 /** Yellow L1 / CA chapter title for matrix extract and Database row labels. */
 export function getBdSectionTitleFromRow(map, row, sheet) {
   if (isCaBandRow(map, row)) {
-    const w = cellLabelValue(getCell(map, row, 'W'));
-    if (w) return String(w).trim();
-    return row === 5 ? '-ADAPTATION' : '-ADTH';
+    return caBandStoredTitle(map, row);
   }
   const l1Col = bdSubsystemL1Col(sheet);
   const ap = cellLabelValue(getCell(map, row, l1Col));
@@ -246,13 +271,78 @@ export function getAsLabel(map, row, l2Col = BD_SUBSYSTEM_L2_COL) {
   if (!cell || cell.v == null || cell.v === '') return '';
   return String(cell.v);
 }
-/** Blue sub-section title (_ADDBLUE, _FUEL…) — L2 column first (Excel AS), then A. */
+/**
+ * Blue sub-section title from the L2 sub-system column (Excel AS), then A.
+ * A sub-section is the name of an L2 sub-system block. Most are prefixed with "_"
+ * (_ADDBLUE, _FUEL…) but many sections (FENDERS, ALTERNATOR, SEATS, …) store the
+ * block name WITHOUT the "_" (FRONT FENDERS, ALTERNATOR SYSTEM…). Both must be
+ * recognised so the eye view / Bookmark Matrix list the SAME blue sub-sections
+ * the Synthesis page shows. Section titles, "_Unassigned" and formulas are excluded.
+ */
 export function getSubSectionLabel(map, row, l2Col = BD_SUBSYSTEM_L2_COL) {
-  const l2 = getAsLabel(map, row, l2Col);
-  if (l2.startsWith('_') && !isUnassignedSectionLabel(l2)) return l2.trim();
-  const a = displayValue(getCell(map, row, 'A'));
-  if (a.startsWith('_') && !isUnassignedSectionLabel(a)) return a.trim();
+  const l2 = getAsLabel(map, row, l2Col).trim();
+  // A genuine L2 block name (with or without "_"). Note we do NOT exclude values
+  // that happen to match a section name (e.g. "FRONT BUMPER" used as the L2 block
+  // under the FRONT section) — section header ROWS are already excluded upstream by
+  // isSubSectionRow. We only drop terminal markers (END / FIN), "_Unassigned" and
+  // formula text so they never appear as blue sub-sections.
+  if (
+    l2 &&
+    !isUnassignedSectionLabel(l2) &&
+    !isFormulaLike(l2) &&
+    !SKIP_LABELS.has(l2.toUpperCase())
+  ) {
+    return l2;
+  }
+  const a = displayValue(getCell(map, row, 'A')).trim();
+  if (a.startsWith('_') && !isUnassignedSectionLabel(a)) return a;
+  // Data-entry gap: some components fill column A but leave the L2 cell empty
+  // (e.g. "Vitre de toit" under HEADLINER / SR). Synthesis lists them as blue
+  // sub-sections, so the Database eye view must too. Only accept a *real* label
+  // that sits inside a named L1 section — this skips markers (To copy / End of
+  // lot / STLA/S / formulas) and the trailing "not yet classified" zone (blank L1).
+  if (
+    !l2 &&
+    a &&
+    !isUnassignedSectionLabel(a) &&
+    !isFormulaLike(a) &&
+    !SKIP_LABELS.has(a.toUpperCase()) &&
+    !/^-?[\d\s.,%]+$/.test(a) &&
+    !isRecopierRow(map, row) &&
+    !isFinDeLotRow(map, row) &&
+    !isFormulesRow(map, row)
+  ) {
+    const l1Idx = colToIndex(l2Col) - 3;
+    const l1Col = l1Idx >= 0 ? indexToCol(l1Idx) : null;
+    const l1 = l1Col ? displayValue(getCell(map, row, l1Col)).trim() : '';
+    // A === L1 is the signature of a yellow section header row (e.g. "STARTER"):
+    // never treat those as a blue sub-section, or the real first sub-section right
+    // below would be swallowed as a duplicate.
+    if (
+      l1 &&
+      l1 !== '0' &&
+      !isUnassignedSectionLabel(l1) &&
+      a.toUpperCase() !== l1.toUpperCase()
+    ) {
+      return a;
+    }
+  }
   return '';
+}
+/**
+ * Canonical (translated) sub-section key for band comparisons. A matrix rename
+ * only rewrites the band's FIRST L2 cell; inherited data rows keep the OLD raw
+ * value. Comparing raw labels then makes the next data row look like a NEW
+ * sub-section (duplicate blue band). Compare canonical labels so a renamed band
+ * and its inherited rows resolve to the same key → single band, no duplicates.
+ */
+export function canonicalSubSectionKey(label) {
+  if (!label) return '';
+  const t = repairClimateTypo(String(label).trim());
+  if (!t) return '';
+  return String(translateValue(t) || t)
+    .trim()
+    .toUpperCase();
 }
 const SKIP_LABELS = new Set([
   'TT',
@@ -330,6 +420,16 @@ export function isSubsystemL1Label(v) {
 }
 /** Rows hidden from the grid (Excel duplicate tail meta only). */
 const HIDDEN_META_ROWS = new Set([138]);
+/**
+ * Excel rows removed from the Database grid — display numbers are renumbered.
+ * Row 21 (_AIR CIRCUIT sub-section) is kept so the section/sub-section list stays
+ * identical to the Synthesis page; only the surrounding STLA/S data rows are hidden.
+ */
+export const BD_HIDDEN_DISPLAY_ROWS = new Set([19, 20, 22]);
+
+export function isBdHiddenDisplayRow(row) {
+  return BD_HIDDEN_DISPLAY_ROWS.has(Number(row));
+}
 /** Column-header row in thead; first body row is 2. */
 export const BD_HEADER_DISPLAY_ROW = 1;
 export const BD_BODY_DISPLAY_ROW_START = 2;
@@ -339,9 +439,7 @@ export function isCaBandRow(map, row) {
 }
 /** Label in Date column on yellow CA band rows only (one row per chapter). */
 export function caChapterDateLabel(row) {
-  if (row === 5) return translateSubsystemLabel('ADAPTATION');
-  if (row === 139) return translateSubsystemLabel('ADTH');
-  return '';
+  return caBandCanonicalTitle(row);
 }
 export function isSectionBandRow(map, row) {
   return isCaBandRow(map, row);
@@ -414,7 +512,8 @@ export function isSubSectionRow(map, row, sectionHeaderRows, l2Col = BD_SUBSYSTE
   if (isSectionRow(map, row, sectionHeaderRows)) return false;
   const label = getSubSectionLabel(map, row, l2Col);
   if (!label) return false;
-  return label !== getSubSectionLabel(map, row - 1, l2Col);
+  const prev = getSubSectionLabel(map, row - 1, l2Col);
+  return canonicalSubSectionKey(label) !== canonicalSubSectionKey(prev);
 }
 /** First row of an L2 bookmark band: _SUB rows or blue title rows (Front wings…). */
 export function isBdL2BookmarkStart(
@@ -490,6 +589,7 @@ function isRowInArchivedBands(sheet, row) {
 
 export function shouldDisplayBodyRow(map, row, sheet) {
   if (HIDDEN_META_ROWS.has(row)) return false;
+  if (isBdHiddenDisplayRow(row)) return false;
   if (isRowInArchivedBands(sheet, row)) return false;
   const dataStart = (sheet && sheet.dataStartRow) || 6;
   const sh = sheet.sectionHeaderRows;
@@ -534,10 +634,8 @@ export function getRowLabel(
     return '';
   }
   if (row === 5 || row === 139) {
-    // CA chapter label is editable and stored in column W.
-    const w = cellLabelValue(getCell(map, row, 'W'));
-    if (w) return String(w).trim();
-    return row === 5 ? '-ADAPTATION' : '-ADTH';
+    // CA chapter bands: a matrix rename (column W) wins; otherwise canonical.
+    return caBandStoredTitle(map, row);
   }
   const ap = cellLabelValue(getCell(map, row, l1Col));
   if (ap && isSectionLabel(ap)) return ap;
@@ -690,15 +788,20 @@ export function isTitleMarkerRow(map, row, sectionHeaderRows) {
     isPreBandMarkerRow(map, row, sectionHeaderRows)
   );
 }
-/** Outline view (eye): CA bands (5/139) + yellow/blue structure rows. */
+/**
+ * Outline view (eye): CA bands (5/139) + yellow sections + blue `_` sub-sections only.
+ * Component-level blue bands (shouldDateColBlue, e.g. _FRONT FENDERS, _ALTERNATOR SYSTEM)
+ * are Database-detail only and are intentionally excluded so the eye view, the Synthesis
+ * page and the Bookmark Matrix all show the SAME section / sub-section list.
+ */
 export function isOutlineRow(map, row, sectionHeaderRows) {
   if (HIDDEN_META_ROWS.has(row)) return false;
+  if (isBdHiddenDisplayRow(row)) return false;
   if (isFinDeLotRow(map, row)) return false;
   if (isPreBandMarkerRow(map, row, sectionHeaderRows)) return false;
   return (
     isCaBandRow(map, row) ||
-    isStructureRow(map, row, sectionHeaderRows) ||
-    shouldDateColBlue(map, row, sectionHeaderRows)
+    isStructureRow(map, row, sectionHeaderRows)
   );
 }
 /** Outline = ADAPTATION/ADTH on rows 5/139 + structure rows. */
@@ -736,7 +839,11 @@ export function cellInlineStyle(
   const cls = rowStyleClass(map, row, sectionHeaderRows);
   const rowColor =
     matrixColors && (matrixColors[row] != null ? matrixColors[row] : matrixColors[String(row)]);
-  if (rowColor && (cls === 'row-section' || cls === 'row-subsection')) {
+  if (isCaBandRow(map, row)) {
+    style.backgroundColor = '#ffff00';
+    style.color = '#000';
+    style.fontWeight = '700';
+  } else if (rowColor && (cls === 'row-section' || cls === 'row-subsection')) {
     style.backgroundColor = rowColor;
   }
   if (cls === 'row-date-green' || cls === 'row-project-config') {
@@ -798,14 +905,10 @@ function structureBookmarkDisplay(
       l1Col
     );
     if (!rawTitle) return '';
-    const title = translateSubsystemLabel(rawTitle);
-    /* CA bands 5 / 139: Date (A) + W; row 5 sans contenu projet (TT…) */
+    const title = formatSectionDisplayLabel(rawTitle);
+    /* CA bands 5 / 139: full-row yellow; label without "_" or leading "-". */
     if (isCaBandRow(map, row)) {
-      if (col === 'A') {
-        const dateLabel = String(rawTitle || '').replace(/^-+/, '').trim();
-        return dateLabel ? translateSubsystemLabel(dateLabel) : caChapterDateLabel(row);
-      }
-      if (col === 'W') return title;
+      if (col === 'A' || col === 'W') return title || caChapterDateLabel(row);
       return '';
     }
     if (col === 'A') return title;
@@ -814,7 +917,9 @@ function structureBookmarkDisplay(
     return '';
   }
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
-    const title = formatBlueBandLabel(getSubSectionLabel(map, row, l2Col));
+    const title = formatBlueBandLabel(
+      translateValue(getSubSectionLabel(map, row, l2Col))
+    );
     if (!title) return '';
     if (col === 'A') return title;
     return '';
@@ -840,10 +945,16 @@ function isInheritedBandOrSection(v) {
 function isMassCol(col) {
   return col === BD_MASS_COL;
 }
+const _canonByLabelCache = new WeakMap();
 function canonicalByLabelMap(canonicalSectionByLabel) {
   if (!canonicalSectionByLabel) return new Map();
   if (canonicalSectionByLabel instanceof Map) return canonicalSectionByLabel;
-  return new Map(Object.entries(canonicalSectionByLabel));
+  let cached = _canonByLabelCache.get(canonicalSectionByLabel);
+  if (!cached) {
+    cached = new Map(Object.entries(canonicalSectionByLabel));
+    _canonByLabelCache.set(canonicalSectionByLabel, cached);
+  }
+  return cached;
 }
 /** Section title visible on exactly one cell: W@5/139 or L1@canonical row. */
 function isCanonicalSectionDisplay(
@@ -900,16 +1011,17 @@ function maskInheritedSubSectionLabel(
   if (!t.startsWith('_') || isUnassignedSectionLabel(t)) return v;
   if (col === l2Col) {
     if (isSubSectionRow(map, row, sectionHeaderRows)) {
-      return formatBlueBandLabel(v);
+      return formatBlueBandLabel(translateValue(v));
     }
-    return v;
+    // L2 bookmark title only on the blue header row — hide on STLA/S data rows.
+    return '';
   }
   if (isSubSectionRow(map, row, sectionHeaderRows)) {
     if (col === 'AS') {
       const a = displayValue(getCell(map, row, 'A'));
       if (a && a.trim() === t) return '';
     }
-    return formatBlueBandLabel(v);
+    return formatBlueBandLabel(translateValue(v));
   }
   return '';
 }
@@ -938,7 +1050,7 @@ function blueTitleDisplay(map, row, col, sectionHeaderRows) {
   if (!shouldDateColBlue(map, row, sectionHeaderRows) || col !== 'A') return null;
   const title = colATitle(map, row);
   if (!title) return '';
-  return formatBlueBandLabel(title);
+  return formatBlueBandLabel(translateValue(title));
 }
 export function displayCellValue(
   map,
@@ -990,7 +1102,7 @@ export function displayCellValue(
   if (shouldDateColBlue(map, row, sectionHeaderRows)) {
     if (col === 'A') {
       const title = colATitle(map, row);
-      return title ? formatBlueBandLabel(title) : '';
+      return title ? formatBlueBandLabel(translateValue(title)) : '';
     }
     if (isMassCol(col)) {
       return massDisplayValue(map, row, col);

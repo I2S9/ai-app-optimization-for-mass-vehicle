@@ -100,6 +100,11 @@ export const L1_SECTION_EN = {
   VOLANT: 'STEERING WHEEL',
   'SPECIFIQUE PICK-UP': 'PICK-UP SPECIFIC',
   '-Non affecté': '-Unassigned',
+  // Legacy EN section titles present in the BD template — unify with Synthesis canonical names.
+  'TRACTION BATTERY': 'HIGH-VOLTAGE BATTERY',
+  // NB: do NOT map 'FRONT BUMPER' here — it is used as the L2 sub-section "_FRONT BUMPER"
+  // under the FRONT section (the FRONT section itself comes from 'BOUCLIER AV': 'FRONT').
+  'FRONT END': 'FACADE',
 };
 /** Yellow section rows — exact labels from the BD template (FR + EN). */
 export const SECTION_ALLOWLIST = new Set([
@@ -111,10 +116,14 @@ export const SECTION_ALLOWLIST = new Set([
   'FRONT END',
   'FRONT BUMPER',
   'TRACTION BATTERY',
+  // BD template stores this L1 in upper-case; the L1_SECTION_EN value is title-case.
+  'EPS = ELECTRIC POWER STEERING',
   '-Non affecté',
   '-Unassigned',
   '_Non affecté',
   '_Unassigned',
+  // Upper-case variant stored in the BD template for the catch-all bucket.
+  '-UNASSIGNED',
 ]);
 /** Sub-system L2 (_prefix) and common AS labels. */
 export const L2_SECTION_EN = {
@@ -139,6 +148,48 @@ export const L2_SECTION_EN = {
   '_Système de refroidissement par huile': '_OIL COOLING SYSTEM',
   '_Non affecté': '_Unassigned',
 };
+/**
+ * English L2 aliases in BD templates (already translated from FR but not canonical).
+ * Maps to the same labels as Synthesis / Bookmark Matrix.
+ */
+export const L2_ENGLISH_ALIASES = {
+  '_COOLANT CIRCUIT': '_WATER CIRCUIT',
+  '_COOLANT': '_COOLING LIQUID',
+  '_GEAR SHIFT CONTROL': '_SPEED CONTROL',
+  '_THERMAL SHIELDS': '_THERMAL SCREENS',
+  '_FRONT END': '_FACADE',
+  '_ADDITIVE FLUID': '_ADDITIVE LIQUID',
+  '_PEDAL ASSEMBLY': '_PEDAL',
+  '_POWERTRAIN SUPPORTS': '_ENGINE MOUNTS',
+  '_ADTH MISC': '_MISCELLANEOUS CABIN CLIMATE TREATMENT SYSTEM',
+  '_HVAC GROUP': '_AIR CONDITIONING GROUP',
+  '_AC COMPRESSOR': '_AIR CONDITIONING COMPRESSOR',
+  '_ADD-ON GROUP': '_ADDITIONAL GROUP',
+  '_ADD6ON GROUP': '_ADDITIONAL GROUP',
+  '_ADD ON GROUP': '_ADDITIONAL GROUP',
+  '_MISCELLANEOUS CABIN HVACATE TREATMENT SYSTEM':
+    '_MISCELLANEOUS CABIN CLIMATE TREATMENT SYSTEM',
+};
+
+function titleCasePhrase(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/** Map stripped L2 text via ENGLISH_LABEL_OVERRIDES → canonical _UPPERCASE bookmark. */
+function l2FromEnglishOverride(stripped) {
+  const candidates = [stripped, titleCasePhrase(stripped), stripped.toLowerCase()];
+  for (const c of candidates) {
+    if (ENGLISH_LABEL_OVERRIDES[c]) {
+      const en = String(ENGLISH_LABEL_OVERRIDES[c]).trim();
+      if (!en) continue;
+      if (en.startsWith('_')) return en.toUpperCase().replace(/\s+/g, ' ');
+      return `_${en.toUpperCase().replace(/\s+/g, ' ')}`;
+    }
+  }
+  return null;
+}
 /** Frequent cell values (exact match). */
 export const CELL_VALUE_EN = {
   'Ligne avec formules': 'Row with formulas',
@@ -293,9 +344,34 @@ const ENGLISH_LABEL_OVERRIDES = {
 export function isLabelColumn(col) {
   return LABEL_COLS.has(col);
 }
+
+/** Undo Clim→HVAC rule damage inside English "climate" (HVACATE → CLIMATE). */
+export function repairClimateTypo(raw) {
+  if (raw == null || raw === '') return raw;
+  return String(raw).replace(/HVACATE/gi, 'CLIMATE');
+}
+
+/** Yellow L1 section title for grid / matrix (no "_" prefix, no leading "-"). */
+export function formatSectionDisplayLabel(raw) {
+  let t = repairClimateTypo(String(raw != null ? raw : '').trim());
+  if (!t) return '';
+  if (CA_BAND_EN[t]) t = CA_BAND_EN[t];
+  else if (ENGLISH_LABEL_OVERRIDES[t]) t = ENGLISH_LABEL_OVERRIDES[t];
+  t = t.replace(/^_+/, '').replace(/^-+/, '').trim();
+  if (!t) return '';
+  return translateSubsystemLabel(t);
+}
+
+/** CA chapter band value stored in BD column W (-ADAPTATION / -CABIN CLIMATE…). */
+export function formatCaBandStoredLabel(raw) {
+  const disp = formatSectionDisplayLabel(raw);
+  if (!disp) return '';
+  return `-${disp}`;
+}
+
 export function translateValue(raw) {
   if (raw == null || raw === '') return raw;
-  const v = String(raw).trim();
+  const v = repairClimateTypo(String(raw).trim());
   if (!v) return v;
   if (ENGLISH_LABEL_OVERRIDES[v]) return ENGLISH_LABEL_OVERRIDES[v];
   if (HEADER_FR_EN[v]) return HEADER_FR_EN[v];
@@ -308,10 +384,17 @@ export function translateValue(raw) {
     for (const [fr, en] of Object.entries(L2_SECTION_EN)) {
       if (fr.toUpperCase() === key || fr === v) return en;
     }
+    if (L2_ENGLISH_ALIASES[key]) return L2_ENGLISH_ALIASES[key];
+    const fromOverride = l2FromEnglishOverride(v.slice(1));
+    if (fromOverride) return fromOverride;
+    // Already a canonical uppercase L2 bookmark — skip French phrase rules (e.g. Clim→HVAC).
+    if (/^_[A-Z0-9][A-Z0-9 /\-–]*$/.test(key)) return key;
     return '_' + translateFrenchPhrase(v.slice(1));
   }
   if (v === v.toUpperCase() && /^[A-Z0-9][A-Z0-9 /\-–]+$/.test(v) && v.length >= 3) {
     if (L1_SECTION_EN[v]) return L1_SECTION_EN[v];
+    // Canonical English section / CA band title — never run French phrase rules.
+    if (/CLIMATE|ADAPTATION|FENDERS|POWERTRAIN|ALTERNATOR/i.test(v)) return v;
     return translateFrenchPhrase(v);
   }
   return translateFrenchPhrase(v);
@@ -320,7 +403,7 @@ export function translateValue(raw) {
 const _frenchPhraseCache = new Map();
 /** Rule-based translation for remaining French phrases. */
 export function translateFrenchPhrase(text) {
-  const cacheKey = String(text);
+  const cacheKey = repairClimateTypo(String(text));
   const cached = _frenchPhraseCache.get(cacheKey);
   if (cached !== undefined) return cached;
   let s = cacheKey;
@@ -373,7 +456,7 @@ export function translateFrenchPhrase(text) {
     [/Additif/gi, 'Additive'],
     [/additif/gi, 'additive'],
     [/Huile/gi, 'Oil'],
-    [/Clim/gi, 'HVAC'],
+    [/\bClim\b/gi, 'HVAC'],
     [/Groupe/gi, 'Group'],
     [/Circuit/gi, 'Circuit'],
     [/Réservoir/gi, 'Tank'],

@@ -151,11 +151,13 @@ check('BD add section still single after re-apply', labelCounts(addR2.bdModel).s
 
 // 10) RENAME the special CA chapter "-ADAPTATION" — must update in ALL THREE
 //     views (bookmark matrix + database grid + synthesis), never duplicate.
-console.log('\n[rename -ADAPTATION (CA chapter, special row 5)]');
-const NEW = '-ADAPTATION RENAMED';
+console.log('\n[rename ADAPTATION (CA chapter, special row 5)]');
+// Matrix/model labels are display form (no leading '-'); the dash lives only in
+// the stored BD column W marker.
+const NEW = 'ADAPTATION RENAMED';
 const adaptRes = runApply((bd) => {
-  const sec = bd.sections.find((s) => s.label === '-ADAPTATION');
-  if (!sec) throw new Error('no -ADAPTATION section in base model');
+  const sec = bd.sections.find((s) => s.label === 'ADAPTATION');
+  if (!sec) throw new Error('no ADAPTATION section in base model');
   sec.label = NEW;
 });
 // (a) synthesis model carries the new label
@@ -165,22 +167,23 @@ const bdSheet2 = transformBdSheet(adaptRes.bdRaw);
 const reState = sm.buildMatrixState(bdSheet2, transformSynthesisSheet(adaptRes.synRaw));
 const reAdapt = reState.bd.sections.find((s) => s.headerRow === 5);
 check('MATRIX adaptation renamed after refresh', reAdapt && reAdapt.label === NEW, reAdapt && reAdapt.label);
-check('MATRIX no old -ADAPTATION left', (labelCounts(reState.bd).sec.get('-ADAPTATION') || 0) === 0);
+check('MATRIX no old ADAPTATION left', (labelCounts(reState.bd).sec.get('ADAPTATION') || 0) === 0);
 check('MATRIX no duplicate adaptation', (labelCounts(reState.bd).sec.get(NEW) || 0) === 1);
 // (c) database grid label (getRowLabel) reflects the rename on its single anchor cell
 const map2 = bdStore.buildCellMap(bdSheet2.cells, bdSheet2.headerRows);
 check('DATABASE adaptation renamed', bdStore.getRowLabel(map2, 5, bdSheet2.sectionHeaderRows) === NEW);
-// (d) no duplicate adaptation cell in the raw grid (the original bug)
-const adaptCells = adaptRes.bdRaw.cells.filter((c) => c.r === 5 && c.v === NEW);
+// (d) exactly one W anchor cell on row 5, carrying the stored '-' marker form
+const adaptCells = adaptRes.bdRaw.cells.filter((c) => c.r === 5 && c.c === 'W');
 check('DATABASE single adaptation cell (no dup)', adaptCells.length === 1, `got ${adaptCells.length}`);
+check('DATABASE W carries renamed marker', adaptCells.length === 1 && String(adaptCells[0].v) === `-${NEW}`, adaptCells[0] && String(adaptCells[0].v));
 check('BD no band overlap after CA rename', bandOverlaps(adaptRes.bdModel) === 0);
 
 // 11) Rename CA "-ADAPTATION" to "ADAPTATION TEST" — synthesis band must stay intact
-console.log('\n[rename -ADAPTATION → ADAPTATION TEST (syn band preserved)]');
+console.log('\n[rename ADAPTATION → ADAPTATION TEST (syn band preserved)]');
 const ADAPT_TEST = 'ADAPTATION TEST';
 const adaptTestRes = runApply((bd) => {
-  const sec = bd.sections.find((s) => s.label === '-ADAPTATION');
-  if (!sec) throw new Error('no -ADAPTATION section in base model');
+  const sec = bd.sections.find((s) => s.label === 'ADAPTATION');
+  if (!sec) throw new Error('no ADAPTATION section in base model');
   sec.label = ADAPT_TEST;
 });
 const synMap = bdStore.buildCellMap(adaptTestRes.synRaw.cells, adaptTestRes.synRaw.headerRows);
@@ -197,7 +200,7 @@ check(
   synLabel(synMap, 41)
 );
 check('SYN adaptation section count', (labelCounts(adaptTestRes.synModel).sec.get(ADAPT_TEST) || 0) === 1);
-check('SYN no orphan -ADAPTATION label', (labelCounts(adaptTestRes.synModel).sec.get('-ADAPTATION') || 0) === 0);
+check('SYN no orphan ADAPTATION label', (labelCounts(adaptTestRes.synModel).sec.get('ADAPTATION') || 0) === 0);
 
 console.log(`\n${failed === 0 ? 'ALL NO-DUP CHECKS PASSED' : failed + ' CHECK(S) FAILED'}`);
 process.exit(failed === 0 ? 0 : 1);

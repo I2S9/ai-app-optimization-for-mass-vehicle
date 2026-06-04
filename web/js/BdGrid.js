@@ -16,6 +16,7 @@ import {
   bdDesignDeptCol,
   computeBodyDisplayRows,
   BD_BODY_DISPLAY_ROW_START,
+  BD_HIDDEN_DISPLAY_ROWS,
   getCell,
   displayValue,
   displayCellValue,
@@ -34,8 +35,10 @@ import {
   ROW_H,
   rowOverscan,
   shouldVirtualizeRows,
+  shouldVirtualizeCols,
   createScrollRafSync,
   createRowScrollCache,
+  createColScrollCache,
   MAX_RENDERED_ROWS,
 } from './gridScroll.js?v=scroll-perf1';
 import {
@@ -45,7 +48,7 @@ import {
   isBdNumericEntryCell,
 } from './bdColumnConfig.js?v=input-fix1';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
-import { createGridCellNavigation } from './gridCellNavigation.js?v=grid-search4';
+import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -67,7 +70,9 @@ export default {
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
+    const scrollLeft = ref(0);
     const viewportH = ref(600);
+    const viewportW = ref(1200);
     const editEpoch = ref(0);
 
     const cellMap = shallowRef(new Map());
@@ -114,10 +119,10 @@ export default {
 
     const bodyRows = computed(() => {
       const base = bodyRowsRaw.value;
-      if (!deletedRows.value.size) return base;
       const out = [];
       let displayRow = BD_BODY_DISPLAY_ROW_START;
       for (const e of base) {
+        if (BD_HIDDEN_DISPLAY_ROWS.has(e.excelRow)) continue;
         if (deletedRows.value.has(e.excelRow)) continue;
         out.push({ excelRow: e.excelRow, displayRow: displayRow++ });
       }
@@ -125,6 +130,8 @@ export default {
     });
 
     const rowCount = computed(() => bodyRows.value.length);
+    /** Stable excel-row list — memoized so cell-nav/search keep a constant reference. */
+    const bodyExcelRows = computed(() => bodyRows.value.map((e) => e.excelRow));
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
@@ -178,10 +185,25 @@ export default {
       Boolean(props.session && props.session.ready && props.session.ready.value)
     );
     const displayCache = new Map();
+    /**
+     * Per-cell style/class memo. Building these inline in the template (colStyle +
+     * cellInlineStyle + bdColMetaClass + projectCellClass) allocated a fresh object
+     * and ran several functions for every one of the ~200 mounted rows × every column
+     * on each scroll-window shift — and the new object identity forced Vue to re-patch
+     * the DOM even when nothing changed. Caching by a generation counter returns the
+     * SAME reference between renders, so unchanged cells are skipped entirely; only
+     * newly scrolled-in rows compute. Mirrors the SynthesisGrid cell-model cache.
+     */
+    const cellStyleCache = new Map();
+    const cellClassCache = new Map();
+    let cellModelGen = 0;
     let displayCacheKey = '';
 
     function invalidateDisplayCache() {
       displayCache.clear();
+      cellStyleCache.clear();
+      cellClassCache.clear();
+      cellModelGen += 1;
       displayCacheKey = '';
     }
 
@@ -202,12 +224,48 @@ export default {
       return { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
     }
 
+    /** Merged width + inline style for a data cell — cached (stable ref) per generation. */
+    function cellStyleFor(row, col) {
+      const key = `${cellModelGen}:${row}:${col}`;
+      const cached = cellStyleCache.get(key);
+      if (cached !== undefined) return cached;
+      const w = widthMap.value.get(col) || 72;
+      const base = { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
+      const inline = cellInlineStyle(
+        getCell(cellMap.value, row, col),
+        cellMap.value,
+        row,
+        col,
+        sectionHeaderRows.value,
+        props.sheet.matrixColors
+      );
+      const merged =
+        inline && typeof inline === 'object' && Object.keys(inline).length
+          ? { ...base, ...inline }
+          : base;
+      cellStyleCache.set(key, merged);
+      return merged;
+    }
+
+    /** Static (non-search) class string for a data cell — cached per generation. */
+    function cellStaticClass(row, col) {
+      const key = `${cellModelGen}:${row}:${col}`;
+      const cached = cellClassCache.get(key);
+      if (cached !== undefined) return cached;
+      const meta = bdColMetaClass(col, props.sheet);
+      const proj = projectCellClass(cellDisplay(row, col), col);
+      const cls = [meta, proj].filter(Boolean).join(' ');
+      cellClassCache.set(key, cls);
+      return cls;
+    }
+
     function isStickyDateCol(col) {
       return col === 'A';
     }
 
     const scrollSync = createScrollRafSync({
       scrollTop,
+      scrollLeft,
       getScrollEl: () => scrollEl.value,
     });
 
@@ -228,6 +286,11 @@ export default {
         }
         if (dirty.keys && dirty.keys.size) {
           for (const k of dirty.keys) displayCache.delete(k);
+          // A changed display value can change projectCellClass, so the style/class
+          // memo must roll its generation too (cheap: rebuilt lazily on next render).
+          cellStyleCache.clear();
+          cellClassCache.clear();
+          cellModelGen += 1;
         }
       }
     );
@@ -276,6 +339,84 @@ export default {
     const BD_ROW_NUM_W = 42;
     const BD_HEADER_H = ROW_H * 2;
 
+    // ── Column virtualization (only the sticky col A + the on-screen scrollable
+    // columns are rendered). BD draws ~38 columns but ~10 are visible; rendering
+    // them all is the main cause of slow re-renders / blank rows on scroll.
+    const STICKY_COL = 'A';
+    const scrollColumns = computed(() =>
+      (columns.value || []).filter((c) => c !== STICKY_COL)
+    );
+    const colLayout = computed(() => {
+      const wm = widthMap.value;
+      let left = 0;
+      const out = [];
+      for (const col of scrollColumns.value) {
+        const width = wm.get(col) || 72;
+        out.push({ col, left, width });
+        left += width;
+      }
+      return out;
+    });
+    const scrollableWidth = computed(() => {
+      const l = colLayout.value;
+      return l.length ? l[l.length - 1].left + l[l.length - 1].width : 0;
+    });
+    const stickyWidth = computed(
+      () => BD_ROW_NUM_W + (widthMap.value.get(STICKY_COL) || 72)
+    );
+    const virtualizeCols = computed(() =>
+      shouldVirtualizeCols(stickyWidth.value + scrollableWidth.value, viewportW.value)
+    );
+    const colBufferPx = computed(() =>
+      Math.max(400, Math.round(viewportW.value * 0.5))
+    );
+    const colScrollCache = createColScrollCache(64, { monotonic: false });
+    const colRangeStart = ref(0);
+    const colRangeEnd = ref(0);
+
+    watchEffect(() => {
+      if (!props.paneVisible) return;
+      const layout = colLayout.value;
+      if (!virtualizeCols.value) {
+        colRangeStart.value = 0;
+        colRangeEnd.value = layout.length;
+        return;
+      }
+      const vpScrollW = Math.max(100, viewportW.value - stickyWidth.value);
+      const range = colScrollCache.resolve(
+        layout,
+        scrollLeft.value,
+        vpScrollW,
+        colBufferPx.value
+      );
+      colRangeStart.value = range.start;
+      colRangeEnd.value = range.end;
+    });
+
+    /** [A, ...on-screen scrollable cols] — what each row actually renders. */
+    const renderColumns = computed(() => {
+      if (!virtualizeCols.value) return columns.value || [];
+      const out = [STICKY_COL];
+      const layout = colLayout.value;
+      for (let i = colRangeStart.value; i < colRangeEnd.value; i++) {
+        if (layout[i]) out.push(layout[i].col);
+      }
+      return out;
+    });
+    /** Width of skipped scrollable columns left of the window (placed after col A). */
+    const leftPad = computed(() => {
+      if (!virtualizeCols.value) return 0;
+      const first = colLayout.value[colRangeStart.value];
+      return first ? first.left : 0;
+    });
+    /** Width of skipped scrollable columns right of the window. */
+    const rightPad = computed(() => {
+      if (!virtualizeCols.value) return 0;
+      const last = colLayout.value[colRangeEnd.value - 1];
+      if (!last) return 0;
+      return Math.max(0, scrollableWidth.value - (last.left + last.width));
+    });
+
     const cellEditor = createGridCellEditor({
       isNumericAt: (row, col) => isBdNumericEntryCell(row, col),
       displayAt: (row, col) => cellDisplay(row, col),
@@ -298,7 +439,7 @@ export default {
 
     const cellNavigation = createGridCellNavigation({
       getColumns: () => columns.value,
-      getRows: () => bodyRows.value.map((e) => e.excelRow),
+      getRows: () => bodyExcelRows.value,
       isNavigable: (row, col) => !cellReadonly(row, col),
       getScrollEl: () => scrollEl.value,
       flushScroll: () => scrollSync.flush(),
@@ -350,7 +491,7 @@ export default {
 
     const gridSearch = createGridSearchController({
       getSearchIndex: getSearchIndexForGrid,
-      getBodyExcelRows: () => bodyRows.value.map((e) => e.excelRow),
+      getBodyExcelRows: () => bodyExcelRows.value,
       getScrollEl: () => scrollEl.value,
       scrollCellIntoView: (row, col) =>
         cellNavigation.scrollCellIntoViewForced(row, col),
@@ -504,7 +645,10 @@ export default {
     }
 
     function updateViewport() {
-      if (scrollEl.value) viewportH.value = scrollEl.value.clientHeight;
+      if (scrollEl.value) {
+        viewportH.value = scrollEl.value.clientHeight;
+        viewportW.value = scrollEl.value.clientWidth;
+      }
     }
 
     watch(
@@ -547,8 +691,12 @@ export default {
     });
 
     return {
+      BD_FREE_FIELD_COL,
       scrollEl,
       columns,
+      renderColumns,
+      leftPad,
+      rightPad,
       visibleRows,
       topSpacer,
       bottomSpacer,
@@ -572,6 +720,8 @@ export default {
       },
       bdColMetaClass: (col) => bdColMetaClass(col, props.sheet),
       projectCellClass,
+      cellStyleFor,
+      cellStaticClass,
       cellInlineStyle: (row, col) =>
         cellInlineStyle(
           getCell(cellMap.value, row, col),
@@ -605,24 +755,28 @@ export default {
           <thead>
             <tr class="hdr-row-letters">
               <th class="corner"></th>
-              <th
-                v-for="col in columns"
-                :key="'letter-' + col"
-                class="col-letter"
-                :class="{ 'col-sticky-date': isStickyDateCol(col) }"
-                :style="colStyle(col)"
-              >{{ col }}</th>
+              <template v-for="(col, idx) in renderColumns" :key="'letter-' + col">
+                <th v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></th>
+                <th
+                  class="col-letter"
+                  :class="{ 'col-sticky-date': isStickyDateCol(col) }"
+                  :style="colStyle(col)"
+                >{{ col }}</th>
+              </template>
+              <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
             </tr>
             <tr class="hdr-row-1">
               <th class="corner">1</th>
-              <th
-                v-for="col in columns"
-                :key="'h1-' + col"
-                class="col-hdr"
-                :class="{ 'col-sticky-date': isStickyDateCol(col) }"
-                :style="colStyle(col)"
-                :title="sheet.headers[col] || col"
-              >{{ sheet.headers[col] || col }}</th>
+              <template v-for="(col, idx) in renderColumns" :key="'h1-' + col">
+                <th v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></th>
+                <th
+                  class="col-hdr"
+                  :class="{ 'col-sticky-date': isStickyDateCol(col) }"
+                  :style="colStyle(col)"
+                  :title="sheet.headers[col] || col"
+                >{{ sheet.headers[col] || col }}</th>
+              </template>
+              <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
             </tr>
           </thead>
           <tbody>
@@ -637,46 +791,47 @@ export default {
               @contextmenu="onRowContextMenu(entry, $event)"
             >
               <td class="row-num">{{ entry.displayRow }}</td>
-              <td
-                v-for="col in columns"
-                :key="entry.excelRow + '-' + col"
-                class="data-cell"
-                :class="[
-                  {
-                    readonly: cellReadonly(entry.excelRow, col),
-                    'col-sticky-date': isStickyDateCol(col),
-                    'col-free-field': col === BD_FREE_FIELD_COL,
-                    'grid-search-hit': isSearchHit(entry.excelRow, col),
-                    'grid-search-focus': isSearchFocus(entry.excelRow, col),
-                  },
-                  bdColMetaClass(col),
-                  projectCellClass(cellDisplay(entry.excelRow, col), col),
-                ]"
-                :style="[colStyle(col), cellInlineStyle(entry.excelRow, col)]"
-              >
-                <template v-if="cellReadonly(entry.excelRow, col)">
-                  <span :title="cellTitle(entry.excelRow, col)">{{ cellDisplay(entry.excelRow, col) }}</span>
-                </template>
-                <input
-                  v-else-if="isCellActive(entry.excelRow, col)"
-                  type="text"
-                  class="grid-cell-input"
-                  autocomplete="off"
-                  spellcheck="false"
-                  :data-grid-row="entry.excelRow"
-                  :data-grid-col="col"
-                  @mousedown="onCellMouseDown(entry.excelRow, col, $event)"
-                  @focus="onCellFocus(entry.excelRow, col, $event)"
-                  @input="onCellInput(entry.excelRow, col, $event)"
-                  @blur="onCellBlur(entry.excelRow, col, $event)"
-                  @keydown="onCellKeydown(entry.excelRow, col, $event)"
-                />
-                <span
-                  v-else
-                  class="grid-cell-display"
-                  @mousedown="onCellSpanMouseDown(entry.excelRow, col, $event)"
-                >{{ cellShowValue(entry.excelRow, col, cellDisplay(entry.excelRow, col)) }}</span>
-              </td>
+              <template v-for="(col, idx) in renderColumns" :key="entry.excelRow + '-' + col">
+                <td v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></td>
+                <td
+                  class="data-cell"
+                  :class="[
+                    {
+                      readonly: cellReadonly(entry.excelRow, col),
+                      'col-sticky-date': isStickyDateCol(col),
+                      'col-free-field': col === BD_FREE_FIELD_COL,
+                      'grid-search-hit': isSearchHit(entry.excelRow, col),
+                      'grid-search-focus': isSearchFocus(entry.excelRow, col),
+                    },
+                    cellStaticClass(entry.excelRow, col),
+                  ]"
+                  :style="cellStyleFor(entry.excelRow, col)"
+                >
+                  <template v-if="cellReadonly(entry.excelRow, col)">
+                    <span :title="cellTitle(entry.excelRow, col)">{{ cellDisplay(entry.excelRow, col) }}</span>
+                  </template>
+                  <input
+                    v-else-if="isCellActive(entry.excelRow, col)"
+                    type="text"
+                    class="grid-cell-input"
+                    autocomplete="off"
+                    spellcheck="false"
+                    :data-grid-row="entry.excelRow"
+                    :data-grid-col="col"
+                    @mousedown="onCellMouseDown(entry.excelRow, col, $event)"
+                    @focus="onCellFocus(entry.excelRow, col, $event)"
+                    @input="onCellInput(entry.excelRow, col, $event)"
+                    @blur="onCellBlur(entry.excelRow, col, $event)"
+                    @keydown="onCellKeydown(entry.excelRow, col, $event)"
+                  />
+                  <span
+                    v-else
+                    class="grid-cell-display"
+                    @mousedown="onCellSpanMouseDown(entry.excelRow, col, $event)"
+                  >{{ cellShowValue(entry.excelRow, col, cellDisplay(entry.excelRow, col)) }}</span>
+                </td>
+              </template>
+              <td v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></td>
             </tr>
             <tr v-if="bottomSpacer > 0" class="bd-spacer-bottom">
               <td :colspan="columns.length + 1" :style="{ height: bottomSpacer + 'px', padding: 0, border: 'none' }"></td>
