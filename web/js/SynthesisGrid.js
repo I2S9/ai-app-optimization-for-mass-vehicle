@@ -87,7 +87,6 @@ import {
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3Col,
-  isSynRow16MaaFluoFirstCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbRow18GreyCol,
@@ -942,10 +941,18 @@ export default {
      * including blue SUMPRODUCT, green section sums and the AB diff — is editable in
      * real time; typing a value overrides the live formula (userEdited path).
      */
+    /** Grey display-row blocks (from display M) hold no value and cannot be edited. */
+    function isSynGreyLockedCell(row, col) {
+      if (row == null) return false;
+      const displayRow = displayRowByExcel.value.get(row);
+      return isSynDisplayRowGreyMaaCol(displayRow, col);
+    }
+
     function cellReadonly(row, col) {
       if (row == null) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
       if (isSynMirrorLfromMCell(row, col)) return true;
+      if (isSynGreyLockedCell(row, col)) return true;
       return isSynAdaptationSumCell(row, col, props.sheet);
     }
 
@@ -1062,6 +1069,12 @@ export default {
       // caching under L so a granular M-only invalidation can't leave L stale.
       if (isSynMirrorLfromMCell(row, col)) {
         return cellDisplay(row, SYN_MIRROR_SRC_EXCEL_COL);
+      }
+      // Grey display-row blocks are always blank (locked, no value allowed).
+      if (isSynGreyLockedCell(row, col)) {
+        const hitKeyGrey = `${row}:${col}`;
+        displayCache.set(hitKeyGrey, '');
+        return '';
       }
       const hitKey = `${row}:${col}`;
       if (displayCache.has(hitKey)) return displayCache.get(hitKey);
@@ -1408,9 +1421,6 @@ export default {
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
-      if (isSynRow16MaaFluoFirstCol(row, col)) {
-        return { ...base, ...synRow16FluoStyle() };
-      }
       if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
         return { ...base, ...synYellowFluoGreenFromMStyle() };
       }
@@ -1505,9 +1515,6 @@ export default {
       }
       if (isSynProjHeaderRedCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-red', display);
-      }
-      if (isSynRow16MaaFluoFirstCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
