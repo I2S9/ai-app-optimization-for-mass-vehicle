@@ -10,7 +10,7 @@ import {
   nextTick,
 } from 'vue';
 import BdGrid from './BdGrid.js?v=scroll-perf2';
-import SynthesisGrid from './SynthesisGrid.js?v=mirror-lm1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-fold1';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
@@ -81,7 +81,9 @@ const App = {
     const loadedFromLocal = ref(false);
     const route = ref(DEFAULT_ROUTE);
     const menuOpen = ref(false);
-    const outlineOnly = ref(false);
+    // Outline view cycle: 0 = full, 1 = sections + sub-sections, 2 = sections only.
+    const outlineMode = ref(0);
+    const outlineOnly = computed(() => outlineMode.value !== 0);
     const searchOpen = ref(false);
     const searchQuery = ref('');
     const searchInputRef = ref(null);
@@ -1317,9 +1319,15 @@ const App = {
 
     function toggleOutline() {
       requestAnimationFrame(() => {
-        outlineOnly.value = !outlineOnly.value;
+        outlineMode.value = (outlineMode.value + 1) % 3;
       });
     }
+
+    const outlineTitle = computed(() => {
+      if (outlineMode.value === 1) return 'Afficher uniquement les sections';
+      if (outlineMode.value === 2) return 'Tout déplier';
+      return 'Afficher sections et sous-sections';
+    });
 
     function closeSearch() {
       searchOpen.value = false;
@@ -1377,7 +1385,7 @@ const App = {
       if (result && result.hidden && !searchHiddenRetry) {
         searchHiddenRetry = true;
         if (outlineOnly.value) {
-          outlineOnly.value = false;
+          outlineMode.value = 0;
           nextTick(() => dispatchGridSearch(0));
           return;
         }
@@ -1431,7 +1439,7 @@ const App = {
 
     function onSearchRowHidden() {
       if (outlineOnly.value) {
-        outlineOnly.value = false;
+        outlineMode.value = 0;
         nextTick(() => dispatchGridSearch(0));
       }
     }
@@ -1626,6 +1634,8 @@ const App = {
       toggleMenu,
       closeMenu,
       outlineOnly,
+      outlineMode,
+      outlineTitle,
       currentNav,
       session,
       onCellChange,
@@ -1734,9 +1744,9 @@ const App = {
             </button>
             <button
               type="button"
-              class="icon-btn icon-btn-sm"
+              class="icon-btn icon-btn-sm icon-btn-outline"
               :class="{ active: outlineOnly }"
-              title="Show yellow sections and blue bands only"
+              :title="outlineTitle"
               aria-label="Toggle outline view"
               @click="toggleOutline"
             >
@@ -1744,6 +1754,7 @@ const App = {
                 <ellipse cx="8" cy="8" rx="6.5" ry="4" fill="none" stroke="currentColor" stroke-width="1.2"/>
                 <circle cx="8" cy="8" r="2" fill="currentColor"/>
               </svg>
+              <span v-if="outlineMode > 0" class="icon-btn-badge">{{ outlineMode }}</span>
             </button>
             <button
               type="button"
@@ -1841,6 +1852,7 @@ const App = {
               :session="session"
               :raw-syn="synRaw"
               :outline-only="outlineOnly"
+              :outline-mode="outlineMode"
               :pane-visible="isSynthesis"
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"

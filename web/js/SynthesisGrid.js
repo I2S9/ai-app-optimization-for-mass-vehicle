@@ -188,6 +188,8 @@ import {
 } from './gridScroll.js?v=scroll-perf1';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
+/** Width of the section fold/unfold column inserted before the row numbers. */
+const SYN_FOLD_W = 24;
 
 /**
  * Display column L (Excel Q) mirrors display column M (Excel R): L always shows
@@ -244,6 +246,7 @@ export default {
     session: { type: Object, default: null },
     rawSyn: { type: Object, default: null },
     outlineOnly: { type: Boolean, default: false },
+    outlineMode: { type: Number, default: 0 },
     paneVisible: { type: Boolean, default: true },
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
@@ -339,7 +342,7 @@ export default {
     });
 
     const columnLayout = computed(() => {
-      let left = ROW_NUM_W;
+      let left = ROW_NUM_W + SYN_FOLD_W;
       return displayColumns.value.map((col) => {
         const width = widthByCol.value.get(col) || 54;
         const entry = {
@@ -368,7 +371,7 @@ export default {
       columnLayout.value.filter((c) => c.col !== SYN_STICKY_COL)
     );
 
-    const stickyLabelLeft = computed(() => ROW_NUM_W);
+    const stickyLabelLeft = computed(() => ROW_NUM_W + SYN_FOLD_W);
 
     const virtualizeCols = computed(() =>
       shouldVirtualizeCols(tableWidth.value, viewportW.value)
@@ -437,12 +440,71 @@ export default {
 
     const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
 
-    const bodyRows = computed(() => {
-      void props.outlineOnly;
+    /** Outline view: 0 = full, 1 = sections + sub-sections, 2 = sections only. */
+    const effectiveOutlineMode = computed(() => {
+      const m = Number(props.outlineMode);
+      if (Number.isFinite(m) && m >= 0 && m <= 2) return m;
+      return props.outlineOnly ? 1 : 0;
+    });
+
+    /** Excel rows of yellow sections the user has folded via the row-1 fold column. */
+    const collapsedSections = ref(new Set());
+
+    function isSectionExcelRow(excelRow) {
+      return (
+        excelRow != null &&
+        synRowStyleClass(cellMap.value, excelRow, props.sheet) === 'syn-row-section'
+      );
+    }
+
+    function toggleSection(excelRow) {
+      if (excelRow == null) return;
+      const next = new Set(collapsedSections.value);
+      if (next.has(excelRow)) next.delete(excelRow);
+      else next.add(excelRow);
+      collapsedSections.value = next;
+    }
+
+    /** Full row list (no outline filtering) minus deleted rows. */
+    const baseBodyRows = computed(() => {
       void (props.sheet && props.sheet.effectiveLastRow);
-      const base = computeSynBodyRows(props.sheet, cellMap.value, props.outlineOnly);
+      const base = computeSynBodyRows(props.sheet, cellMap.value, false);
       if (!deletedRows.value.size) return base;
       return base.filter((e) => e.excelRow == null || !deletedRows.value.has(e.excelRow));
+    });
+
+    /**
+     * Apply the outline mode (eye) and per-section fold. A folded yellow section
+     * hides everything under it up to the next yellow section (the header stays).
+     */
+    const bodyRows = computed(() => {
+      const base = baseBodyRows.value;
+      const mode = effectiveOutlineMode.value;
+      const collapsed = collapsedSections.value;
+      const map = cellMap.value;
+      const sheet = props.sheet;
+      const out = [];
+      let sectionCollapsed = false;
+      for (const e of base) {
+        if (e.excelRow == null) {
+          if (mode === 0 && !sectionCollapsed) out.push(e);
+          continue;
+        }
+        const cls = synRowStyleClass(map, e.excelRow, sheet);
+        if (cls === 'syn-row-section') {
+          sectionCollapsed = collapsed.has(e.excelRow);
+          out.push(e);
+          continue;
+        }
+        if (sectionCollapsed) continue;
+        if (mode === 2) continue;
+        if (mode === 1) {
+          if (cls === 'syn-row-subsection') out.push(e);
+          continue;
+        }
+        out.push(e);
+      }
+      return out;
     });
     const rowCount = computed(() => bodyRows.value.length);
 
@@ -574,7 +636,7 @@ export default {
     });
 
     const colspan = computed(() => {
-      let n = 1 + pinnedCols.value.length + visibleScrollCols.value.length;
+      let n = 2 + pinnedCols.value.length + visibleScrollCols.value.length;
       if (leftPad.value > 0) n += 1;
       if (rightPad.value > 0) n += 1;
       return n;
@@ -1687,19 +1749,27 @@ export default {
       if (!props.paneVisible) return [];
       const map = cellMap.value;
       const sheet = props.sheet;
-      return visibleRows.value.map((entry) => ({
-        key: rowEntryKey(entry),
-        entry,
-        excelRow: entry.excelRow != null ? entry.excelRow : null,
-        rowNum: synRowNumberLabel(entry),
-        displayRow: entry.displayRow,
-        rowLabel:
-          entry.excelRow != null ? synLabel(map, entry.excelRow) : '',
-        isAdaptationSumRow:
+      const collapsed = collapsedSections.value;
+      return visibleRows.value.map((entry) => {
+        const isSection =
           entry.excelRow != null &&
-          entry.excelRow === synAdaptationSumRow(sheet),
-        rowClasses: cachedEntryRowClasses(entry),
-      }));
+          synRowStyleClass(map, entry.excelRow, sheet) === 'syn-row-section';
+        return {
+          key: rowEntryKey(entry),
+          entry,
+          excelRow: entry.excelRow != null ? entry.excelRow : null,
+          rowNum: synRowNumberLabel(entry),
+          displayRow: entry.displayRow,
+          rowLabel:
+            entry.excelRow != null ? synLabel(map, entry.excelRow) : '',
+          isAdaptationSumRow:
+            entry.excelRow != null &&
+            entry.excelRow === synAdaptationSumRow(sheet),
+          isSection,
+          sectionCollapsed: isSection && collapsed.has(entry.excelRow),
+          rowClasses: cachedEntryRowClasses(entry),
+        };
+      });
     });
 
     const pinnedCellsByRowKey = computed(() => {
@@ -1765,7 +1835,7 @@ export default {
     );
 
     watch(
-      () => props.outlineOnly,
+      () => effectiveOutlineMode.value,
       () => {
         scrollTop.value = 0;
         scrollLeft.value = 0;
@@ -1776,6 +1846,15 @@ export default {
         colScrollCache.reset();
         rowScrollCache.reset();
         invalidateDisplayCache();
+      }
+    );
+
+    watch(
+      () => collapsedSections.value,
+      () => {
+        rowScrollCache.reset();
+        invalidateDisplayCache();
+        nextTick(() => scrollSync.flush());
       }
     );
 
@@ -2094,6 +2173,7 @@ export default {
       isColGroupToggle,
       isColGroupCollapsed,
       toggleColGroup,
+      toggleSection,
     };
   },
   template: `
@@ -2133,6 +2213,7 @@ export default {
         >
           <thead>
             <tr class="hdr-row-toggle">
+              <th class="syn-fold-col syn-fold-col-hdr"></th>
               <th class="corner syn-row-num-hdr syn-col-toggle-corner"></th>
               <th
                 v-for="entry in pinnedCols"
@@ -2156,6 +2237,7 @@ export default {
               <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
             </tr>
             <tr class="hdr-row-letters">
+              <th class="syn-fold-col syn-fold-col-hdr"></th>
               <th class="corner syn-row-num-hdr"></th>
               <th
                 v-for="entry in pinnedCols"
@@ -2188,6 +2270,18 @@ export default {
               :class="row.rowClasses"
               @contextmenu="onRowContextMenu(row, $event)"
             >
+              <td
+                class="syn-fold-col"
+                :class="{ 'syn-fold-col-section': row.isSection }"
+              >
+                <button
+                  v-if="row.isSection"
+                  type="button"
+                  class="syn-fold-btn"
+                  :title="(row.sectionCollapsed ? 'Déplier' : 'Plier') + ' la section'"
+                  @click="toggleSection(row.excelRow)"
+                >{{ row.sectionCollapsed ? '+' : '\u2212' }}</button>
+              </td>
               <td
                 class="row-num syn-row-num"
                 :class="{ 'syn-adaptation-sum-row-num': row.isAdaptationSumRow }"

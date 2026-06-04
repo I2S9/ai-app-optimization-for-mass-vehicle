@@ -1579,7 +1579,7 @@
 .synthesis-grid .bd-table th.corner.syn-row-num-hdr,
 .synthesis-grid .bd-table td.row-num.syn-row-num {
   position: sticky;
-  left: 0;
+  left: 24px;
   z-index: 220;
   box-shadow: 2px 0 3px rgba(0, 0, 0, 0.1);
   background-clip: padding-box;
@@ -1588,6 +1588,48 @@
 }
 .synthesis-grid .bd-table thead th.corner.syn-row-num-hdr {
   z-index: 360;
+}
+/* Section fold/unfold column — frozen at the far left, before the row numbers */
+.synthesis-grid .bd-table th.syn-fold-col,
+.synthesis-grid .bd-table td.syn-fold-col {
+  position: sticky;
+  left: 0;
+  z-index: 221;
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+  background-clip: padding-box;
+}
+.synthesis-grid .bd-table thead th.syn-fold-col {
+  z-index: 361;
+  background: #d9d9d9;
+}
+.synthesis-grid .bd-table td.syn-fold-col.syn-fold-col-section {
+  background: #ffff00;
+}
+.synthesis-grid .bd-table td.syn-fold-col .syn-fold-btn {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #888;
+  border-radius: 2px;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.synthesis-grid .bd-table td.syn-fold-col .syn-fold-btn:hover {
+  background: #eaeaea;
 }
 /* Seal sub-pixel gaps on scroll — 1px grid grey, not thick borders */
 .synthesis-grid .bd-table tbody td.row-num.syn-row-num,
