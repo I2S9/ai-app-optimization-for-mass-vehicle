@@ -242,12 +242,43 @@ def put_session(project_id: str, body: SessionPutBody):
         raise HTTPException(503, str(exc)) from exc
 
 
+# Code/données servis sans cache navigateur. Sans cela, Starlette n'envoie qu'un
+# ETag/Last-Modified et Edge ressert un module ES périmé sous la même URL
+# `?v=...` (ex: navConfig.js d'avant l'ajout de NAV_ROUTES) → "does not provide
+# an export named ...". Le serveur node fait déjà ce `no-store` ; on l'aligne ici.
+_NO_STORE_SUFFIXES = (".html", ".js", ".mjs", ".css", ".json")
+
+
+class NoStoreStaticFiles(StaticFiles):
+    def is_not_modified(self, response_headers, request_headers) -> bool:  # noqa: ANN001
+        # Empêche les réponses 304 pour le code/données : on veut toujours frais.
+        if response_headers.get("content-type", "").split(";")[0] in (
+            "text/html",
+            "text/javascript",
+            "application/javascript",
+            "text/css",
+            "application/json",
+        ):
+            return False
+        return super().is_not_modified(response_headers, request_headers)
+
+    async def get_response(self, path: str, scope):  # noqa: ANN001
+        response = await super().get_response(path, scope)
+        if any(path.endswith(suffix) for suffix in _NO_STORE_SUFFIXES):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            for validator in ("etag", "last-modified"):
+                if validator in response.headers:
+                    del response.headers[validator]
+        return response
+
+
 # Sert l'app web (index.html, /js, /css, /public/data, ...) sur le meme port que
 # l'API. Monte en DERNIER pour que les routes /api/v1/... gardent la priorite.
 # C'est ce qui corrige le "HTTP 404 for /public/data/bd-sheet.json" : le front
 # n'a plus besoin de __WGHT_API_BASE__, tout est servi en same-origin.
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "web"
 if WEB_DIR.is_dir():
-    app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
+    app.mount("/", NoStoreStaticFiles(directory=str(WEB_DIR), html=True), name="web")
 else:
     logger.warning("Dossier web introuvable, fichiers statiques non servis: %s", WEB_DIR)

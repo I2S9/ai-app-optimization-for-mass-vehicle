@@ -9,11 +9,12 @@ import {
   onErrorCaptured,
   nextTick,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=bd-fold1';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-fold1';
+import BdGrid from './BdGrid.js?v=bd-fold2';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-fold2';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
+import MnsGrid from './MnsGrid.js?v=mns1';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
@@ -53,7 +54,7 @@ import {
 } from './sessionPersistence.js?v=canonical-structure1';
 
 const App = {
-  components: { BdGrid, SynthesisGrid, AppSidebar, EmptyPage, MatrixModal },
+  components: { BdGrid, SynthesisGrid, MnsGrid, AppSidebar, EmptyPage, MatrixModal },
   setup() {
     const bdLoading = ref(false);
     const gridPreparing = ref(false);
@@ -157,6 +158,8 @@ const App = {
 
     const isDatabase = computed(() => route.value === 'database');
     const isSynthesis = computed(() => route.value === 'synthesis');
+    const isMns = computed(() => route.value === 'cdc-mns');
+    const isOptionsSp2 = computed(() => route.value === 'cdc-options-sp2');
     const isGridPage = computed(
       () => route.value === 'database' || route.value === 'synthesis'
     );
@@ -1618,6 +1621,8 @@ const App = {
       synthesisSheet,
       isDatabase,
       isSynthesis,
+      isMns,
+      isOptionsSp2,
       isGridPage,
       dirty,
       saveStatus,
@@ -1869,10 +1874,16 @@ const App = {
           >
             Préparation de la grille…
           </div>
+          <div v-show="isMns" class="grid-route-pane">
+            <MnsGrid v-if="isMns" key="mns-grid" storage-key="mns-grid-cells-v1" />
+          </div>
+          <div v-show="isOptionsSp2" class="grid-route-pane">
+            <MnsGrid v-if="isOptionsSp2" key="options-sp2-grid" storage-key="options-sp2-grid-cells-v1" />
+          </div>
           <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
           <EmptyPage
-            v-else-if="!isDatabase && !isSynthesis"
+            v-else-if="!isDatabase && !isSynthesis && !isMns && !isOptionsSp2"
             :title="currentNav.label"
           />
         </main>

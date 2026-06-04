@@ -102,14 +102,12 @@ export default {
 
     const columns = computed(() => props.sheet.columns || []);
 
-    /** Outline view: 0 = full, 1 = sections + sub-sections, 2 = sections only. */
-    const effectiveOutlineMode = computed(() => {
-      const m = Number(props.outlineMode);
-      if (Number.isFinite(m) && m >= 0 && m <= 2) return m;
-      return props.outlineOnly ? 1 : 0;
-    });
-
-    /** Excel rows of yellow sections folded via the row-1 fold column. */
+    /**
+     * Row view = detailLevel ('full' | 'subsections') + collapsedSections (yellow
+     * sections folded individually). The eye button is a deterministic preset that
+     * rewrites BOTH each click; the per-section +/- buttons adjust collapse on top.
+     */
+    const detailLevel = ref('full');
     const collapsedSections = ref(new Set());
 
     function toggleSection(excelRow) {
@@ -128,13 +126,45 @@ export default {
         : computeBodyDisplayRows(props.sheet)
     );
 
+    /** Excel rows of every yellow section (used to bulk-collapse via the eye). */
+    const allSectionRows = computed(() => {
+      const map = cellMap.value;
+      const sh = sectionHeaderRows.value;
+      const set = new Set();
+      for (const e of baseBodyRows.value) {
+        if (rowStyleClass(map, e.excelRow, sh) === 'row-section') set.add(e.excelRow);
+      }
+      return set;
+    });
+
+    /** Eye preset: 0 = full, 1 = sections + sub-sections, 2 = sections only. */
+    function applyOutlinePreset(mode) {
+      if (mode === 1) {
+        detailLevel.value = 'subsections';
+        collapsedSections.value = new Set();
+      } else if (mode === 2) {
+        detailLevel.value = 'full';
+        collapsedSections.value = new Set(allSectionRows.value);
+      } else {
+        detailLevel.value = 'full';
+        collapsedSections.value = new Set();
+      }
+    }
+
+    watch(
+      () => props.outlineMode,
+      (mode) => applyOutlinePreset(Number(mode) || 0),
+      { immediate: true }
+    );
+
     /**
-     * Apply the outline mode (eye) and per-section fold. A folded yellow section
-     * hides everything under it up to the next yellow section (the header stays).
+     * Build visible rows from detailLevel + collapsedSections. A folded yellow
+     * section hides everything under it up to the next yellow section (the header
+     * stays); expanding it (+) reveals its rows even while the eye preset is active.
      */
     const bodyRows = computed(() => {
       const base = baseBodyRows.value;
-      const mode = effectiveOutlineMode.value;
+      const detail = detailLevel.value;
       const collapsed = collapsedSections.value;
       const map = cellMap.value;
       const sh = sectionHeaderRows.value;
@@ -157,8 +187,7 @@ export default {
           continue;
         }
         if (sectionCollapsed) continue;
-        if (mode === 2) continue;
-        if (mode === 1 && cls !== 'row-subsection') continue;
+        if (detail === 'subsections' && cls !== 'row-subsection') continue;
         out.push({
           excelRow: r,
           displayRow: displayRow++,
@@ -701,7 +730,7 @@ export default {
     );
 
     watch(
-      () => effectiveOutlineMode.value,
+      () => props.outlineMode,
       () => {
         rowScrollCache.reset();
         scrollTop.value = 0;
@@ -763,7 +792,7 @@ export default {
         const map = cellMap.value;
         const sh = sectionHeaderRows.value;
         const base = rowStyleClass(map, row, sh);
-        const stripe = effectiveOutlineMode.value !== 0
+        const stripe = detailLevel.value !== 'full'
           ? ''
           : rowDataStripeClass(map, row, sh, props.sheet.dataStartRow);
         return [base, stripe].filter(Boolean).join(' ');

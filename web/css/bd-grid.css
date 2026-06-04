@@ -567,8 +567,8 @@
   border: 1px solid #b4b4b4 !important;
 }
 /* Header panel — default grey fill (accent / P1H / HEV cells keep their own colour) */
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-fluo-every3),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-fluo-every3),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-row-num {
@@ -732,8 +732,8 @@
   font-weight: 600;
 }
 /* Metric rows (15–22): inside panel through % Forecast/target */
-.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-metric-cj-white),
-.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-metric-cj-white):not(.syn-row16-fluo-every3),
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-fluo-every3),
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-metric-band td.syn-row-num {
@@ -3229,6 +3229,19 @@
   color: #000 !important;
 }
 
+/* Display-row blue blocks — all summary tables from display M (M…AA, AC…AN, …) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-blue:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) span {
+  background: #00b0f0 !important;
+  background-color: #00b0f0 !important;
+  color: #000 !important;
+}
+
 /* Forced white columns — must be last so it always wins. */
 .synthesis-grid .bd-table thead tr.hdr-row-letters th.syn-force-white-col,
 .synthesis-grid .bd-table tbody td.syn-force-white-col,
@@ -3394,4 +3407,21 @@
 }
 .grid-ctx-danger:hover {
   background: #fbe9e7;
+}
+
+/* ── MNS grid ─────────────────────────────────────────────────────────────
+   Lettered columns + numbered rows, no fold column. Higher specificity than
+   the generic :not(.synthesis-grid) rules so the row numbers stay flush left. */
+.bd-grid-root.mns-grid .bd-table th.corner,
+.bd-grid-root.mns-grid .bd-table td.row-num {
+  left: 0;
+}
+.bd-grid-root.mns-grid .bd-table td.data-cell,
+.bd-grid-root.mns-grid .bd-table thead th.col-letter {
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
+}
+.bd-grid-root.mns-grid .bd-table tbody td.data-cell .grid-cell-input {
+  color: #000;
 }

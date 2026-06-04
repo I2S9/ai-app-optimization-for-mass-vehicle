@@ -218,17 +218,28 @@ export const SYN_ROW25_MAA_GREEN_BG = '#92d050';
 /** Display-row based green lines (same as rows 3–4: #92d050). */
 export const SYN_DISPLAY_GREEN_BG = SYN_SP2_TARGET_BG;
 export const SYN_DISPLAY_GREEN_ROWS = new Set([
-  26, 42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 82, 88, 91, 93, 95, 97, 99, 165, 178, 181,
+  26, 42, 47, 52, 54, 59, 61, 63, 71, 73, 76, 84, 93, 97, 99, 165, 178, 181,
   205, 261, 276, 279, 288, 291, 296, 298, 307, 315, 319, 344, 353, 361, 368,
-  372, 280, 289, 394, 398, 403, 407, 411, 415, 417, 422,
+  372, 394, 398, 403, 407, 411, 415, 417, 422,
 ]);
+
+/** Display-row based blue blocks — summary tables from display M (same span as grey). */
+export const SYN_DISPLAY_BLUE_BG = SYN_SPOT_BLUE_BG;
+export const SYN_DISPLAY_BLUE_ROWS = (() => {
+  const s = new Set([
+    78, 80, 85, 88, 91, 95, 106, 107, 111,
+    210, 280, 287, 289, 412, 413, 414, 416,
+  ]);
+  for (let i = 113; i <= 119; i++) s.add(i);
+  return s;
+})();
 
 /** Display-row based grey blocks — all summary tables from display M (M…AA, AC…AN, AP…BB, …). */
 export const SYN_DISPLAY_GREY_MAA_BG = '#a6a6a6';
 export const SYN_DISPLAY_GREY_MAA_ROWS = (() => {
   const s = new Set([
-    27, 35, 38, 41, 287, 50, 51, 79, 80, 81, 84, 85, 86, 87, 106, 107, 108, 110, 112, 179, 180, 189,
-    196, 199, 202, 204, 210, 221, 222, 224, 230, 239, 270, 272, 274, 275, 278,
+    27, 35, 38, 41, 50, 51, 77, 79, 81, 82, 83, 86, 87, 108, 109, 110, 112, 179, 180, 189,
+    196, 199, 201, 202, 204, 221, 222, 224, 230, 239, 270, 272, 274, 275, 278,
     320, 321, 341, 342, 362, 373, 375, 378, 379, 410,
   ]);
   const addRange = (a, b) => {
@@ -243,8 +254,7 @@ export const SYN_DISPLAY_GREY_MAA_ROWS = (() => {
   addRange(191, 193);
   addRange(252, 254);
   addRange(323, 339);
-  // User wrote "418 à 412" → interpret as 412…418 inclusive.
-  addRange(412, 418);
+  addRange(418, 421);
   return s;
 })();
 /** Last Excel row exported / shown in the Synthesis grid. */
@@ -2117,6 +2127,20 @@ export function isSynRow16FluoEvery3Col(row, col) {
   return isSynHdrSummaryTableCol(col);
 }
 
+/**
+ * Row 16 — M…AA block only, first column of each triplet (display M, P, S, V, Y):
+ * fluorescent yellow. These cells otherwise inherit the grey header fill, so they
+ * read as "missing" the bold black frame; the fluo fill makes them stand out.
+ */
+export function isSynRow16MaaFluoFirstCol(row, col) {
+  if (Number(row) !== 16) return false;
+  const n = colToNum(col);
+  const lo = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_START));
+  const hi = colToNum(displayToExcelCol(SYN_PROJ_HDR_GREEN_DISPLAY_END));
+  if (n < lo || n > hi) return false;
+  return (n - lo) % 3 === 0;
+}
+
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
 export function isSynApbbP3sBlackCol(row, col) {
   if (Number(row) !== 5) return false;
@@ -2263,6 +2287,19 @@ export function synDisplayRowGreenMaaStyle() {
 
 export function synDisplayRowGreenAcanStyle() {
   return synDisplayRowGreenMaaStyle();
+}
+
+export function isSynDisplayRowBlueCol(displayRow, col) {
+  if (!SYN_DISPLAY_BLUE_ROWS.has(Number(displayRow))) return false;
+  return isSynHdrSummaryTableCol(col);
+}
+
+export function synDisplayRowBlueStyle() {
+  return {
+    background: SYN_DISPLAY_BLUE_BG,
+    backgroundColor: SYN_DISPLAY_BLUE_BG,
+    color: '#000',
+  };
 }
 
 /** Display column M and beyond (Excel R+). */

@@ -87,6 +87,7 @@ import {
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3Col,
+  isSynRow16MaaFluoFirstCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbRow18GreyCol,
@@ -102,6 +103,8 @@ import {
   synDisplayRowGreenMaaStyle,
   isSynDisplayRowGreenAcanCol,
   synDisplayRowGreenAcanStyle,
+  isSynDisplayRowBlueCol,
+  synDisplayRowBlueStyle,
   isSynYellowFluoGreenFromMCol,
   synYellowFluoGreenFromMStyle,
   isSynHdrLmDividerRightCol,
@@ -440,30 +443,17 @@ export default {
 
     const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
 
-    /** Outline view: 0 = full, 1 = sections + sub-sections, 2 = sections only. */
-    const effectiveOutlineMode = computed(() => {
-      const m = Number(props.outlineMode);
-      if (Number.isFinite(m) && m >= 0 && m <= 2) return m;
-      return props.outlineOnly ? 1 : 0;
-    });
-
-    /** Excel rows of yellow sections the user has folded via the row-1 fold column. */
+    /**
+     * Row view is the combination of two independent pieces of state:
+     *  - detailLevel: 'full' shows every row under an expanded section, 'subsections'
+     *    shows only the blue sub-section rows.
+     *  - collapsedSections: yellow sections the user folded individually (their
+     *    descendants are hidden up to the next section).
+     * The eye button is a deterministic preset that rewrites BOTH each time it is
+     * clicked; the per-section +/- buttons then adjust collapsedSections on top.
+     */
+    const detailLevel = ref('full');
     const collapsedSections = ref(new Set());
-
-    function isSectionExcelRow(excelRow) {
-      return (
-        excelRow != null &&
-        synRowStyleClass(cellMap.value, excelRow, props.sheet) === 'syn-row-section'
-      );
-    }
-
-    function toggleSection(excelRow) {
-      if (excelRow == null) return;
-      const next = new Set(collapsedSections.value);
-      if (next.has(excelRow)) next.delete(excelRow);
-      else next.add(excelRow);
-      collapsedSections.value = next;
-    }
 
     /** Full row list (no outline filtering) minus deleted rows. */
     const baseBodyRows = computed(() => {
@@ -473,13 +463,58 @@ export default {
       return base.filter((e) => e.excelRow == null || !deletedRows.value.has(e.excelRow));
     });
 
+    /** Excel rows of every yellow section (used to bulk-collapse via the eye). */
+    const allSectionRows = computed(() => {
+      const map = cellMap.value;
+      const sheet = props.sheet;
+      const set = new Set();
+      for (const e of baseBodyRows.value) {
+        if (
+          e.excelRow != null &&
+          synRowStyleClass(map, e.excelRow, sheet) === 'syn-row-section'
+        ) {
+          set.add(e.excelRow);
+        }
+      }
+      return set;
+    });
+
+    function toggleSection(excelRow) {
+      if (excelRow == null) return;
+      const next = new Set(collapsedSections.value);
+      if (next.has(excelRow)) next.delete(excelRow);
+      else next.add(excelRow);
+      collapsedSections.value = next;
+    }
+
+    /** Eye preset: 0 = full, 1 = sections + sub-sections, 2 = sections only. */
+    function applyOutlinePreset(mode) {
+      if (mode === 1) {
+        detailLevel.value = 'subsections';
+        collapsedSections.value = new Set();
+      } else if (mode === 2) {
+        detailLevel.value = 'full';
+        collapsedSections.value = new Set(allSectionRows.value);
+      } else {
+        detailLevel.value = 'full';
+        collapsedSections.value = new Set();
+      }
+    }
+
+    watch(
+      () => props.outlineMode,
+      (mode) => applyOutlinePreset(Number(mode) || 0),
+      { immediate: true }
+    );
+
     /**
-     * Apply the outline mode (eye) and per-section fold. A folded yellow section
-     * hides everything under it up to the next yellow section (the header stays).
+     * Build the visible rows from detailLevel + collapsedSections. A folded yellow
+     * section hides everything under it up to the next yellow section (the header
+     * stays); expanding it (+) reveals its rows even while the eye preset is active.
      */
     const bodyRows = computed(() => {
       const base = baseBodyRows.value;
-      const mode = effectiveOutlineMode.value;
+      const detail = detailLevel.value;
       const collapsed = collapsedSections.value;
       const map = cellMap.value;
       const sheet = props.sheet;
@@ -487,7 +522,7 @@ export default {
       let sectionCollapsed = false;
       for (const e of base) {
         if (e.excelRow == null) {
-          if (mode === 0 && !sectionCollapsed) out.push(e);
+          if (detail === 'full' && !sectionCollapsed) out.push(e);
           continue;
         }
         const cls = synRowStyleClass(map, e.excelRow, sheet);
@@ -497,8 +532,7 @@ export default {
           continue;
         }
         if (sectionCollapsed) continue;
-        if (mode === 2) continue;
-        if (mode === 1) {
+        if (detail === 'subsections') {
           if (cls === 'syn-row-subsection') out.push(e);
           continue;
         }
@@ -1304,6 +1338,8 @@ export default {
           Object.assign(out, synDisplayRowGreenMaaStyle());
         } else if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreenAcanStyle());
+        } else if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowBlueStyle());
         }
         scrollStyleCache.set(styleKey, out);
         return out;
@@ -1372,6 +1408,9 @@ export default {
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
+      if (isSynRow16MaaFluoFirstCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
       if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
         return { ...base, ...synYellowFluoGreenFromMStyle() };
       }
@@ -1392,6 +1431,9 @@ export default {
       }
       if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenAcanStyle() };
+      }
+      if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowBlueStyle() };
       }
       const out = { ...base, ...cellInlineStyle(row, col) };
       scrollStyleCache.set(styleKey, out);
@@ -1432,6 +1474,9 @@ export default {
       if (isSynDisplayRowGreenAcanCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-green-acan', display);
       }
+      if (isSynDisplayRowBlueCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-blue', display);
+      }
       const spotBlue = synSpotBlueColClass(row, col);
       if (spotBlue) return withHdrPanelBold(row, col, spotBlue, display);
       const greyCol = synFilterGreyColClass(row, col);
@@ -1460,6 +1505,9 @@ export default {
       }
       if (isSynProjHeaderRedCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-red', display);
+      }
+      if (isSynRow16MaaFluoFirstCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
@@ -1835,7 +1883,7 @@ export default {
     );
 
     watch(
-      () => effectiveOutlineMode.value,
+      () => props.outlineMode,
       () => {
         scrollTop.value = 0;
         scrollLeft.value = 0;
