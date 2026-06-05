@@ -224,29 +224,30 @@ const OPTIONS_SP2_CDE = [
 ];
 
 /**
- * Synthesis header table copied into Options SP2 columns F–T, rows 1–12
- * (source: Synthesis sheet columns M–AA, rows 3–14). Each inner array holds the
- * 15 values for columns F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T of one row.
+ * Synthesis header table copied into Options SP2 columns F–T, rows 1–12.
+ * The Synthesis page hides Excel columns A–E, so the *displayed* columns M–AA
+ * correspond to Excel columns R–AF — that is the actual source window here.
+ * Each inner array holds the 15 values for columns F…T of one row (Excel 3–14).
  */
 const OPTIONS_SP2_FT_COLS = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
-/** Synthesis source columns (M–AA) feeding Options SP2 columns F–T. */
-const OPTIONS_SP2_FT_SRC_COLS = ['M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA'];
+/** Synthesis source columns (Excel R–AF = displayed M–AA) feeding Options SP2 F–T. */
+const OPTIONS_SP2_FT_SRC_COLS = ['R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF'];
 /** Options SP2 row 14 (Curb mass) is mirrored live from Synthesis row 16. */
 const OPTIONS_SP2_CURB_ROW = 14;
 const SYN_CURB_MASS_ROW = 16;
 const OPTIONS_SP2_FT = [
-  ['STLA/S', 'STLA/S', 'STLA/S', 'SP2 Target', '', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S'],
-  ['SP1', 'SP1', 'SP1', '', '', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2'],
-  ['P1X', 'P1X', 'P1X', '', '', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H'],
-  ['S', 'MHEVP2', 'HEV', '', '', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'MHEVP2'],
-  ['EMEA', 'EMEA', 'EMEA', '', '', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA'],
+  ['STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S'],
+  ['SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2'],
+  ['O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H'],
+  ['BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'MHEVP2', 'MHEVP2', 'MHEVP2', 'HEV', 'HEV', 'HEV'],
+  ['EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA'],
   ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-  ['FWD', 'FWD', 'FWD', '', '', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'AWD', 'AWD', 'AWD', 'FWD'],
-  ['HR', '', '', '', '', 'HR', 'HR', 'HR', 'XR', 'XR', 'XR', 'XR', 'XR', 'XR', 'TT'],
-  ['HIGH_Range', '', '', '', '', 'HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', ''],
+  ['FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'AWD', 'AWD', 'AWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD'],
+  ['HR', 'HR', 'HR', 'XR', 'XR', 'XR', 'XR', 'XR', 'XR', 'TT', 'TT', 'TT', 'TT', 'TT', 'TT'],
+  ['HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', '', '', '', '', '', ''],
   ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-  ['TARGET', 'TARGET', 'TARGET', '', '', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET'],
-  ['N1', 'N1', 'N1', '', '', 'S', 'M', 'L', 'S', 'M', 'L', 'M', 'L', 'GSE', 'S'],
+  ['TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET'],
+  ['S', 'M', 'L', 'S', 'M', 'L', 'M', 'L', 'GSE', 'S', 'M', 'L', 'S', 'M', 'L'],
 ];
 
 const MNS_DEFAULT_STORAGE_KEY = 'mns-grid-cells-v3';
@@ -379,10 +380,12 @@ export default {
     // whenever the synthesis revision bumps (edit / recalc / Supabase reload).
     const curbMassRow = computed(() => {
       try {
-        if (!isOptionsSp2.value || !synLink || !synLink.synRaw) return {};
-        // Touch the revision so this recomputes on any synthesis change.
-        if (synLink.synRevision) void synLink.synRevision.value;
-        const raw = synLink.synRaw.value;
+      if (!isOptionsSp2.value || !synLink || !synLink.synRaw) return {};
+      // Touch both signals so this recomputes on any synthesis change. synRaw is a
+      // shallowRef mutated in place on edits, so the edit tick is what actually fires.
+      if (synLink.synRevision) void synLink.synRevision.value;
+      if (synLink.synEditTick) void synLink.synEditTick.value;
+      const raw = synLink.synRaw.value;
         if (!raw || !Array.isArray(raw.cells)) return {};
         // One pass to gather the Curb mass row (Synthesis row 16) source columns.
         const srcVals = {};
@@ -412,6 +415,35 @@ export default {
         row === OPTIONS_SP2_CURB_ROW &&
         OPTIONS_SP2_FT_COLS.includes(col)
       );
+    }
+
+    // Any cell of the copied Synthesis table block (F–T, rows 1–12) — used for the
+    // bold weight that matches the Synthesis sheet.
+    function isSynTableCell(row, col) {
+      return (
+        isOptionsSp2.value &&
+        row >= 1 &&
+        row <= 12 &&
+        OPTIONS_SP2_FT_COLS.includes(col)
+      );
+    }
+
+    // Colours for the copied Synthesis table (Options F–T, rows 1–12), matching
+    // the Synthesis display rules: energy row (BEV/MHEVP2/HEV), drivetrain AWD,
+    // TARGET band and the grey TT / empty-range columns.
+    function synTableClass(row, col) {
+      if (!isOptionsSp2.value || row < 1 || row > 12) return '';
+      const i = OPTIONS_SP2_FT_COLS.indexOf(col);
+      if (i < 0) return '';
+      if (row === 4) {
+        if (i <= 8) return 'sp2-syn-bev';
+        if (i <= 11) return 'sp2-syn-mhevp2';
+        return 'sp2-syn-hev';
+      }
+      if (row === 7 && i >= 6 && i <= 8) return 'sp2-syn-awd';
+      if ((row === 8 || row === 9) && i >= 9) return 'sp2-syn-grey';
+      if (row === 11) return 'sp2-syn-target';
+      return '';
     }
 
     function curbLinkedValue(col) {
@@ -604,6 +636,8 @@ export default {
       redLabel,
       isCurbLinkedCell,
       curbLinkedValue,
+      synTableClass,
+      isSynTableCell,
     };
   },
   template: `
@@ -633,7 +667,7 @@ export default {
                 :key="'mns-' + row + '-' + col"
                 class="data-cell"
                 :data-col="col"
-                :class="{
+                :class="[{
                   'sp2-brand-cell': isBrandCell(row, col),
                   'sp2-red-cell': isRedCell(row, col),
                   'sp2-upgrade-cell': isUpgradeCell(row, col),
@@ -646,7 +680,8 @@ export default {
                   'mns-yellow-cell': isMnsYellowCell(row, col),
                   'mns-beige-cell': isMnsBeigeCell(row, col),
                   'mns-red-value': isMnsRedValue(row, col),
-                }"
+                  'sp2-syn-cell': isSynTableCell(row, col),
+                }, synTableClass(row, col)]"
               >
                 <template v-if="isBrandCell(row, col)">
                   <span v-if="row === 6" class="sp2-brand-title">STLA S</span>

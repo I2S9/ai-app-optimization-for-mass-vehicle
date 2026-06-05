@@ -3501,110 +3501,6 @@
   color: #000;
 }
 
-/* MNS — freeze columns A–E so they stay on top during horizontal scroll.
-   Left offsets = row-number column (42px) + cumulative widths of the frozen
-   columns (A 200, B 200, C 72, D 72). Backgrounds are opaque so the scrolling
-   columns never show through; the coloured-cell rules further down keep equal
-   or higher specificity, so their fills still win over the default white. */
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='A'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='A'] {
-  left: 42px;
-}
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='B'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='B'] {
-  left: 242px;
-}
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='C'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='C'] {
-  left: 442px;
-}
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='D'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='D'] {
-  left: 514px;
-}
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='E'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='E'] {
-  left: 586px;
-}
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='A'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='B'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='C'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='D'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='E'] {
-  position: sticky;
-  z-index: 180;
-  background: #fff;
-  background-clip: padding-box;
-}
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='A'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='B'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='C'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='D'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='E'] {
-  position: sticky;
-  z-index: 350;
-}
-/* Right edge shadow on the last frozen column (E). */
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  td.data-cell[data-col='E'],
-.bd-grid-root.mns-grid:not(.options-sp2-grid)
-  .bd-table
-  thead
-  th.col-letter[data-col='E'] {
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
-}
-
 /* MNS — narrower code / value columns C, D, E (short codes + 0.00 values). */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
@@ -3879,6 +3775,86 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Options SP2 — copied Synthesis table: bold text + Synthesis column widths */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell .grid-cell-input,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-curb-linked {
+  font-weight: 700;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='F'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='F'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='G'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='G'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='H'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='H'] {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='I'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='I'] {
+  width: 74px;
+  min-width: 74px;
+  max-width: 74px;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='J'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='J'] {
+  width: 65px;
+  min-width: 65px;
+  max-width: 65px;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='K'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='K'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='L'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='L'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='M'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='M'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='N'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='N'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='O'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='O'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='P'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='P'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='T'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='T'] {
+  width: 77px;
+  min-width: 77px;
+  max-width: 77px;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='Q'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='Q'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='R'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='R'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='S'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='S'] {
+  width: 83px;
+  min-width: 83px;
+  max-width: 83px;
+}
+
+/* Options SP2 — copied Synthesis table colours (F–T, rows 1–12) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-bev .grid-cell-input {
+  color: #00b050;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-mhevp2 {
+  background: #ffff00;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-hev {
+  background: #ff0000;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-hev .grid-cell-input {
+  color: #fff;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-awd .grid-cell-input {
+  color: #ffc000;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-target {
+  background: #92d050;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-grey {
+  background: #d9d9d9;
 }
 
 /* Options SP2 — highlighted data cells */

@@ -15,7 +15,7 @@ import SynthesisGrid from './SynthesisGrid.js?v=syn-fold2';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=mns17-freeze';
+import MnsGrid from './MnsGrid.js?v=mns20-synmatch';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
@@ -394,6 +394,10 @@ const App = {
     provide('synthesisCellLink', {
       synRaw,
       synRevision: synSheetRevision,
+      // Bumped on every synthesis cell edit / recalc (synSheetRevision is not),
+      // and synRaw is a shallowRef mutated in place — so consumers must watch this
+      // tick to react to live edits.
+      synEditTick: externalEditTick,
       ensureSyn: ensureSynRaw,
     });
 
