@@ -1196,6 +1196,36 @@ export default {
       return diff == null ? null : formatControlDiff(diff, col);
     }
 
+    /**
+     * Row 21 (display) / Excel row 20 — "Portfolio": the live difference between
+     * row 16 ("Curb mass") and row 17 ("PM pre-target") in the same column, built
+     * exactly like Control (row16 − row18). Blank when either side has no number.
+     */
+    const SYN_PTF_DIFF_ROW = 20; // displayed as row 21 — "Portfolio"
+    const SYN_PTF_DIFF_MINUEND_ROW = 16; // displayed 16 — "Curb mass"
+    const SYN_PTF_DIFF_SUBTRAHEND_ROW = 17; // displayed 17 — "PM pre-target"
+
+    /** row16 − row17 for a column, or null when either side has no number. */
+    function portfolioDiffNumber(col) {
+      const a = controlSourceNumber(SYN_PTF_DIFF_MINUEND_ROW, col);
+      const b = controlSourceNumber(SYN_PTF_DIFF_SUBTRAHEND_ROW, col);
+      if (a == null || b == null) return null;
+      return a - b;
+    }
+
+    /** True for Portfolio cells that carry a live row16 − row17 difference. */
+    function isSynPortfolioDiffCell(row, col) {
+      if (Number(row) !== SYN_PTF_DIFF_ROW) return false;
+      if (!isSynMassCalcCol(col)) return false;
+      return portfolioDiffNumber(col) != null;
+    }
+
+    /** Formatted Portfolio difference, or null when the column has no difference. */
+    function computePortfolioDiffDisplay(col) {
+      const diff = portfolioDiffNumber(col);
+      return diff == null ? null : formatControlDiff(diff, col);
+    }
+
     function cellReadonly(row, col) {
       if (row == null) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
@@ -1206,6 +1236,8 @@ export default {
       if (Number(row) === 16 && isSynRow16CurbTotalCol(col)) return true;
       // Row 20 (Control) is the live row16 − row18 difference.
       if (isSynControlDiffCell(row, col)) return true;
+      // Row 21 (Portfolio) is the live row16 − row17 difference.
+      if (isSynPortfolioDiffCell(row, col)) return true;
       return isSynAdaptationSumCell(row, col, props.sheet);
     }
 
@@ -1347,6 +1379,12 @@ export default {
         const ctrl = computeControlDiffDisplay(col);
         if (ctrl != null) return ctrl;
       }
+      // Row 21 (Portfolio, Excel 20) = live row16 − row17 difference. Computed on
+      // the fly (never cached) so it tracks any change to row 16 or row 17.
+      if (Number(row) === SYN_PTF_DIFF_ROW && isSynMassCalcCol(col)) {
+        const ptf = computePortfolioDiffDisplay(col);
+        if (ptf != null) return ptf;
+      }
       const hitKey = `${row}:${col}`;
       if (displayCache.has(hitKey)) return displayCache.get(hitKey);
       // ADAPTATION total row — SUM(rows adaptationSumFrom..adaptationSumTo), cols C..J.
@@ -1456,6 +1494,14 @@ export default {
           computeControlDiffDisplay(col)
         );
       }
+      // Portfolio row (row 21, Excel 20) = live row16 − row17 — same seeding.
+      for (const col of (props.sheet && props.sheet.columns) || []) {
+        if (!isSynPortfolioDiffCell(SYN_PTF_DIFF_ROW, col)) continue;
+        lastPersistedGreen.set(
+          `${SYN_PTF_DIFF_ROW}:${col}`,
+          computePortfolioDiffDisplay(col)
+        );
+      }
       greenBaselineLoaded = true;
     }
 
@@ -1510,6 +1556,26 @@ export default {
           delete cell.f;
         }
         changes.push({ row: SYN_CTRL_DIFF_ROW, col, value });
+      }
+      // Portfolio row (row 21, Excel 20) = live row16 − row17 difference. Mirror it
+      // back the same way so edits to row 16 / row 17 propagate to Supabase.
+      for (const col of (props.sheet && props.sheet.columns) || []) {
+        if (!isSynPortfolioDiffCell(SYN_PTF_DIFF_ROW, col)) continue;
+        const value = computePortfolioDiffDisplay(col) || '';
+        const key = `${SYN_PTF_DIFF_ROW}:${col}`;
+        if (lastPersistedGreen.get(key) === value) continue;
+        lastPersistedGreen.set(key, value);
+        let cell = cellMap.value.get(key);
+        if (!cell) {
+          cell = { r: SYN_PTF_DIFF_ROW, c: col, v: value, userEdited: true };
+          props.sheet.cells.push(cell);
+          cellMap.value.set(key, cell);
+        } else {
+          cell.v = value;
+          cell.userEdited = true;
+          delete cell.f;
+        }
+        changes.push({ row: SYN_PTF_DIFF_ROW, col, value });
       }
       if (changes.length) emit('derived-change', changes);
     }
