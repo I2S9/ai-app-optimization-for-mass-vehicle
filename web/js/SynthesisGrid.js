@@ -164,6 +164,7 @@ import {
   isSynNumericEntryCell,
   SYN_BUILTIN_PILLAR_META,
   SYN_SP2_RESTART_BG,
+  SYN_SPC_TARGET_BG,
   isSynSp2RestartDisplayExcelCol,
   synLabel,
   getSynAdaptBandNumeric,
@@ -175,6 +176,7 @@ import {
   synStickyColWidth,
   synPillarColWidth,
   isSynBuiltinPillarExcelCol,
+  isSynSpcDisplayExcelCol,
   isSynHeaderPanelVehicleCol,
   colToNum,
   numToCol,
@@ -237,6 +239,16 @@ const SYN_COL_GROUPS = [
     key: 'K',
     toggleDisplayCol: 'K',
     hideDisplayRange: { start: 'L', end: 'CF' },
+  },
+  {
+    key: 'CG',
+    toggleDisplayCol: 'CG',
+    hideDisplayRange: { start: 'CH', end: 'FF' },
+  },
+  {
+    key: 'FG',
+    toggleDisplayCol: 'FG',
+    hideDisplayRange: { start: 'FH', end: 'ND' },
   },
 ];
 const SYN_COL_GROUP_BY_LETTER = new Map(
@@ -665,7 +677,9 @@ export default {
     }
 
     function synExcelColTraceClass(col) {
-      return col === 'CL' ? 'syn-col-cl' : '';
+      if (col === 'CL') return 'syn-col-cl';
+      if (col === 'FL') return 'syn-col-fl';
+      return '';
     }
 
     const pillarLetterOverlays = computed(() => {
@@ -1677,10 +1691,12 @@ export default {
       return isSynPillarColAtRow(col, row, pillarColumns.value);
     }
 
-    /** Gap rows 21–22: display B/K/CG pillars keep pillar fill. */
+    /** Gap rows 21–22: display B/K/CG/FG pillars keep pillar fill. */
     function isGapGreenPillarCol(col) {
       const letter = excelToDisplayCol(col);
-      return letter === 'B' || letter === 'K' || letter === 'CG';
+      return (
+        letter === 'B' || letter === 'K' || letter === 'CG' || letter === 'FG'
+      );
     }
 
     function pillarTitle(col) {
@@ -1739,6 +1755,14 @@ export default {
           ...base,
           background: SYN_SP2_RESTART_BG,
           backgroundColor: SYN_SP2_RESTART_BG,
+          color: '#000',
+        };
+      }
+      if (row >= SYN_GRID_FIRST_ROW && isSynSpcDisplayExcelCol(col)) {
+        return {
+          ...base,
+          background: SYN_SPC_TARGET_BG,
+          backgroundColor: SYN_SPC_TARGET_BG,
           color: '#000',
         };
       }
@@ -1833,7 +1857,8 @@ export default {
     function cellExtraClass(row, col, display) {
       if (
         isSynPillarColAtRow(col, row, pillarColumns.value) ||
-        (row >= SYN_GRID_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col))
+        (row >= SYN_GRID_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col)) ||
+        (row >= SYN_GRID_FIRST_ROW && isSynSpcDisplayExcelCol(col))
       ) {
         return display ? 'syn-pillar-has-char' : '';
       }

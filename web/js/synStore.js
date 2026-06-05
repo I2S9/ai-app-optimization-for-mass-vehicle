@@ -39,6 +39,7 @@ import {
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
+  isSynSpcDisplayExcelCol,
   isSynBuiltinPillarExcelCol,
   synPillarAccentClass,
 } from './synthesisPerf.js';
@@ -63,6 +64,7 @@ export {
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
+  isSynSpcDisplayExcelCol,
   isSynBuiltinPillarExcelCol,
   synPillarAccentClass,
 } from './synthesisPerf.js';
@@ -133,14 +135,15 @@ export const SYN_METRIC_ROWS = new Set([15, 16, 17, 18, 19, 20, 21, 22]);
 export const SYN_METRIC_CJ_WHITE_ROWS = new Set([15, 16, 17, 20, 21, 22]);
 /** Metric rows whose vehicle-column numbers are shown with a kg suffix. */
 export const SYN_METRIC_KG_ROWS = new Set([16, 18, 19, 20]);
-/** SP1 / SP2 pillars — vertical title rendered in a grid overlay (Excel G, P & CL). */
-export const SYN_PILLAR_OVERLAY_COLS = new Set(['G', 'P', 'CL']);
+/** SP1 / SP2 / SPC pillars — vertical title rendered in a grid overlay (Excel G, P, CL & FL). */
+export const SYN_PILLAR_OVERLAY_COLS = new Set(['G', 'P', 'CL', 'FL']);
 
-/** Always-on pillar metadata (display B / K / CG) — not dependent on export merges. */
+/** Always-on pillar metadata (display B / K / CG / FG) — not dependent on export merges. */
 export const SYN_BUILTIN_PILLAR_META = {
   G: { title: 'SP1 TARGET', startRow: 3, endRow: 421 },
   P: { title: 'SP2 TARGET', startRow: 3, endRow: 421 },
   CL: { title: 'SP2 RESTART', startRow: 3, endRow: 421 },
+  FL: { title: 'SPC TARGET', startRow: 3, endRow: 421 },
 };
 
 export function getSynPillarMeta(col, pillarColumns) {
@@ -197,6 +200,8 @@ export const SYN_SP2_TARGET_BG = '#92d050';
 export const SYN_COL_K_BG = SYN_SP2_TARGET_BG;
 /** Display column CG (Excel CL) — SP2 RESTART pillar. */
 export const SYN_SP2_RESTART_BG = '#c4d79b';
+/** Display column FG (Excel FL) — SPC TARGET pillar. */
+export const SYN_SPC_TARGET_BG = '#b8cce4';
 /** Spot highlights — same blue as Database sub-section bands. */
 export const SYN_SPOT_BLUE_BG = '#00b0f0';
 export const SYN_PROJ_HDR_GREEN_ROWS = new Set([3, 4, 13]);
@@ -3045,13 +3050,16 @@ export function synCellInlineStyle(cell, map, row, col, sheet, pillarColumns) {
   }
   if (
     isSynPillarColAtRow(col, row, pillarColumns) ||
-    (row >= SYN_PILLAR_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col))
+    (row >= SYN_PILLAR_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col)) ||
+    (row >= SYN_PILLAR_FIRST_ROW && isSynSpcDisplayExcelCol(col))
   ) {
     const bg = isSynSp2DisplayExcelCol(col)
       ? SYN_SP2_TARGET_BG
       : isSynSp2RestartDisplayExcelCol(col)
         ? SYN_SP2_RESTART_BG
-        : SYN_PILLAR_BG;
+        : isSynSpcDisplayExcelCol(col)
+          ? SYN_SPC_TARGET_BG
+          : SYN_PILLAR_BG;
     style.background = bg;
     style.backgroundColor = bg;
     style.color = '#000';
@@ -3452,7 +3460,8 @@ export function isSynNumericEntryCell(row, col, pillarColumns) {
 export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
   if (
     isSynPillarColAtRow(col, row, pillarColumns) ||
-    (row >= SYN_PILLAR_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col))
+    (row >= SYN_PILLAR_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col)) ||
+    (row >= SYN_PILLAR_FIRST_ROW && isSynSpcDisplayExcelCol(col))
   ) {
     const raw = cell ? displayValue(cell) : '';
     if (raw && String(raw).trim()) return String(raw).trim();

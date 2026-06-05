@@ -6,8 +6,8 @@ export const SYN_LABEL_COL_MIN_W = 240;
 /** SP1 / SP2 TARGET pillar — minimum width; Excel width wins when wider. */
 export const SYN_PILLAR_COL_WIDTH = 72;
 
-/** Excel columns that are always pillar bands (display B, K, CG). */
-export const SYN_BUILTIN_PILLAR_EXCEL_COLS = new Set(['G', 'P', 'CL']);
+/** Excel columns that are always pillar bands (display B, K, CG, FG). */
+export const SYN_BUILTIN_PILLAR_EXCEL_COLS = new Set(['G', 'P', 'CL', 'FL']);
 
 export function isSynBuiltinPillarExcelCol(excelCol) {
   return SYN_BUILTIN_PILLAR_EXCEL_COLS.has(excelCol);
@@ -62,6 +62,8 @@ export function displayToExcelCol(displayCol) {
 export const SYN_SP2_PILLAR_DISPLAY_COL = 'K';
 /** SP2 RESTART pillar — display column CG (Excel CL). */
 export const SYN_SP2_RESTART_PILLAR_DISPLAY_COL = 'CG';
+/** SPC TARGET pillar — display column FG (Excel FL). */
+export const SYN_SPC_PILLAR_DISPLAY_COL = 'FG';
 /** White gutter between SP2 and project columns — display L (Excel Q). */
 export const SYN_SPACER_DISPLAY_COL = 'L';
 /** Rows 3–4 project header band — display columns M…AA (Excel R…AF). */
@@ -271,10 +273,16 @@ export function isSynSp2RestartDisplayExcelCol(excelCol) {
   return excelCol === displayToExcelCol(SYN_SP2_RESTART_PILLAR_DISPLAY_COL);
 }
 
+/** Entire display column FG (Excel FL) — SPC TARGET band colour. */
+export function isSynSpcDisplayExcelCol(excelCol) {
+  return excelCol === displayToExcelCol(SYN_SPC_PILLAR_DISPLAY_COL);
+}
+
 /** CSS class for coloured pillar columns (SP1 grey has no extra class). */
 export function synPillarAccentClass(excelCol) {
   if (isSynSp2DisplayExcelCol(excelCol)) return 'syn-pillar-k';
   if (isSynSp2RestartDisplayExcelCol(excelCol)) return 'syn-pillar-cg';
+  if (isSynSpcDisplayExcelCol(excelCol)) return 'syn-pillar-fg';
   return '';
 }
 
