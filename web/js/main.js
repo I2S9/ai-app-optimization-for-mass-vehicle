@@ -8,13 +8,14 @@ import {
   onUnmounted,
   onErrorCaptured,
   nextTick,
+  provide,
 } from 'vue';
 import BdGrid from './BdGrid.js?v=bd-fold2';
 import SynthesisGrid from './SynthesisGrid.js?v=syn-fold2';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=mns8-bands';
+import MnsGrid from './MnsGrid.js?v=mns16-curbfix';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
@@ -385,6 +386,16 @@ const App = {
         });
       return synRawLoadPromise;
     }
+
+    // Live link for the Options SP2 page: lets the CDC grid read Synthesis cells
+    // (e.g. the Curb mass row 16) reactively. synSheetRevision bumps on every
+    // synthesis change (edits, server recalc, Supabase session load), so any cell
+    // bound through this link updates in real time.
+    provide('synthesisCellLink', {
+      synRaw,
+      synRevision: synSheetRevision,
+      ensureSyn: ensureSynRaw,
+    });
 
     /** Fetch + transform Synthesis when user opens the page (never while on Database). */
     function startSynBackgroundPrepare() {
@@ -1916,7 +1927,7 @@ const App = {
             Préparation de la grille…
           </div>
           <div v-show="isMns" class="grid-route-pane">
-            <MnsGrid v-if="isMns" key="mns-grid" storage-key="mns-grid-cells-v1" />
+            <MnsGrid v-if="isMns" key="mns-grid" storage-key="mns-grid-cells-v3" />
           </div>
           <div v-show="isOptionsSp2" class="grid-route-pane">
             <MnsGrid v-if="isOptionsSp2" key="options-sp2-grid" storage-key="options-sp2-grid-cells-v1" />

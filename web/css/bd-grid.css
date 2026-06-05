@@ -3501,6 +3501,181 @@
   color: #000;
 }
 
+/* MNS — narrower code / value columns C, D, E (short codes + 0.00 values). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='C'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='C'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='D'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='D'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='E'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='E'] {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+}
+
+/* MNS — front coeff column (D) yellow; rear TD/MB columns (D, E) beige.
+   Inputs go transparent so the cell colour shows; table gridlines are kept. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-yellow-cell {
+  background: #ffff99;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-beige-cell {
+  background: #ffcc99;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-yellow-cell
+  .grid-cell-input,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-beige-cell
+  .grid-cell-input {
+  background: transparent;
+  text-align: center;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-red-value
+  .grid-cell-input {
+  color: #c00000;
+  font-weight: 700;
+}
+
+/* MNS — peach paint block over columns A–E, rows 1–11.
+   Borders match the fill (#ffcc99) so no inner gridlines show: a single
+   seamless painted zone. The cell inputs stay transparent so the peach
+   colour shows through, and editing remains possible. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-paint-cell {
+  background: #ffcc99;
+  border-color: #ffcc99;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-paint-cell
+  .grid-cell-input {
+  background: transparent;
+}
+
+/* MNS — column E field labels right-aligned (rows 1–11). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-e-label,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-e-label
+  .grid-cell-input {
+  text-align: right;
+}
+
+/* MNS — red paint bands (rows 15–16, columns A–E). Borders match the fill so
+   the band is one seamless red zone, with a centred white label on top. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-red-cell {
+  background: #ff0000;
+  border-color: #ff0000;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-red-cell
+  .grid-cell-input {
+  background: transparent;
+  color: #fff;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-red-cell
+  .mns-red-label {
+  display: block;
+  text-align: center;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* MNS — dark-green paint bands (rows 23–24, 42, columns A–E). Seamless fill
+   (borders match the background), white labels. Column-A labels may overflow
+   into the empty column B (overflow visible + nowrap). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-green-cell {
+  background: #003300;
+  border-color: #003300;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-green-cell
+  .grid-cell-input {
+  background: transparent;
+  color: #fff;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-green-cell
+  .mns-green-label {
+  display: block;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-green-cell
+  .mns-green-label.mns-green-left {
+  text-align: left;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-green-cell
+  .mns-green-label.mns-green-center {
+  text-align: center;
+}
+
 /* ── Options SP2 — column A "STLA S / SP2" branding block ──────────────────
    Rows 1–12 of column A become one continuous white panel: white fill and
    transparent borders so the row gridlines disappear, with the title centred. */
@@ -3586,6 +3761,20 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'],
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'] .grid-cell-input {
   text-align: left;
+}
+
+/* Options SP2 — Curb mass row linked live to Synthesis (read-only display) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-curb-linked {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-size: 11px;
+  color: #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Options SP2 — highlighted data cells */

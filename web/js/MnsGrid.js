@@ -8,26 +8,123 @@
  * seeded with the field names, one per row. Each page passes its own
  * `storageKey` so the two grids keep independent edits.
  */
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, inject, onMounted, watch } from 'vue';
+import { formatSynNumericDisplay } from './synStore.js';
 
 const MNS_COLUMN_COUNT = 12;
-const MNS_MIN_ROWS = 24;
+const MNS_MIN_ROWS = 60;
 
-/** Field labels seeded into column B, one per row starting at row 1. */
-const MNS_FIELDS_COL_B = [
-  'PLATEFORM',
-  'PROJECT',
-  'SILHOUETTE',
-  'HYBRIDIZATION',
-  'DESIGN PLATE',
-  'SEATS',
-  'TECHNICAL SPECIFICATIONS',
-  'POLE',
-  'ENERGY',
-  'TECHNICAL PACK',
-  'TRIM',
-  'CURB MASS',
+/**
+ * Column B is intentionally left blank on the MNS page (the field labels now
+ * live in column E, right-aligned, over the peach paint block).
+ */
+const MNS_FIELDS_COL_B = [];
+
+/**
+ * Field labels seeded into column E (rows 1–11), right-aligned over the peach
+ * paint block. One label per row starting at row 1.
+ */
+const MNS_FIELDS_COL_E = [
+  'Design Plate',
+  'Trim',
+  'Seats',
+  'Hybridization',
+  'Technical Package',
+  'Technical Specification',
+  'Payload',
+  'Wheels',
+  'Pole',
+  'Engine',
+  'Transmission',
 ];
+
+/** Peach paint block on the MNS page: columns A–E, rows 1–11, no inner gridlines. */
+const MNS_PAINT_COLS = ['A', 'B', 'C', 'D', 'E'];
+const MNS_PAINT_MAX_ROW = 11;
+
+/**
+ * Red paint bands on the MNS page (columns A–E, no inner gridlines). Rows 12–14
+ * are intentionally left blank between the peach block and these red bands.
+ * Each band carries a centred white label (English).
+ */
+const MNS_RED_ROWS = [15, 16];
+const MNS_RED_COLS = ['A', 'B', 'C', 'D', 'E'];
+const MNS_RED_LABELS = {
+  '15:C': 'CURB MASS',
+  '16:C': 'OPTIONAL EQUIPMENT',
+};
+
+/**
+ * Dark-green paint bands on the MNS page (columns A–E, no inner gridlines).
+ * Rows 23–24 head the front unsprung-masses block, row 42 the rear one.
+ * Labels (English) are placed in specific columns; A labels are left-aligned and
+ * may overflow into column B, the short C/D/E headers are centred.
+ */
+const MNS_GREEN_ROWS = [23, 24, 42];
+const MNS_GREEN_COLS = ['A', 'B', 'C', 'D', 'E'];
+const MNS_GREEN_LABELS = {
+  '23:A': { text: 'UNSPRUNG MASSES DETAIL (MNS)', align: 'left' },
+  '24:A': { text: 'FRONT UNSPRUNG MASSES', align: 'left' },
+  '24:C': { text: 'Coeff', align: 'center' },
+  '42:A': { text: 'REAR UNSPRUNG MASSES', align: 'left' },
+  '42:C': { text: 'Coeff', align: 'center' },
+  '42:D': { text: 'TD', align: 'center' },
+  '42:E': { text: 'MB', align: 'center' },
+};
+
+/**
+ * Front unsprung-masses table (rows 25–38). Columns: A = family code,
+ * B = description, C = code (under the "Coeff" header), D = coefficient (yellow).
+ */
+const MNS_FRONT_START_ROW = 25;
+const MNS_FRONT_ROWS = [
+  ['FRN', 'TRANSMISSION AV', 'C81', '0.70'],
+  ['FRN', 'TRANSMISSION A JOINTS AV', 'C71', '0.70'],
+  ['FRN', 'ELEMENTS COMMUNS 1C7', 'C7Z', '0.70'],
+  ['FRN', 'MOYEU - ROULEMENT ROUE AV', 'E13', '1.00'],
+  ['FRN', 'ROUE PRINCIPALE', 'E31', '0.50'],
+  ['FRN', 'ENJOLIVEUR ROUE', 'E33', '0.50'],
+  ['FRN', 'INDICATEUR PERTE PRESSION', 'E34', '0.50'],
+  ['FRN', 'DISQUE - TAMBOUR AV', 'F11', '1.00'],
+  ['FRN', 'ETRIER - PLATEAU AV (SANS CABLE)', 'F21', '1.00'],
+  ['HYD', 'ELEMENT SUSPENSION AV HYDROPNEUM', 'E16', '0.70'],
+  ['LAS', 'BERCEAU - TRAVERSE TRAIN AV', 'E11', '0.00'],
+  ['LAS', 'TRIANGLE BRAS ESSIEU RIGIDE', 'E12', '0.40'],
+  ['LAS', 'ELEMENT SUSPENSION AV METALLIQUE', 'E14', '0.80'],
+  ['LAS', 'ANTIDEVERS AV', 'E15', '0.20'],
+];
+
+/**
+ * Rear unsprung-masses table (rows 43–57). Columns: A = family code,
+ * B = description, C = code ("Coeff"), D = TD, E = MB (D & E beige).
+ */
+const MNS_REAR_START_ROW = 43;
+const MNS_REAR_ROWS = [
+  ['FRN', 'TRANSMISSION AR ROUES INDEPENDANT', 'C62', '0.70', '0.70'],
+  ['FRN', 'TRANSMISSION AR TRAIN RIGIDE', 'C63', '1.00', '1.00'],
+  ['FRN', 'TRANSMISSION A JOINTS AR', 'C73', '0.70', '0.70'],
+  ['FRN', 'MOYEU - ROULEMENT ROUE AR', 'E24', '1.00', '1.00'],
+  ['FRN', 'ROUE PRINCIPALE', 'E31', '0.50', '0.50'],
+  ['FRN', 'ENJOLIVEUR ROUE', 'E33', '0.50', '0.50'],
+  ['FRN', 'INDICATEUR PERTE PRESSION', 'E34', '0.50', '0.50'],
+  ['FRN', 'DISQUE - TAMBOUR AR', 'F31', '1.00', '1.00'],
+  ['FRN', 'ETRIER - PLATEAU AR (SANS CABLE)', 'F41', '1.00', '1.00'],
+  ['HYD', 'ELEMENT SUSPENSION AR HYDROPNEUM', 'E28', '0.40', '0.40'],
+  ['LAS', 'BERCEAU - TRAVERSE TRAIN AR', 'E21', '0.70', '0.70'],
+  ['LAS', 'BRAS SUSPENSION AR - ENS. BRAS - FUSEE', 'E22', '1.00', '1.00'],
+  ['LAS', 'ESSIEU RIGIDE - GUIDAGE', 'E23', '0.50', '0.50'],
+  ['LAS', 'ELEMENT SUSPENSION AR METALLIQUE', 'E25', '1.00', '0.75'],
+  ['LAS', 'ANTIDEVERS AR', 'E26', '0.20', '0.20'],
+];
+
+/** Coloured table bodies. Yellow front coeff column, beige rear TD/MB columns. */
+const MNS_FRONT_YELLOW_COL = 'D';
+const MNS_FRONT_YELLOW_RANGE = [25, 40];
+const MNS_REAR_BEIGE_COLS = ['D', 'E'];
+const MNS_REAR_BEIGE_RANGE = [43, 59];
+
+/** Values displayed in red on the rear table (matches the source). */
+const MNS_REAR_RED_VALUES = new Set(['53:D', '56:E']);
 
 /**
  * Column B labels for the Options SP2 page: adds BATTERY before POLE and an
@@ -126,7 +223,33 @@ const OPTIONS_SP2_CDE = [
   ['8.5', '8.0', '0.5'],
 ];
 
-const MNS_DEFAULT_STORAGE_KEY = 'mns-grid-cells-v1';
+/**
+ * Synthesis header table copied into Options SP2 columns F–T, rows 1–12
+ * (source: Synthesis sheet columns M–AA, rows 3–14). Each inner array holds the
+ * 15 values for columns F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T of one row.
+ */
+const OPTIONS_SP2_FT_COLS = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
+/** Synthesis source columns (M–AA) feeding Options SP2 columns F–T. */
+const OPTIONS_SP2_FT_SRC_COLS = ['M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'AA'];
+/** Options SP2 row 14 (Curb mass) is mirrored live from Synthesis row 16. */
+const OPTIONS_SP2_CURB_ROW = 14;
+const SYN_CURB_MASS_ROW = 16;
+const OPTIONS_SP2_FT = [
+  ['STLA/S', 'STLA/S', 'STLA/S', 'SP2 Target', '', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S'],
+  ['SP1', 'SP1', 'SP1', '', '', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2'],
+  ['P1X', 'P1X', 'P1X', '', '', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H', 'O3H'],
+  ['S', 'MHEVP2', 'HEV', '', '', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'MHEVP2'],
+  ['EMEA', 'EMEA', 'EMEA', '', '', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA'],
+  ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+  ['FWD', 'FWD', 'FWD', '', '', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'AWD', 'AWD', 'AWD', 'FWD'],
+  ['HR', '', '', '', '', 'HR', 'HR', 'HR', 'XR', 'XR', 'XR', 'XR', 'XR', 'XR', 'TT'],
+  ['HIGH_Range', '', '', '', '', 'HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', ''],
+  ['', '', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+  ['TARGET', 'TARGET', 'TARGET', '', '', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET'],
+  ['N1', 'N1', 'N1', '', '', 'S', 'M', 'L', 'S', 'M', 'L', 'M', 'L', 'GSE', 'S'],
+];
+
+const MNS_DEFAULT_STORAGE_KEY = 'mns-grid-cells-v3';
 
 /** Rows that make up the red bands on the Options SP2 page (columns A–E). */
 const SP2_RED_ROWS = new Set([16, 17, 18, 53, 54, 55, 57, 58, 59]);
@@ -183,6 +306,35 @@ function buildSeedCells(storageKey) {
       if (d !== '') cells[`${row}:D`] = d;
       if (e !== '') cells[`${row}:E`] = e;
     });
+    // Synthesis header table → columns F–T, rows 1–12.
+    OPTIONS_SP2_FT.forEach((rowVals, i) => {
+      const row = i + 1;
+      rowVals.forEach((v, j) => {
+        if (v !== '') cells[`${row}:${OPTIONS_SP2_FT_COLS[j]}`] = v;
+      });
+    });
+  } else {
+    // MNS page: seed the right-aligned field labels into column E (rows 1–11).
+    MNS_FIELDS_COL_E.forEach((label, idx) => {
+      if (label) cells[`${idx + 1}:E`] = label;
+    });
+    // Front unsprung-masses table (A=family, B=desc, C=code, D=coeff).
+    MNS_FRONT_ROWS.forEach(([a, b, c, d], i) => {
+      const row = MNS_FRONT_START_ROW + i;
+      cells[`${row}:A`] = a;
+      cells[`${row}:B`] = b;
+      cells[`${row}:C`] = c;
+      cells[`${row}:D`] = d;
+    });
+    // Rear unsprung-masses table (A=family, B=desc, C=code, D=TD, E=MB).
+    MNS_REAR_ROWS.forEach(([a, b, c, d, e], i) => {
+      const row = MNS_REAR_START_ROW + i;
+      cells[`${row}:A`] = a;
+      cells[`${row}:B`] = b;
+      cells[`${row}:C`] = c;
+      cells[`${row}:D`] = d;
+      cells[`${row}:E`] = e;
+    });
   }
   return cells;
 }
@@ -207,18 +359,139 @@ export default {
   setup(props) {
     const cells = ref(buildSeedCells(props.storageKey));
 
-    const columns = computed(() =>
-      Array.from({ length: MNS_COLUMN_COUNT }, (_, i) => numToCol(i + 1))
-    );
-
     // The Options SP2 page reuses this grid but brands column A (rows 1–12)
     // with a white "STLA S / SP2" header block instead of editable cells.
     const isOptionsSp2 = computed(() =>
       String(props.storageKey || '').includes('options-sp2')
     );
 
+    // Options SP2 needs columns out to T (20) for the copied synthesis table.
+    const columns = computed(() => {
+      const count = isOptionsSp2.value ? 20 : MNS_COLUMN_COUNT;
+      return Array.from({ length: count }, (_, i) => numToCol(i + 1));
+    });
+
+    // Live link to the Synthesis sheet (provided by the app root). Used to mirror
+    // the Curb mass row (Synthesis 16 → Options SP2 row 14) in real time.
+    const synLink = inject('synthesisCellLink', null);
+
+    // Map of Options SP2 column (F–T) → formatted Curb mass value, recomputed
+    // whenever the synthesis revision bumps (edit / recalc / Supabase reload).
+    const curbMassRow = computed(() => {
+      try {
+        if (!isOptionsSp2.value || !synLink || !synLink.synRaw) return {};
+        // Touch the revision so this recomputes on any synthesis change.
+        if (synLink.synRevision) void synLink.synRevision.value;
+        const raw = synLink.synRaw.value;
+        if (!raw || !Array.isArray(raw.cells)) return {};
+        // One pass to gather the Curb mass row (Synthesis row 16) source columns.
+        const srcVals = {};
+        const wanted = new Set(OPTIONS_SP2_FT_SRC_COLS);
+        for (const cell of raw.cells) {
+          if (Number(cell.r) === SYN_CURB_MASS_ROW && wanted.has(cell.c)) {
+            srcVals[cell.c] = cell.v;
+          }
+        }
+        const out = {};
+        OPTIONS_SP2_FT_COLS.forEach((destCol, i) => {
+          const v = srcVals[OPTIONS_SP2_FT_SRC_COLS[i]];
+          if (v === undefined || v === null || String(v).trim() === '') return;
+          const formatted = formatSynNumericDisplay(String(v));
+          out[destCol] = formatted ? `${formatted} kg` : '';
+        });
+        return out;
+      } catch (e) {
+        console.warn('Options SP2 curb-mass link:', e);
+        return {};
+      }
+    });
+
+    function isCurbLinkedCell(row, col) {
+      return (
+        isOptionsSp2.value &&
+        row === OPTIONS_SP2_CURB_ROW &&
+        OPTIONS_SP2_FT_COLS.includes(col)
+      );
+    }
+
+    function curbLinkedValue(col) {
+      const map = curbMassRow.value;
+      return (map && map[col]) || '';
+    }
+
     function isBrandCell(row, col) {
       return isOptionsSp2.value && col === 'A' && row >= 1 && row <= 15;
+    }
+
+    // MNS page: peach paint block over columns A–E, rows 1–11. Seamless fill
+    // (no inner gridlines) for the "painted" look.
+    function isMnsPaintCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        row >= 1 &&
+        row <= MNS_PAINT_MAX_ROW &&
+        MNS_PAINT_COLS.includes(col)
+      );
+    }
+
+    // MNS page: column E field labels (rows 1–11), right-aligned.
+    function isMnsLabelCell(row, col) {
+      return !isOptionsSp2.value && col === 'E' && row >= 1 && row <= MNS_PAINT_MAX_ROW;
+    }
+
+    // MNS page: red paint bands (rows 15–16, columns A–E), no inner gridlines.
+    function isMnsRedCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        MNS_RED_ROWS.includes(row) &&
+        MNS_RED_COLS.includes(col)
+      );
+    }
+
+    // Centred white label sitting on a red band (English).
+    function mnsRedLabel(row, col) {
+      if (isOptionsSp2.value) return null;
+      return MNS_RED_LABELS[`${row}:${col}`] || null;
+    }
+
+    // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E).
+    function isMnsGreenCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        MNS_GREEN_ROWS.includes(row) &&
+        MNS_GREEN_COLS.includes(col)
+      );
+    }
+
+    // White label sitting on a green band (English): { text, align }.
+    function mnsGreenLabel(row, col) {
+      if (isOptionsSp2.value) return null;
+      return MNS_GREEN_LABELS[`${row}:${col}`] || null;
+    }
+
+    // Front coeff column (D) painted yellow over the front table body.
+    function isMnsYellowCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        col === MNS_FRONT_YELLOW_COL &&
+        row >= MNS_FRONT_YELLOW_RANGE[0] &&
+        row <= MNS_FRONT_YELLOW_RANGE[1]
+      );
+    }
+
+    // Rear TD/MB columns (D, E) painted beige over the rear table body.
+    function isMnsBeigeCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        MNS_REAR_BEIGE_COLS.includes(col) &&
+        row >= MNS_REAR_BEIGE_RANGE[0] &&
+        row <= MNS_REAR_BEIGE_RANGE[1]
+      );
+    }
+
+    // Rear values shown in red (matches the source table).
+    function isMnsRedValue(row, col) {
+      return !isOptionsSp2.value && MNS_REAR_RED_VALUES.has(`${row}:${col}`);
     }
 
     // Options SP2 red bands (rows in SP2_RED_ROWS, columns A–E), no inner gridlines.
@@ -293,7 +566,13 @@ export default {
       persist();
     }
 
-    onMounted(() => loadForKey(props.storageKey));
+    onMounted(() => {
+      loadForKey(props.storageKey);
+      // Ensure Synthesis data is loaded so the linked Curb mass row resolves.
+      if (isOptionsSp2.value && synLink && typeof synLink.ensureSyn === 'function') {
+        Promise.resolve(synLink.ensureSyn()).catch(() => {});
+      }
+    });
 
     // Reload the right dataset if the same component instance is reused for
     // another page (different storageKey).
@@ -309,11 +588,22 @@ export default {
       onCellInput,
       isOptionsSp2,
       isBrandCell,
+      isMnsPaintCell,
+      isMnsLabelCell,
+      isMnsRedCell,
+      mnsRedLabel,
+      isMnsGreenCell,
+      mnsGreenLabel,
+      isMnsYellowCell,
+      isMnsBeigeCell,
+      isMnsRedValue,
       isRedCell,
       isUpgradeCell,
       isGreenCell,
       isBlueCell,
       redLabel,
+      isCurbLinkedCell,
+      curbLinkedValue,
     };
   },
   template: `
@@ -349,6 +639,13 @@ export default {
                   'sp2-upgrade-cell': isUpgradeCell(row, col),
                   'sp2-green-cell': isGreenCell(row, col),
                   'sp2-blue-cell': isBlueCell(row, col),
+                  'mns-paint-cell': isMnsPaintCell(row, col),
+                  'mns-e-label': isMnsLabelCell(row, col),
+                  'mns-red-cell': isMnsRedCell(row, col),
+                  'mns-green-cell': isMnsGreenCell(row, col),
+                  'mns-yellow-cell': isMnsYellowCell(row, col),
+                  'mns-beige-cell': isMnsBeigeCell(row, col),
+                  'mns-red-value': isMnsRedValue(row, col),
                 }"
               >
                 <template v-if="isBrandCell(row, col)">
@@ -359,6 +656,20 @@ export default {
                   v-else-if="redLabel(row, col)"
                   :class="redLabel(row, col).cls"
                 >{{ redLabel(row, col).text }}</span>
+                <span
+                  v-else-if="mnsRedLabel(row, col)"
+                  class="mns-red-label"
+                >{{ mnsRedLabel(row, col) }}</span>
+                <span
+                  v-else-if="mnsGreenLabel(row, col)"
+                  class="mns-green-label"
+                  :class="'mns-green-' + mnsGreenLabel(row, col).align"
+                >{{ mnsGreenLabel(row, col).text }}</span>
+                <span
+                  v-else-if="isCurbLinkedCell(row, col)"
+                  class="sp2-curb-linked"
+                  title="Lié à Synthesis (Curb mass) — mis à jour automatiquement"
+                >{{ curbLinkedValue(col) }}</span>
                 <input
                   v-else
                   type="text"
