@@ -348,7 +348,7 @@ export default {
         if (w.col === SYN_STICKY_COL) continue;
         const pillarW = synPillarColWidth(w.col, props.sheet, pillarColumns.value);
         const wPx =
-          pillarW != null ? pillarW : Math.min(w.width || 64, 100);
+          pillarW != null ? pillarW : Math.min(Math.max(w.width || 64, 110), 200);
         m.set(w.col, wPx);
       }
       for (const col of displayColumns.value) {
@@ -357,7 +357,7 @@ export default {
             col,
             synPillarColWidth(col, props.sheet, pillarColumns.value) != null
               ? synPillarColWidth(col, props.sheet, pillarColumns.value)
-              : 54
+              : 110
           );
         }
       }

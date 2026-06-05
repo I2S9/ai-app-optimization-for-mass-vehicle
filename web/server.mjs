@@ -19,6 +19,121 @@ const PROXY_API = (process.env.WGHT_PROXY_API || 'http://127.0.0.1:8000').replac
   ''
 );
 
+/**
+ * Supabase persistence built straight into this Node server, so `run-bd-server`
+ * alone gives: fast static data loading + edits saved to Supabase (survive F5 and
+ * are shared between machines). We deliberately do NOT load grid data from Supabase
+ * (that remote-only path is slow and fragile); only the session snapshot (BD/Syn
+ * edits) round-trips through the cloud. Credentials are read from api/.env.
+ */
+function loadSupabaseEnv() {
+  try {
+    const envPath = path.join(__dirname, '..', 'api', '.env');
+    if (!fs.existsSync(envPath)) return { url: '', key: '' };
+    const text = fs.readFileSync(envPath, 'utf8');
+    const out = {};
+    for (const line of text.split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+      if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+    return {
+      url: (process.env.SUPABASE_URL || out.SUPABASE_URL || '').replace(/\/$/, ''),
+      key: process.env.SUPABASE_SERVICE_KEY || out.SUPABASE_SERVICE_KEY || '',
+    };
+  } catch {
+    return { url: '', key: '' };
+  }
+}
+
+const SUPABASE = loadSupabaseEnv();
+const SUPABASE_ENABLED = Boolean(SUPABASE.url && SUPABASE.key);
+const SNAPSHOT_PREFIX = 'gz+b64:';
+
+/** Same on-disk format as api/app/snapshot_codec.py so both can read each other. */
+function compressSnapshot(data) {
+  if (data == null) return null;
+  const raw = Buffer.from(JSON.stringify(data), 'utf8');
+  return SNAPSHOT_PREFIX + zlib.deflateSync(raw, { level: 9 }).toString('base64');
+}
+
+function decompressSnapshot(text) {
+  if (!text) return null;
+  if (text.startsWith(SNAPSHOT_PREFIX)) {
+    const blob = Buffer.from(text.slice(SNAPSHOT_PREFIX.length), 'base64');
+    return JSON.parse(zlib.inflateSync(blob).toString('utf8'));
+  }
+  return JSON.parse(text);
+}
+
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE.key,
+    Authorization: `Bearer ${SUPABASE.key}`,
+    'Content-Type': 'application/json',
+    ...extra,
+  };
+}
+
+async function supabaseFetchSession(projectId) {
+  const url =
+    `${SUPABASE.url}/rest/v1/workbook_sessions?project_id=eq.` +
+    `${encodeURIComponent(projectId)}` +
+    `&select=revision,structure_revision,bd_snapshot,syn_snapshot,updated_at,updated_by&limit=1`;
+  const res = await fetch(url, { headers: supabaseHeaders() });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  const rows = await res.json();
+  if (!rows || !rows.length) return null;
+  const row = rows[0];
+  const bd = decompressSnapshot(row.bd_snapshot);
+  let structRev = Number(row.structure_revision || 0);
+  if (!structRev && bd && typeof bd === 'object') {
+    structRev = Number(bd.structureRevision || 0);
+  }
+  return {
+    project_id: projectId,
+    revision: Number(row.revision || 0),
+    structureRevision: structRev,
+    bd,
+    syn: decompressSnapshot(row.syn_snapshot),
+    updated_at: row.updated_at,
+    updated_by: row.updated_by,
+  };
+}
+
+async function supabaseUpsertSession(projectId, payload) {
+  const revision = Number(payload.revision || 0);
+  const structRev = Number(
+    payload.structure_revision ||
+      payload.structureRevision ||
+      (payload.bd && payload.bd.structureRevision) ||
+      0
+  );
+  // Revision guard: never let an older client overwrite a newer cloud snapshot.
+  const existing = await supabaseFetchSession(projectId).catch(() => null);
+  if (existing && existing.revision > revision) {
+    return { project_id: projectId, revision: existing.revision, ok: false, conflict: true };
+  }
+  const body = [
+    {
+      project_id: projectId,
+      revision,
+      structure_revision: structRev,
+      bd_snapshot: compressSnapshot(payload.bd),
+      syn_snapshot: compressSnapshot(payload.syn),
+      updated_by: payload.updated_by || 'web',
+    },
+  ];
+  const res = await fetch(`${SUPABASE.url}/rest/v1/workbook_sessions`, {
+    method: 'POST',
+    headers: supabaseHeaders({
+      Prefer: 'resolution=merge-duplicates,return=minimal',
+    }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  return { project_id: projectId, revision, structureRevision: structRev, ok: true };
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -122,6 +237,10 @@ async function handleApi(req, res, urlPath, fullUrl) {
       mode: 'local-node',
       chunkedLoad,
       serverCalc,
+      // Fast static data loading, but edits persist to Supabase (survive F5 / shared
+      // between machines) when api/.env has SUPABASE_URL + SUPABASE_SERVICE_KEY.
+      cloudPersist: SUPABASE_ENABLED,
+      remoteOnly: false,
       version: 2,
       projectId: 'default',
     });
@@ -201,6 +320,34 @@ async function handleApi(req, res, urlPath, fullUrl) {
       sendJson(res, { error: e.message }, 500);
     }
     return true;
+  }
+
+  const sessionMatch = urlPath.match(/^\/api\/v1\/sessions\/([^/]+)$/);
+  if (sessionMatch && SUPABASE_ENABLED) {
+    const projectId = decodeURIComponent(sessionMatch[1]);
+    if (req.method === 'GET') {
+      try {
+        const session = await supabaseFetchSession(projectId);
+        if (!session) {
+          sendJson(res, { error: 'Session not found' }, 404);
+          return true;
+        }
+        sendJson(res, session);
+      } catch (e) {
+        sendJson(res, { error: e.message }, 503);
+      }
+      return true;
+    }
+    if (req.method === 'PUT') {
+      try {
+        const body = await readJsonBody(req);
+        const result = await supabaseUpsertSession(projectId, body || {});
+        sendJson(res, result);
+      } catch (e) {
+        sendJson(res, { error: e.message }, 503);
+      }
+      return true;
+    }
   }
 
   return false;
