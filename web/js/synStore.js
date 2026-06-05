@@ -1765,33 +1765,30 @@ export function formatSynMetricValue(row, col, raw) {
   return s;
 }
 
+/**
+ * Sign-based conditional colour for the control (Excel row 19, displayed 20) and
+ * portfolio (Excel row 20, displayed 21) metric rows: negative → green (#92d050),
+ * positive → HEV red (#ff0000), zero / empty / non-numeric → neutral (no class).
+ */
+function synSignMetricClass(display) {
+  const n = parseFloat(String(display != null ? display : '').replace(',', '.'));
+  if (!Number.isFinite(n) || n === 0) return '';
+  return n < 0 ? 'syn-metric-sign-neg' : 'syn-metric-sign-pos';
+}
+
 /** Metric data cells — Control green/red, Portfolio red, etc. */
 export function synMetricCellClass(row, col, display) {
   if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START)) return '';
   const s = String(display != null ? display : '').trim();
   if (!s) return '';
   if (isSynApBbTableCol(col)) {
-    if (row === 19) {
-      const n = parseFloat(s.replace(',', '.'));
-      if (Number.isFinite(n)) {
-        if (n < 0) return 'syn-metric-control-ok';
-        if (n > 0) return 'syn-metric-control-warn';
-      }
-    }
-    if (row === 20) return 'syn-metric-portfolio';
+    if (row === 19 || row === 20) return synSignMetricClass(s);
     if (row === 18) return 'syn-metric-stale syn-metric-mass';
     if (row === 16) return 'syn-metric-mass';
     if (row === 17) return 'syn-metric-pretarget';
     return '';
   }
-  if (row === 19) {
-    const n = parseFloat(s.replace(',', '.'));
-    if (Number.isFinite(n)) {
-      if (n < 0) return 'syn-metric-control-ok';
-      if (n > 0) return 'syn-metric-control-warn';
-    }
-  }
-  if (row === 20) return 'syn-metric-portfolio';
+  if (row === 19 || row === 20) return synSignMetricClass(s);
   if (row === 21) return 'syn-metric-forecast';
   if (row === 22) return 'syn-row22-hev-red';
   if (row === 18) return 'syn-metric-stale syn-metric-mass';

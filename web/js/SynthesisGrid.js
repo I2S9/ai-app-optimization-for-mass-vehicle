@@ -72,15 +72,6 @@ import {
   synProjHeaderGreyStyle,
   isSynProjHeaderRedCol,
   synProjHeaderRedStyle,
-  isSynRow19MoGreenCol,
-  isSynRow19PaaRedCol,
-  synRow19MoGreenStyle,
-  synRow19PaaRedStyle,
-  isSynRow20PortfolioRedCol,
-  isSynRow20PortfolioYellowCol,
-  synRow20PortfolioRedStyle,
-  synRow20PortfolioYellowStyle,
-  isSynRow21Step3Col,
   isSynRow17BlueEvery3Col,
   synRow17MaaBlueStyle,
   isSynRow18GreyCol,
@@ -871,6 +862,12 @@ export default {
               if (sk.includes(needle)) scrollStyleCache.delete(sk);
             }
           }
+          // Re-render so the refreshed cells (and the grid-derived Control /
+          // Portfolio rows that depend on them) rebuild their cached model —
+          // including the value-conditional colour. Without this the granular
+          // path clears caches but never triggers a render, leaving rows 20/21
+          // (Excel 19/20) stale after a live recalc.
+          editEpoch.value += 1;
         }
       }
     );
@@ -1577,7 +1574,14 @@ export default {
         }
         changes.push({ row: SYN_PTF_DIFF_ROW, col, value });
       }
-      if (changes.length) emit('derived-change', changes);
+      if (changes.length) {
+        emit('derived-change', changes);
+        // The Control / Portfolio rows are computed in the grid, so a change in
+        // their row 16 / 17 / 18 sources (e.g. once a live SUMPRODUCT settles)
+        // must force the cached cell models to rebuild — otherwise the displayed
+        // value and its negative/positive colour stay frozen on the old result.
+        editEpoch.value += 1;
+      }
     }
 
     function scheduleGreenPersist() {
@@ -1851,18 +1855,12 @@ export default {
       if (isSynProjHeaderRedCol(row, col)) {
         return { ...base, ...synProjHeaderRedStyle() };
       }
-      if (isSynRow19MoGreenCol(row, col)) {
-        return { ...base, ...synRow19MoGreenStyle() };
-      }
-      if (isSynRow19PaaRedCol(row, col)) {
-        return { ...base, ...synRow19PaaRedStyle() };
-      }
-      if (isSynRow20PortfolioRedCol(row, col)) {
-        const style = { ...base, ...synRow20PortfolioRedStyle() };
-        if (isSynRow20PortfolioYellowCol(row, col)) {
-          Object.assign(style, synRow20PortfolioYellowStyle());
-        }
-        return style;
+      if (row === 19 || row === 20) {
+        // Control (Excel 19, displayed 20) and portfolio (Excel 20, displayed 21)
+        // rows: value-conditional colouring is handled by the syn-metric-sign-neg
+        // / -pos classes (negative → #92d050 green, positive → HEV red #ff0000).
+        // Keep the inline background neutral so a zero / empty cell stays blank.
+        return base;
       }
       if (isSynRow17BlueEvery3Col(row, col)) {
         return { ...base, ...synRow17MaaBlueStyle() };
@@ -1985,21 +1983,6 @@ export default {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
         const combined = withHdrPanelBold(row, col, hdrCls, display);
         if (combined) return combined;
-      }
-      if (isSynRow19MoGreenCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row19-mo-green', display);
-      }
-      if (isSynRow19PaaRedCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row19-paa-red', display);
-      }
-      if (isSynRow20PortfolioRedCol(row, col)) {
-        const cls = isSynRow20PortfolioYellowCol(row, col)
-          ? 'syn-row20-portfolio-red syn-row20-portfolio-yellow'
-          : 'syn-row20-portfolio-red';
-        return withHdrPanelBold(row, col, cls, display);
-      }
-      if (isSynRow21Step3Col(row, col, display)) {
-        return withHdrPanelBold(row, col, 'syn-row21-step3', display);
       }
       if (isSynRow17BlueEvery3Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);

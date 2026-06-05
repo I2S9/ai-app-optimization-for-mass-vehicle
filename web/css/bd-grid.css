@@ -1109,6 +1109,40 @@
   color: #9c0006 !important;
   font-weight: 600;
 }
+/* Rows 20 (portfolio) & 21 (forecast) — value-conditional:
+   negative → green #92d050, positive → HEV red #ff0000 (white text) */
+.synthesis-grid .bd-table tbody td.syn-metric-sign-neg,
+.synthesis-grid .bd-table tbody td.data-cell.syn-metric-sign-neg,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-metric-sign-neg:not(.syn-pillar-col) {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+  font-weight: 600;
+}
+.synthesis-grid .bd-table tbody td.syn-metric-sign-neg input,
+.synthesis-grid .bd-table tbody td.syn-metric-sign-neg span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-metric-sign-neg input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-metric-sign-neg span {
+  background: #92d050 !important;
+  background-color: #92d050 !important;
+  color: #000 !important;
+}
+.synthesis-grid .bd-table tbody td.syn-metric-sign-pos,
+.synthesis-grid .bd-table tbody td.data-cell.syn-metric-sign-pos,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-metric-sign-pos:not(.syn-pillar-col) {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+  font-weight: 600;
+}
+.synthesis-grid .bd-table tbody td.syn-metric-sign-pos input,
+.synthesis-grid .bd-table tbody td.syn-metric-sign-pos span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-metric-sign-pos input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-metric-sign-pos span {
+  background: #ff0000 !important;
+  background-color: #ff0000 !important;
+  color: #fff !important;
+}
 .synthesis-grid .bd-table tbody td.syn-metric-forecast {
   font-weight: 600;
 }
@@ -1440,6 +1474,8 @@
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k).syn-metric-control-ok,
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k).syn-metric-control-warn,
 .synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k).syn-metric-portfolio,
+.synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k).syn-metric-sign-neg,
+.synthesis-grid .bd-table tbody td.syn-pillar-col:not(.syn-pillar-k).syn-metric-sign-pos,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody tr.syn-header-panel-end td.syn-pillar-col:not(.syn-pillar-k),
 .synthesis-grid .bd-table tbody tr.syn-after-panel-gap td.syn-pillar-col:not(.syn-pillar-k),
