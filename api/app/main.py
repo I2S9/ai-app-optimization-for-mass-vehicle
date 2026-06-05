@@ -90,6 +90,11 @@ def config():
         # When true the frontend can fetch the precomputed display grid from the DB
         # (GET /sheets/{id}/grid) instead of the static /public/data/*-grid.json file.
         "gridInDb": _store_has_grid_cache(),
+        # Realtime (websocket) — le navigateur s'abonne directement a Supabase
+        # pour recevoir en direct les modifs Synthesis (ligne 16 Curb mass) et
+        # les refleter sur Options SP2 (ligne 14). anon key = publique, sans risque.
+        "supabaseUrl": settings.supabase_url if settings.use_supabase else "",
+        "supabaseAnonKey": settings.supabase_anon_key if settings.use_supabase else "",
         "version": 2,
         "projectId": DEFAULT_PROJECT,
     }

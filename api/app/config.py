@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Supabase HTTPS (port 443 — passe le pare-feu entreprise)
     supabase_url: str = ""
     supabase_service_key: str = ""
+    # Cle publique "anon" — sans danger cote navigateur, requise pour le
+    # Realtime (websocket) qui pousse les modifs Synthesis vers Options SP2.
+    supabase_anon_key: str = ""
 
     # Supabase Postgres direct (port 6543 — souvent bloque)
     supabase_db_url: str = ""

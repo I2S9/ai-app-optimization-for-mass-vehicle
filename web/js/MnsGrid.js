@@ -422,8 +422,7 @@ export default {
     function isSynTableCell(row, col) {
       return (
         isOptionsSp2.value &&
-        row >= 1 &&
-        row <= 12 &&
+        ((row >= 1 && row <= 12) || row === OPTIONS_SP2_CURB_ROW) &&
         OPTIONS_SP2_FT_COLS.includes(col)
       );
     }

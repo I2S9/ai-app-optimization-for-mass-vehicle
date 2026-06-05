@@ -3783,6 +3783,32 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-curb-linked {
   font-weight: 700;
 }
+
+/* Options SP2 — black gridlines around the copied Synthesis table (like Synthesis) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell {
+  border: 1px solid #000;
+}
+
+/* Options SP2 — always show the horizontal scrollbar (wide A–T grid) */
+.bd-grid-root.options-sp2-grid .bd-grid-scroll {
+  overflow-x: scroll;
+  overflow-y: auto;
+}
+.bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar {
+  height: 14px;
+  width: 14px;
+}
+.bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar-thumb {
+  background: #9a9a9a;
+  border: 3px solid #e6e6e6;
+  border-radius: 8px;
+}
+.bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6f6f6f;
+}
+.bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar-track {
+  background: #e6e6e6;
+}
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='F'],
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='F'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='G'],

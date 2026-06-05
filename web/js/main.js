@@ -15,12 +15,13 @@ import SynthesisGrid from './SynthesisGrid.js?v=syn-fold2';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=mns20-synmatch';
+import MnsGrid from './MnsGrid.js?v=mns21-realtime';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
 import { synGridLooksHealthy } from './synStore.js?v=syn-nuke1';
 import { createWorkbookSession } from './workbookSession.js?v=realtime-sync1';
+import { startSynthesisRealtime } from './synthesisRealtime.js?v=realtime1';
 import { createPerfBench } from './perfBench.js?v=1';
 import { yieldToMain, deferHeavy } from './yieldMain.js?v=3';
 import {
@@ -401,6 +402,55 @@ const App = {
       ensureSyn: ensureSynRaw,
     });
 
+    // ── Supabase Realtime ──────────────────────────────────────────────────
+    // Quand une cellule Synthesis change cote base (autre onglet / utilisateur),
+    // on l'applique a synRaw en memoire et on bump le tick d'edition : la ligne 14
+    // "Curb mass" d'Options SP2 (liee a la ligne 16 de Synthesis) se met a jour en
+    // direct, sans rechargement. Best-effort : ne casse rien si Realtime indisponible.
+    let synRealtimeHandle = null;
+
+    function applyRealtimeSynCell({ row, col, v }) {
+      const raw = synRaw.value;
+      if (!raw || !Array.isArray(raw.cells)) return;
+      let cell = raw.cells.find(
+        (x) => Number(x.r) === Number(row) && String(x.c) === String(col)
+      );
+      if (cell) {
+        cell.v = v == null ? '' : v;
+        cell.userEdited = true;
+        delete cell.f;
+        delete cell.mat;
+      } else if (v != null && String(v) !== '') {
+        raw.cells.push({ r: Number(row), c: String(col), v, userEdited: true });
+      } else {
+        return;
+      }
+      // synRaw is a shallowRef mutated in place — bump the tick so consumers
+      // (Options SP2 Curb mass link) recompute.
+      externalEditTick.value += 1;
+      bumpSynSheetRevision();
+    }
+
+    async function startRealtimeSync(apiCfg) {
+      if (synRealtimeHandle || !apiCfg) return;
+      if (!apiCfg.supabaseUrl || !apiCfg.supabaseAnonKey) return;
+      try {
+        synRealtimeHandle = await startSynthesisRealtime({
+          supabaseUrl: apiCfg.supabaseUrl,
+          supabaseAnonKey: apiCfg.supabaseAnonKey,
+          projectId: apiCfg.projectId || 'default',
+          onSynCellChange: applyRealtimeSynCell,
+        });
+      } catch (e) {
+        console.warn('[syn-realtime] demarrage impossible:', e);
+      }
+    }
+
+    onUnmounted(() => {
+      if (synRealtimeHandle && synRealtimeHandle.stop) synRealtimeHandle.stop();
+      synRealtimeHandle = null;
+    });
+
     /** Fetch + transform Synthesis when user opens the page (never while on Database). */
     function startSynBackgroundPrepare() {
       if (
@@ -716,6 +766,9 @@ const App = {
         chunkedApi.value = Boolean(apiCfg && apiCfg.chunkedLoad);
         serverCalc.value = Boolean(apiCfg && apiCfg.serverCalc);
         remoteOnly.value = Boolean(apiCfg && apiCfg.remoteOnly);
+
+        // Abonnement Supabase Realtime (Synthesis -> Options SP2 ligne 14, en direct).
+        void startRealtimeSync(apiCfg);
 
         if (remoteOnly.value && (!apiCfg || apiCfg.mode === 'static')) {
           error.value =
