@@ -3501,6 +3501,110 @@
   color: #000;
 }
 
+/* MNS — freeze columns A–E so they stay on top during horizontal scroll.
+   Left offsets = row-number column (42px) + cumulative widths of the frozen
+   columns (A 200, B 200, C 72, D 72). Backgrounds are opaque so the scrolling
+   columns never show through; the coloured-cell rules further down keep equal
+   or higher specificity, so their fills still win over the default white. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='A'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='A'] {
+  left: 42px;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='B'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='B'] {
+  left: 242px;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='C'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='C'] {
+  left: 442px;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='D'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='D'] {
+  left: 514px;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='E'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='E'] {
+  left: 586px;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='A'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='B'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='C'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='D'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='E'] {
+  position: sticky;
+  z-index: 180;
+  background: #fff;
+  background-clip: padding-box;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='A'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='B'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='C'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='D'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='E'] {
+  position: sticky;
+  z-index: 350;
+}
+/* Right edge shadow on the last frozen column (E). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='E'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='E'] {
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.14);
+}
+
 /* MNS — narrower code / value columns C, D, E (short codes + 0.00 values). */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table

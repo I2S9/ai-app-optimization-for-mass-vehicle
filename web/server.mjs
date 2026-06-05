@@ -84,17 +84,15 @@ async function supabaseFetchSession(projectId) {
   const rows = await res.json();
   if (!rows || !rows.length) return null;
   const row = rows[0];
-  const bd = decompressSnapshot(row.bd_snapshot);
-  let structRev = Number(row.structure_revision || 0);
-  if (!structRev && bd && typeof bd === 'object') {
-    structRev = Number(bd.structureRevision || 0);
-  }
+  // New contract: return the compressed snapshot strings verbatim; the browser
+  // inflates them. Keeps responses small and identical to the Vercel function.
   return {
     project_id: projectId,
     revision: Number(row.revision || 0),
-    structureRevision: structRev,
-    bd,
-    syn: decompressSnapshot(row.syn_snapshot),
+    structure_revision: Number(row.structure_revision || 0),
+    structureRevision: Number(row.structure_revision || 0),
+    bd_snapshot: row.bd_snapshot,
+    syn_snapshot: row.syn_snapshot,
     updated_at: row.updated_at,
     updated_by: row.updated_by,
   };
@@ -113,13 +111,19 @@ async function supabaseUpsertSession(projectId, payload) {
   if (existing && existing.revision > revision) {
     return { project_id: projectId, revision: existing.revision, ok: false, conflict: true };
   }
+  // New contract: the browser sends already-compressed snapshot strings. Store them
+  // verbatim; fall back to compressing a raw object if a legacy client sends one.
+  const bdSnap =
+    payload.bd_snapshot != null ? payload.bd_snapshot : compressSnapshot(payload.bd);
+  const synSnap =
+    payload.syn_snapshot != null ? payload.syn_snapshot : compressSnapshot(payload.syn);
   const body = [
     {
       project_id: projectId,
       revision,
       structure_revision: structRev,
-      bd_snapshot: compressSnapshot(payload.bd),
-      syn_snapshot: compressSnapshot(payload.syn),
+      bd_snapshot: bdSnap,
+      syn_snapshot: synSnap,
       updated_by: payload.updated_by || 'web',
     },
   ];

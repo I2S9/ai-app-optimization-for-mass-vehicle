@@ -1,7 +1,9 @@
 {
-  "mode": "static",
+  "mode": "vercel",
   "chunkedLoad": false,
   "serverCalc": false,
+  "cloudPersist": true,
+  "remoteOnly": false,
   "version": 2,
   "projectId": "default"
 }

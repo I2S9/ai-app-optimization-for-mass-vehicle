@@ -223,20 +223,120 @@ export async function loadSheetRemainingCells(sheetId, raw, opts = {}) {
   return raw;
 }
 
-/** Session snapshot — Databricks API when configured. */
+/**
+ * Snapshot codec (matches api/app/snapshot_codec.py and web/server.mjs):
+ * `gz+b64:` + base64(zlib-deflate(JSON)). Compression happens in the BROWSER so the
+ * session round-trip stays small (~2 MB) — full BD+SYN JSON is ~12 MB, far over the
+ * Vercel serverless 4.5 MB body limit. The Vercel function / server only proxies the
+ * already-compressed strings to Supabase. `deflate` here = zlib (RFC 1950), readable
+ * by Python zlib.decompress and Node zlib.inflateSync.
+ */
+const SNAPSHOT_PREFIX = 'gz+b64:';
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+async function compressSnapshot(data) {
+  if (data == null) return null;
+  const json = JSON.stringify(data);
+  if (typeof CompressionStream === 'undefined') {
+    // No native compression (very old browser): send raw JSON; may hit size limits.
+    return json;
+  }
+  const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate'));
+  const buf = await new Response(stream).arrayBuffer();
+  return SNAPSHOT_PREFIX + bytesToBase64(new Uint8Array(buf));
+}
+
+async function decompressSnapshot(text) {
+  if (text == null) return null;
+  if (typeof text !== 'string') return text;
+  if (!text.startsWith(SNAPSHOT_PREFIX)) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+  const bytes = base64ToBytes(text.slice(SNAPSHOT_PREFIX.length));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'));
+  const buf = await new Response(stream).arrayBuffer();
+  return JSON.parse(new TextDecoder().decode(buf));
+}
+
+/**
+ * Session snapshot — Supabase via the Vercel function (prod) or web/server.mjs (dev).
+ * Returns the BD/SYN sheets fully decompressed: { revision, structureRevision, bd, syn }.
+ */
 export async function fetchSession(projectId = 'default') {
   try {
-    return await fetchJson(`/api/v1/sessions/${encodeURIComponent(projectId)}`);
+    const raw = await fetchJson(`/api/v1/sessions/${encodeURIComponent(projectId)}`);
+    if (!raw) return null;
+    // New contract: server returns compressed snapshot strings.
+    if (raw.bd_snapshot !== undefined || raw.syn_snapshot !== undefined) {
+      const [bd, syn] = await Promise.all([
+        decompressSnapshot(raw.bd_snapshot ?? null),
+        decompressSnapshot(raw.syn_snapshot ?? null),
+      ]);
+      return {
+        project_id: raw.project_id || projectId,
+        revision: Number(raw.revision || 0),
+        structureRevision:
+          Number(raw.structureRevision || raw.structure_revision || 0) ||
+          (bd && Number(bd.structureRevision)) ||
+          0,
+        bd,
+        syn,
+        updated_at: raw.updated_at,
+        updated_by: raw.updated_by,
+      };
+    }
+    // Legacy contract (older server.mjs): already-decompressed bd/syn objects.
+    return raw;
   } catch {
     return null;
   }
 }
 
 export async function saveSession(projectId, payload) {
+  const structRev =
+    payload.structure_revision != null
+      ? payload.structure_revision
+      : payload.structureRevision != null
+        ? payload.structureRevision
+        : payload.bd && payload.bd.structureRevision
+          ? payload.bd.structureRevision
+          : 0;
+  const [bdSnap, synSnap] = await Promise.all([
+    compressSnapshot(payload.bd ?? null),
+    compressSnapshot(payload.syn ?? null),
+  ]);
+  const body = {
+    revision: payload.revision != null ? payload.revision : 0,
+    structure_revision: structRev,
+    structureRevision: structRev,
+    updated_by: payload.updated_by || 'web',
+    codec: 'gz+b64',
+    bd_snapshot: bdSnap,
+    syn_snapshot: synSnap,
+  };
   const res = await fetch(url(`/api/v1/sessions/${encodeURIComponent(projectId)}`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');

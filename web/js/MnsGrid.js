@@ -11,7 +11,7 @@
 import { ref, computed, inject, onMounted, watch } from 'vue';
 import { formatSynNumericDisplay } from './synStore.js';
 
-const MNS_COLUMN_COUNT = 12;
+const MNS_COLUMN_COUNT = 26;
 const MNS_MIN_ROWS = 60;
 
 /**
