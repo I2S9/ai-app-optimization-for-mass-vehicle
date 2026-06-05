@@ -1,0 +1,19 @@
+# Render Blueprint — one web service that serves the front + API (same origin).
+# Deploy: push this repo to GitHub, then on Render "New +" > "Blueprint" and pick it.
+services:
+  - type: web
+    name: wght-vehicle-mass
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATA_BACKEND
+        value: supabase
+      # Set these two in the Render dashboard (Environment) — they are secrets:
+      #   SUPABASE_URL          = https://YOUR_REF.supabase.co
+      #   SUPABASE_SERVICE_KEY  = service_role key (Supabase > Settings > API Keys)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false

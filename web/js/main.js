@@ -856,9 +856,18 @@ const App = {
         // Synthesis ships a build-time "materialized" snapshot. If we restored any
         // Database change (edits or a full BD), that snapshot is stale, so switch
         // Synthesis to live recalculation of the impacted cells after reload.
+        // In Supabase / remote-only mode there is no local snapshot, so the BD edits
+        // arrive inside the restored remote `bdRaw` (workbook_sessions snapshot). Scan
+        // it for user-edited cells too, otherwise the synthesis blue cells stay frozen
+        // on the stale materialized pack after F5 ("ça remet les valeurs précédentes").
+        const bdRawHasUserEdits =
+          bdRaw.value &&
+          Array.isArray(bdRaw.value.cells) &&
+          bdRaw.value.cells.some((c) => c && c.userEdited);
         const restoredBdChanges =
           Boolean(bdHasEdits) ||
           Boolean(hasBdFull) ||
+          Boolean(bdRawHasUserEdits) ||
           (snapshot &&
             snapshot.version !== 2 &&
             snapshot.version !== 3 &&

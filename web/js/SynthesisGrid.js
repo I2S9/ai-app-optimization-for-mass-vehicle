@@ -2331,7 +2331,10 @@ export default {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
-      if (props.sheet && props.sheet.materializedCalc) return;
+      // Skip the eager live-calc warm-up only when the materialized pack is still
+      // authoritative. After a BD edit was restored (liveBdEdited), the pack is stale,
+      // so we must let liveCalcReady turn on to recompute the blue cells.
+      if (props.sheet && props.sheet.materializedCalc && !liveBdEdited.value) return;
       requestAnimationFrame(() => {
         const enable = () => {
           liveCalcReady.value = true;
