@@ -1947,7 +1947,6 @@
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-lm-left,
 .synthesis-grid .bd-table tbody td.syn-hdr-edge-lm-left {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-proj-table-frame td.syn-hdr-edge-aa-right,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-hdr-edge-aa-right,
@@ -1959,7 +1958,6 @@
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-aa-right,
 .synthesis-grid .bd-table tbody td.syn-hdr-edge-aa-right {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody td.syn-proj-hdr-green.syn-hdr-edge-lm-left,
 .synthesis-grid .bd-table tbody td.syn-proj-hdr-green.syn-hdr-edge-aa-right {
@@ -1980,13 +1978,11 @@
   border-left: var(--syn-bold-border) solid #000 !important;
   background: #92d050 !important;
   background-color: #92d050 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody td.syn-proj-hdr-green.syn-hdr-edge-aa-right {
   border-right: var(--syn-bold-border) solid #000 !important;
   background: #92d050 !important;
   background-color: #92d050 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* Continuous bold black vertical frame on column M (left) and column AA (right),
    rows 3–23. The header-panel grid rule (border:1px #b4b4b4) carries a high
@@ -1995,11 +1991,46 @@
    stays one uniform 3px black line all the way down. */
 .synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-lm-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-aa-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
+}
+/* Row 19 (display gap between Excel 18–19) — keep the side frame open: no bold
+   vertical trait on column M (left) or column AA (right) for this spacer row. */
+.synthesis-grid .bd-table tbody tr.syn-header-table-gap-row td.data-cell.syn-hdr-edge-lm-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-header-table-gap-row td.data-cell.syn-hdr-edge-aa-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col) {
+  border-left: none !important;
+  border-right: none !important;
+  box-shadow: none !important;
+}
+/* Continuous bold black vertical frame — left & right edges of every other
+   project summary table (AC…AN, AP…BB, BS…CE, BD…BO, CI…CY, DA…DP, DR…ED,
+   EF…EQ, ES…FE, FJ…FZ). Same fix as the M…AA frame: an extra :not() chain so the
+   3px black border wins over the 1px grey header-panel grid rule and the frame is
+   a single uniform line (no box-shadow doubling). */
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-ac-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-ap-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-bs-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-bd-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-ci-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-da-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-dr-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-ef-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-es-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-fj-left:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col) {
+  border-left: var(--syn-bold-border) solid #000 !important;
+}
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-an-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-bb-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-ce-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-bo-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-cy-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-dp-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-ed-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-eq-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-fe-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr td.data-cell.syn-hdr-edge-fz-right:not(.syn-pillar-col):not(.syn-row-num):not(.syn-spacer-col-l):not(.syn-force-white-col) {
+  border-right: var(--syn-bold-border) solid #000 !important;
 }
 /* Metric rows 15,16,17,20,21,22 — display C–J white (wins over metric greys / portfolio) */
 .synthesis-grid .bd-table tbody td.data-cell.syn-metric-cj-white:not(.syn-pillar-col):not(.syn-label-col),
@@ -2691,7 +2722,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-ac-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-ac-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-ac-an-table-frame td.data-cell.syn-hdr-edge-an-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-an-right:not(.syn-pillar-col),
@@ -2700,7 +2730,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-an-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-an-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* AP–BB summary table — display columns AP…BB, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-ap-bb-table-frame td.data-cell.syn-ap-bb-cell:not(.syn-pillar-col),
@@ -2733,7 +2762,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-ap-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-ap-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-ap-bb-table-frame td.data-cell.syn-hdr-edge-bb-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-bb-right:not(.syn-pillar-col),
@@ -2742,7 +2770,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-bb-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-bb-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* BS–CE summary table — display columns BS…CE, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-bs-ce-table-frame td.data-cell.syn-bs-ce-cell:not(.syn-pillar-col),
@@ -2775,7 +2802,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-bs-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-bs-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-bs-ce-table-frame td.data-cell.syn-hdr-edge-ce-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-ce-right:not(.syn-pillar-col),
@@ -2784,7 +2810,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-ce-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-ce-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* BD–BO summary table — display columns BD…BO, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-bd-bo-table-frame td.data-cell.syn-bd-bo-cell:not(.syn-pillar-col),
@@ -2817,7 +2842,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-bd-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-bd-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-bd-bo-table-frame td.data-cell.syn-hdr-edge-bo-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-bo-right:not(.syn-pillar-col),
@@ -2826,7 +2850,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-bo-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-bo-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* CI–CY summary table — display columns CI…CY, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-ci-cy-table-frame td.data-cell.syn-ci-cy-cell:not(.syn-pillar-col),
@@ -2859,7 +2882,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-ci-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-ci-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-ci-cy-table-frame td.data-cell.syn-hdr-edge-cy-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-cy-right:not(.syn-pillar-col),
@@ -2868,7 +2890,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-cy-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-cy-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* DA–DP summary table — display columns DA…DP, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-da-dp-table-frame td.data-cell.syn-da-dp-cell:not(.syn-pillar-col),
@@ -2901,7 +2922,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-da-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-da-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-da-dp-table-frame td.data-cell.syn-hdr-edge-dp-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-dp-right:not(.syn-pillar-col),
@@ -2910,7 +2930,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-dp-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-dp-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* DR–ED summary table — display columns DR…ED, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-dr-ed-table-frame td.data-cell.syn-dr-ed-cell:not(.syn-pillar-col),
@@ -2943,7 +2962,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-dr-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-dr-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-dr-ed-table-frame td.data-cell.syn-hdr-edge-ed-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-ed-right:not(.syn-pillar-col),
@@ -2952,7 +2970,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-ed-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-ed-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* EF–EQ summary table — display columns EF…EQ, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-ef-eq-table-frame td.data-cell.syn-ef-eq-cell:not(.syn-pillar-col),
@@ -2985,7 +3002,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-ef-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-ef-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-ef-eq-table-frame td.data-cell.syn-hdr-edge-eq-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-eq-right:not(.syn-pillar-col),
@@ -2994,7 +3010,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-eq-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-eq-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* ES–FE summary table — display columns ES…FE, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-es-fe-table-frame td.data-cell.syn-es-fe-cell:not(.syn-pillar-col),
@@ -3027,7 +3042,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-es-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-es-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-es-fe-table-frame td.data-cell.syn-hdr-edge-fe-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-fe-right:not(.syn-pillar-col),
@@ -3036,7 +3050,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-fe-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-fe-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* FJ–FZ summary table — display columns FJ…FZ, rows 3–22 (display rows 3–23) */
 .synthesis-grid .bd-table tbody tr.syn-fj-fz-table-frame td.data-cell.syn-fj-fz-cell:not(.syn-pillar-col),
@@ -3069,7 +3082,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-fj-left:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-fj-left:not(.syn-pillar-col) {
   border-left: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset 2px 0 0 #000 !important;
 }
 .synthesis-grid .bd-table tbody tr.syn-fj-fz-table-frame td.data-cell.syn-hdr-edge-fz-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-hdr-edge-fz-right:not(.syn-pillar-col),
@@ -3078,7 +3090,6 @@
 .synthesis-grid .bd-table tbody tr.syn-header-spacer-white td.data-cell.syn-hdr-edge-fz-right:not(.syn-pillar-col),
 .synthesis-grid .bd-table tbody td.data-cell.syn-hdr-edge-fz-right:not(.syn-pillar-col) {
   border-right: var(--syn-bold-border) solid #000 !important;
-  box-shadow: inset -2px 0 0 #000 !important;
 }
 /* Spot blue — display F/G & I/J on listed rows (overrides ADAPTATION band) */
 .synthesis-grid .bd-table tbody td.data-cell.syn-spot-blue:not(.syn-pillar-col):not(.syn-label-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
@@ -3488,4 +3499,99 @@
 }
 .bd-grid-root.mns-grid .bd-table tbody td.data-cell .grid-cell-input {
   color: #000;
+}
+
+/* ── Options SP2 — column A "STLA S / SP2" branding block ──────────────────
+   Rows 1–12 of column A become one continuous white panel: white fill and
+   transparent borders so the row gridlines disappear, with the title centred. */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-brand-cell {
+  background: #fff;
+  border-color: transparent;
+  text-align: center;
+  padding: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-brand-cell .sp2-brand-title {
+  display: block;
+  font-size: 30px;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+  letter-spacing: 0.5px;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-brand-cell .sp2-brand-sub {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #000;
+  line-height: 1;
+}
+
+/* Options SP2 — red band on rows 16–18, columns A–E.
+   Borders are coloured red (not transparent) so no thin background line shows
+   between the cells — a single seamless red zone, like the white STLA S block. */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell {
+  background: #ff0000;
+  border-color: #ff0000;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .grid-cell-input {
+  background: transparent;
+}
+/* White labels inside the red band */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .sp2-red-title {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .sp2-red-text {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+/* Options SP2 — "Montée en gamme" red header straddling columns D–E (row 52) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-upgrade-cell {
+  overflow: visible;
+  position: relative;
+  z-index: 2;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-upgrade-cell .sp2-upgrade-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 200%;
+  text-align: center;
+  color: #ff0000;
+  font-weight: 700;
+  line-height: 21px;
+  white-space: nowrap;
+}
+
+/* Options SP2 — widen column B and left-align all its content */
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='B'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'] {
+  width: 300px;
+  min-width: 300px;
+  max-width: 300px;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'] .grid-cell-input {
+  text-align: left;
+}
+
+/* Options SP2 — highlighted data cells */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-green-cell {
+  background: #92d050;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-blue-cell {
+  background: #00b0f0;
 }
