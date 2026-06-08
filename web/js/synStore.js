@@ -2194,6 +2194,24 @@ export function isSynRow16MaaFluoFirstCol(row, col) {
   return (n - lo) % 3 === 0;
 }
 
+/** Row 16 — AC…AN curb mass (fluo yellow on AC, AF, AI, AL). */
+export const SYN_ROW16_ACAN_FLUO_DISPLAY_COLS = new Set(['AC', 'AF', 'AI', 'AL']);
+
+export function isSynRow16AcanFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynAcAnTableCol(col)) return false;
+  return SYN_ROW16_ACAN_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** Row 16 — BD…BO curb mass (fluo yellow on BD, BI, BL, BN). */
+export const SYN_ROW16_BDBO_FLUO_DISPLAY_COLS = new Set(['BD', 'BI', 'BL', 'BN']);
+
+export function isSynRow16BdboFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynBdBoTableCol(col)) return false;
+  return SYN_ROW16_BDBO_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
 export function isSynApbbP3sBlackCol(row, col) {
   if (Number(row) !== 5) return false;

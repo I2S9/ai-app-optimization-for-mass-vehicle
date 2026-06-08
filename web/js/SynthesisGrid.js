@@ -82,6 +82,8 @@ import {
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3Col,
   isSynRow16MaaFluoFirstCol,
+  isSynRow16AcanFluoCol,
+  isSynRow16BdboFluoCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbP3sBlackCol,
@@ -1901,6 +1903,12 @@ export default {
       if (isSynRow16MaaFluoFirstCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
+      if (isSynRow16AcanFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
+      if (isSynRow16BdboFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
       if (isSynApbbRow16FluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
@@ -2028,6 +2036,12 @@ export default {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-red', display);
       }
       if (isSynRow16MaaFluoFirstCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynRow16AcanFluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynRow16BdboFluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynApbbRow16FluoCol(row, col)) {
