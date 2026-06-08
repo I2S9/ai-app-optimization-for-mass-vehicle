@@ -2153,13 +2153,24 @@ export function synApbbP3sBlackStyle() {
   return { backgroundColor: '#000000', color: '#ffffff' };
 }
 
-const SYN_APBB_ROW16_FLUO_DISPLAY_COLS = new Set(['AP', 'AU', 'AX', 'AY', 'BA']);
+export const SYN_APBB_ROW16_SUMMARY_DISPLAY_COLS = new Set([
+  'AP',
+  'AU',
+  'AX',
+  'AY',
+  'BA',
+]);
+
+/** AP…BB summary columns that carry a green total and row-16 curb mass (AP, AU, AX, AY, BA). */
+export function isSynApbbRow16SummaryCol(col) {
+  if (!isSynApBbTableCol(col)) return false;
+  return SYN_APBB_ROW16_SUMMARY_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
 
 /** Row 16 — AP…BB curb mass (fluo yellow on populated summary columns). */
 export function isSynApbbRow16FluoCol(row, col) {
   if (Number(row) !== 16) return false;
-  if (!isSynApBbTableCol(col)) return false;
-  return SYN_APBB_ROW16_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+  return isSynApbbRow16SummaryCol(col);
 }
 
 /** @deprecated use isSynApbbRow16FluoCol */
@@ -2279,6 +2290,14 @@ export function isSynDisplayRowGreenAcanCol(displayRow, col) {
   return isSynAcAnTableCol(col);
 }
 
+/** Display row 26+ — AP…BB summary columns (AP, AU, AX, AY, BA) green totals. */
+export function isSynDisplayRowGreenApbbCol(displayRow, col) {
+  const dr = Number(displayRow);
+  if (!Number.isFinite(dr) || dr < 26) return false;
+  if (!SYN_DISPLAY_GREEN_ROWS.has(dr)) return false;
+  return isSynApbbRow16SummaryCol(col);
+}
+
 export function synDisplayRowGreenMaaStyle() {
   return {
     background: SYN_DISPLAY_GREEN_BG,
@@ -2288,6 +2307,10 @@ export function synDisplayRowGreenMaaStyle() {
 }
 
 export function synDisplayRowGreenAcanStyle() {
+  return synDisplayRowGreenMaaStyle();
+}
+
+export function synDisplayRowGreenApbbStyle() {
   return synDisplayRowGreenMaaStyle();
 }
 
@@ -2316,7 +2339,6 @@ export function isSynYellowFluoGreenFromMCol(row, col, map, sheet) {
   if (isSynForceWhiteExcelCol(col)) return false;
   if (synRowStyleClass(map, row, sheet) === 'syn-row-section') return true;
   if (isSynRow16FluoEvery3Col(row, col)) return true;
-  if (isSynApbbRow16FluoCol(row, col)) return true;
   return false;
 }
 

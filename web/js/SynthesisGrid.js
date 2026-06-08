@@ -95,6 +95,9 @@ import {
   synDisplayRowGreenMaaStyle,
   isSynDisplayRowGreenAcanCol,
   synDisplayRowGreenAcanStyle,
+  isSynDisplayRowGreenApbbCol,
+  synDisplayRowGreenApbbStyle,
+  isSynApbbRow16SummaryCol,
   isSynDisplayRowBlueCol,
   synDisplayRowBlueStyle,
   isSynYellowFluoGreenFromMCol,
@@ -111,6 +114,7 @@ import {
   isSynHdrAcAnDividerRightEntry,
   isSynHdrAcAnDividerLeftEntry,
   isSynHdrAcAnDividerRightEdgeEntry,
+  isSynApBbTableCol,
   isSynApBbTableCellEntry,
   isSynHdrApBbDividerRightEntry,
   isSynHdrApBbDividerLeftEntry,
@@ -202,7 +206,7 @@ function isSynMirrorLfromMCell(row, col) {
   return col === SYN_MIRROR_DST_EXCEL_COL && Number(row) >= SYN_MIRROR_FIRST_ROW;
 }
 
-/** Excel columns that carry an automatic green total (display M…AA and AC…AN). */
+/** Excel columns that carry an automatic green total (display M…AA, AC…AN, AP/AU/AX/AY/BA). */
 const SYN_GREEN_TOTAL_EXCEL_COLS = (() => {
   const out = [];
   const addRange = (startDisp, endDisp) => {
@@ -212,6 +216,9 @@ const SYN_GREEN_TOTAL_EXCEL_COLS = (() => {
   };
   addRange('M', 'AA');
   addRange('AC', 'AN');
+  for (const d of ['AP', 'AU', 'AX', 'AY', 'BA']) {
+    out.push(displayToExcelCol(d));
+  }
   return out;
 })();
 
@@ -1014,7 +1021,8 @@ export default {
       const displayRow = displayRowByExcel.value.get(row);
       return (
         isSynDisplayRowGreenMaaCol(displayRow, col) ||
-        isSynDisplayRowGreenAcanCol(displayRow, col)
+        isSynDisplayRowGreenAcanCol(displayRow, col) ||
+        isSynDisplayRowGreenApbbCol(displayRow, col)
       );
     }
 
@@ -1103,7 +1111,8 @@ export default {
     function isSynRow16CurbTotalCol(col) {
       return (
         isSynDisplayRowGreenMaaCol(SYN_ROW16_GREEN_REF_DR, col) ||
-        isSynDisplayRowGreenAcanCol(SYN_ROW16_GREEN_REF_DR, col)
+        isSynDisplayRowGreenAcanCol(SYN_ROW16_GREEN_REF_DR, col) ||
+        isSynApbbRow16SummaryCol(col)
       );
     }
 
@@ -1805,6 +1814,8 @@ export default {
           Object.assign(out, synDisplayRowGreenMaaStyle());
         } else if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreenAcanStyle());
+        } else if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowGreenApbbStyle());
         } else if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowBlueStyle());
         }
@@ -1880,14 +1891,14 @@ export default {
       if (isSynRow16MaaFluoFirstCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
-      if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
-        return { ...base, ...synYellowFluoGreenFromMStyle() };
+      if (isSynApbbRow16FluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
       }
       if (isSynRow16FluoEvery3Col(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
-      if (isSynApbbRow16FluoCol(row, col)) {
-        return { ...base, ...synRow16FluoStyle() };
+      if (isSynYellowFluoGreenFromMCol(row, col, cellMap.value, props.sheet)) {
+        return { ...base, ...synYellowFluoGreenFromMStyle() };
       }
       if (isSynRow17FluoEvery3FromMCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
@@ -1900,6 +1911,9 @@ export default {
       }
       if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenAcanStyle() };
+      }
+      if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowGreenApbbStyle() };
       }
       if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowBlueStyle() };
@@ -1944,6 +1958,9 @@ export default {
       if (isSynDisplayRowGreenAcanCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-green-acan', display);
       }
+      if (isSynDisplayRowGreenApbbCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-green-apbb', display);
+      }
       if (isSynDisplayRowBlueCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-blue', display);
       }
@@ -1979,10 +1996,22 @@ export default {
       if (isSynRow16MaaFluoFirstCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
+      if (isSynApbbRow16FluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      // Control / Portfolio (Excel 19–20, display 20–21) — sign-based fill on AP…BB
+      // before header-panel defaults (syn-hdr-panel-bold alone must not block this).
+      if ((row === 19 || row === 20) && isSynApBbTableCol(col)) {
+        const signCls = synMetricCellClass(row, col, display);
+        if (signCls) {
+          return withHdrPanelBold(row, col, signCls, display);
+        }
+      }
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
-        const combined = withHdrPanelBold(row, col, hdrCls, display);
-        if (combined) return combined;
+        if (hdrCls) {
+          return withHdrPanelBold(row, col, hdrCls, display);
+        }
       }
       if (isSynRow17BlueEvery3Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
@@ -2003,9 +2032,6 @@ export default {
         return withHdrPanelBold(row, col, 'syn-fluo-green-from-m', display);
       }
       if (isSynRow16FluoEvery3Col(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
-      }
-      if (isSynApbbRow16FluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynRow17FluoEvery3FromMCol(row, col)) {
