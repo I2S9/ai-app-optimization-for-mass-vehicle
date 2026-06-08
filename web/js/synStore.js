@@ -184,7 +184,10 @@ export function synFilterStaleProjectDisplay(
       : map
         ? synRowStyleClass(map, row, sheet)
         : '';
-  if (isSynCalculatedMassCell(cell, row, col, sheet, label, rowClass)) return text;
+  if (isSynCalculatedMassCell(cell, row, col, sheet, label, rowClass)) {
+    // Stale export placeholder — never show before live SOMMEPROD / mat supplies a value.
+    return '';
+  }
   return '';
 }
 
@@ -1738,6 +1741,104 @@ export function applySynRowsBdboPresetHeaderRows(headerRows = {}) {
   return headerRows;
 }
 
+/** Header panel rows 3–22 — display EF…EQ presets (mirrors the EF–EQ summary table). */
+const SYN_EFEQ_PRESET_DISPLAY_COLS = [
+  'EF', 'EG', 'EH', 'EI', 'EJ', 'EK', 'EL', 'EM', 'EN', 'EO', 'EP', 'EQ',
+];
+
+function synEfeqPresetRowMap(values) {
+  const m = new Map();
+  SYN_EFEQ_PRESET_DISPLAY_COLS.forEach((d, i) => m.set(d, values[i]));
+  return m;
+}
+
+function isSynEfeqPresetExcelCol(col) {
+  return isSynEfEqTableCol(col);
+}
+
+function synEfeqPresetEntries3To22() {
+  return [
+    [
+      16,
+      synEfeqPresetRowMap([
+        1824, 1844, 1852, 1845, 1852, 1461, 1479, 1486, 1500, 1519, 1526, 1532,
+      ]),
+    ],
+  ];
+}
+
+const SYN_ROWS_EFEQ_PRESETS = new Map([...synEfeqPresetEntries3To22()]);
+
+export function synRowEfeqPresetRaw(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return undefined;
+  const rowMap = SYN_ROWS_EFEQ_PRESETS.get(r);
+  if (!rowMap || !isSynEfeqPresetExcelCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!rowMap.has(d)) return undefined;
+  const v = rowMap.get(d);
+  if (v === undefined) return undefined;
+  return v;
+}
+
+/** Rows 3–22 — seed EF…EQ presets (overrides legacy export unless userEdited). */
+export function applySynRowsEfeqPresetCells(cells = []) {
+  const index = synPresetCellIndex(cells);
+  for (const [row, rowMap] of SYN_ROWS_EFEQ_PRESETS) {
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const key = `${row}:${col}`;
+      let cell = index.get(key);
+      if (cell && cell.userEdited) continue;
+      if (value == null) {
+        if (cell) {
+          cell.v = '';
+          delete cell.f;
+          delete cell.bg;
+        } else {
+          cell = { r: row, c: col, v: '' };
+          cells.push(cell);
+          index.set(key, cell);
+        }
+        continue;
+      }
+      if (!cell) {
+        cell = { r: row, c: col, v: String(value) };
+        cells.push(cell);
+        index.set(key, cell);
+      } else {
+        cell.v = String(value);
+        delete cell.f;
+        delete cell.bg;
+      }
+    }
+  }
+  return cells;
+}
+
+/** Header panel rows 3–22 — seed headerRows with EF…EQ presets (keeps userEdited). */
+export function applySynRowsEfeqPresetHeaderRows(headerRows = {}) {
+  for (const [row, rowMap] of SYN_ROWS_EFEQ_PRESETS) {
+    if (!isSynHeaderMaaPresetRow(row)) continue;
+    const rowKey = String(row);
+    if (!headerRows[rowKey]) headerRows[rowKey] = {};
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const existing = headerRows[rowKey][col];
+      if (existing && existing.userEdited) continue;
+      headerRows[rowKey][col] = {
+        ...(existing || {}),
+        v: value == null ? '' : String(value),
+        f: undefined,
+      };
+      if (headerRows[rowKey][col].f === undefined) {
+        delete headerRows[rowKey][col].f;
+      }
+    }
+  }
+  return headerRows;
+}
+
 const SYN_MAA_ROW_135_PATTERN = [
   0, 0, 13.5, 0, 0, 13.5, 0, 13.5, 13.5, 0, 0, 13.5, 0, 0, 13.5,
 ];
@@ -2743,6 +2844,7 @@ export function isSynRow16FluoEvery3Col(row, col) {
   if (isSynCiCyTableCol(col)) return false;
   if (isSynDaDpTableCol(col)) return false;
   if (isSynDrEdTableCol(col)) return false;
+  if (isSynEfEqTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -2814,6 +2916,15 @@ export function isSynRow16DrEdFluoCol(row, col) {
   return SYN_ROW16_DRED_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
 }
 
+/** Row 16 — EF…EQ curb mass (fluo yellow on EF, EI, EK, EN). */
+export const SYN_ROW16_EFEQ_FLUO_DISPLAY_COLS = new Set(['EF', 'EI', 'EK', 'EN']);
+
+export function isSynRow16EfEqFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynEfEqTableCol(col)) return false;
+  return SYN_ROW16_EFEQ_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
 export function isSynApbbP3sBlackCol(row, col) {
   if (Number(row) !== 5) return false;
@@ -2868,6 +2979,12 @@ export function isSynDredRow16SummaryCol(col) {
   return SYN_ROW16_DRED_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
 }
 
+/** EF…EQ summary columns (EF, EI, EK, EN). */
+export function isSynEfeqRow16SummaryCol(col) {
+  if (!isSynEfEqTableCol(col)) return false;
+  return SYN_ROW16_EFEQ_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
 /** Row 16 — AP…BB curb mass (fluo yellow on populated summary columns). */
 export function isSynApbbRow16FluoCol(row, col) {
   if (Number(row) !== 16) return false;
@@ -2885,6 +3002,7 @@ export function isSynRow16FluoCol(row, col) {
     isSynRow16CiCyFluoCol(row, col) ||
     isSynRow16DaDpFluoCol(row, col) ||
     isSynRow16DrEdFluoCol(row, col) ||
+    isSynRow16EfEqFluoCol(row, col) ||
     isSynApbbRow16FluoCol(row, col) ||
     isSynRow16FluoEvery3Col(row, col)
   );
@@ -3073,7 +3191,7 @@ export function isSynDisplayRowGreenExtendedCol(displayRow, col) {
   if (isSynCicyRow16SummaryCol(col)) return true;
   if (isSynDadpRow16SummaryCol(col)) return true;
   if (isSynDredRow16SummaryCol(col)) return true;
-  if (isSynEfEqTableCol(col)) return true;
+  if (isSynEfeqRow16SummaryCol(col)) return true;
   if (isSynEsFeTableCol(col)) return true;
   if (isSynFjFzTableCol(col)) return true;
   if (isSynGbGeTableCol(col)) return true;
@@ -3174,6 +3292,7 @@ export function isSynYellowFluoGreenFromMCol(row, col, map, sheet) {
   if (isSynRow16CiCyFluoCol(row, col)) return true;
   if (isSynRow16DaDpFluoCol(row, col)) return true;
   if (isSynRow16DrEdFluoCol(row, col)) return true;
+  if (isSynRow16EfEqFluoCol(row, col)) return true;
   return false;
 }
 
@@ -4475,6 +4594,26 @@ function synDisplayValueImpl(cell, map, row, col, sheet, pillarColumns) {
         );
       }
       return synTranslateText(String(hdrBqPreset), col);
+    }
+  }
+  if (isSynHeaderPanelRow(row) && isSynEfeqPresetExcelCol(col)) {
+    if (cell && cell.userEdited) {
+      const rawEdited = displayValue(cell);
+      if (isSynNumericRaw(rawEdited)) {
+        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
+      }
+      return synTranslateText(rawEdited, col);
+    }
+    const hdrEfeqPreset = synRowEfeqPresetRaw(row, col);
+    if (hdrEfeqPreset !== undefined) {
+      if (hdrEfeqPreset == null || hdrEfeqPreset === '') return '';
+      if (typeof hdrEfeqPreset === 'number' || isSynNumericRaw(String(hdrEfeqPreset))) {
+        return synTranslateText(
+          formatSynHdrMaaMetricDisplay(row, String(hdrEfeqPreset), col),
+          col
+        );
+      }
+      return synTranslateText(String(hdrEfeqPreset), col);
     }
   }
   if (isSynZeroFillDataCol(row, col, pillarColumns)) {

@@ -12,7 +12,7 @@ import {
 } from 'vue';
 import BdGrid from './BdGrid.js?v=bd-ctx1';
 import { computeBodyDisplayRows } from './bdStore.js';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-green-fix1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-scroll-values1';
 import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
@@ -27,7 +27,10 @@ import {
   pasteColCells,
 } from './sheetRowColOps.js?v=axis2';
 import { addUserRowGap, addUserColGap, isUserGapCol, cloneUserGapsSnapshot, clearUserGaps } from './gridUserGaps.js?v=ugap2';
-import { synGridLooksHealthy } from './synStore.js?v=syn-nuke1';
+import {
+  synGridLooksHealthy,
+  isSynStaleProjectExportText,
+} from './synStore.js?v=syn-project-fix1';
 import { createWorkbookSession } from './workbookSession.js?v=realtime-sync1';
 import { startSynthesisRealtime } from './synthesisRealtime.js?v=realtime1';
 import { createPerfBench } from './perfBench.js?v=1';
@@ -183,9 +186,16 @@ const App = {
       return editHistory.canRedo;
     });
 
+    const synCalcEngineReady = computed(() =>
+      Boolean(session.ready && session.ready.value)
+    );
+
     const overlayMessage = computed(() => {
       if (isSynthesis.value && !synthesisSheet.value) {
         return synthesisLoading.value ? 'Loading synthesis…' : 'Preparing synthesis…';
+      }
+      if (isSynthesis.value && synthesisSheet.value && !synCalcEngineReady.value) {
+        return 'Calcul Synthesis…';
       }
       if (bdLoading.value) return 'Loading database…';
       return 'Loading…';
@@ -194,7 +204,10 @@ const App = {
     const showContentOverlay = computed(() => {
       if (error.value) return false;
       if (isDatabase.value) return false;
-      if (isSynthesis.value) return !synthesisSheet.value;
+      if (isSynthesis.value) {
+        if (!synthesisSheet.value) return true;
+        if (!synCalcEngineReady.value) return true;
+      }
       return false;
     });
 
@@ -330,7 +343,8 @@ const App = {
         const existing = map.get(key);
         if (existing) {
           if (existing.userEdited) continue;
-          if (existing.v != null && String(existing.v).trim() !== '') continue;
+          const cur = existing.v != null ? String(existing.v).trim() : '';
+          if (cur !== '' && !isSynStaleProjectExportText(cur)) continue;
           existing.v = pc.v;
           existing.mat = true;
         } else {
@@ -2431,7 +2445,7 @@ const App = {
               :raw-syn="synRaw"
               :outline-only="outlineOnly"
               :outline-mode="outlineMode"
-              :pane-visible="isSynthesis"
+              :pane-visible="isSynthesis && synCalcEngineReady"
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
               :axis-clipboard="axisClipboard"

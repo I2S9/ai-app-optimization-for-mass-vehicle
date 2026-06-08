@@ -47,9 +47,10 @@ import {
   synRowApbbPresetRaw,
   synRowBdboPresetRaw,
   synRowBscePresetRaw,
+  synRowEfeqPresetRaw,
   isSynBodyEmptyFromRow27Cell,
   synFilterStaleProjectDisplay,
-} from './synStore.js?v=syn-form4';
+} from './synStore.js?v=syn-project-fix1';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
@@ -463,6 +464,10 @@ export function createWorkbookSession() {
       if (bscePreset !== undefined) {
         return parseSynNum(bscePreset);
       }
+      const efeqPreset = synRowEfeqPresetRaw(row, col);
+      if (efeqPreset !== undefined) {
+        return parseSynNum(efeqPreset);
+      }
     }
     const synLabel = getSynLabel(row);
     const rowClass = getSynRowClass(row);
@@ -566,6 +571,8 @@ export function createWorkbookSession() {
     if (bdbo !== undefined && bdbo != null && bdbo !== '') return String(bdbo);
     const bsce = synRowBscePresetRaw(row, excelCol);
     if (bsce !== undefined && bsce != null && bsce !== '') return String(bsce);
+    const efeq = synRowEfeqPresetRaw(row, excelCol);
+    if (efeq !== undefined && efeq != null && efeq !== '') return String(efeq);
     return undefined;
   }
 
@@ -785,6 +792,11 @@ export function createWorkbookSession() {
       if (bscePreset !== undefined) {
         if (bscePreset == null || bscePreset === '') return '';
         return String(bscePreset);
+      }
+      const efeqPreset = synRowEfeqPresetRaw(row, col);
+      if (efeqPreset !== undefined) {
+        if (efeqPreset == null || efeqPreset === '') return '';
+        return String(efeqPreset);
       }
     }
     const synLabel = getSynLabel(row);

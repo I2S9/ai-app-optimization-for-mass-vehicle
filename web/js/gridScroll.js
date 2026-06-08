@@ -12,9 +12,9 @@ export const ROW_H = 21;
  */
 export const MAX_RENDERED_ROWS = 120;
 
-/** Synthesis row/column windows — viewport always covered, no full-sheet mount. */
-export const SYN_MAX_RENDERED_COLS = 104;
-export const SYN_MAX_RENDERED_ROWS = 132;
+/** Synthesis row/column windows — small DOM footprint; monotonic col cache warms scroll-back. */
+export const SYN_MAX_RENDERED_COLS = 36;
+export const SYN_MAX_RENDERED_ROWS = 64;
 
 /** Rows above/below viewport (BD + Synthesis) — ~1.5 screens of buffer. */
 export function rowOverscan(viewportH, minRows = 28, maxRows = 64) {
@@ -33,7 +33,7 @@ export function colOverscanPx(viewportW, minPx = 640) {
  * total nodes at SYN_MAX_RENDERED_COLS.
  */
 export function synColOverscanPx(viewportW) {
-  return Math.min(2800, Math.max(900, Math.floor(viewportW * 1.2)));
+  return Math.min(1200, Math.max(480, Math.floor(viewportW * 0.65)));
 }
 
 /** Binary search on precomputed column layout (`left`, `width`). */

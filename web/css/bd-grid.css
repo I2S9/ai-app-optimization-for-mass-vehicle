@@ -414,11 +414,11 @@
 }
 .synthesis-grid .bd-table tbody tr.grid-axis-row-focus td.data-cell::before,
 .synthesis-grid .bd-table tbody td.data-cell.grid-axis-col-focus::before {
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.07);
   z-index: 2;
 }
 .synthesis-grid .bd-table tbody tr.grid-axis-row-focus td.data-cell.grid-axis-col-focus::before {
-  background: rgba(0, 0, 0, 0.21);
+  background: rgba(0, 0, 0, 0.11);
 }
 .synthesis-grid .bd-table tbody td.data-cell.syn-bq-portfolio-x.grid-axis-col-focus::before,
 .synthesis-grid .bd-table tbody tr.grid-axis-row-focus td.data-cell.syn-bq-portfolio-x::before {
@@ -426,14 +426,14 @@
 }
 .synthesis-grid .bd-table tbody td.data-cell.syn-bq-portfolio-x.grid-axis-col-focus,
 .synthesis-grid .bd-table tbody tr.grid-axis-row-focus td.data-cell.syn-bq-portfolio-x {
-  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.14);
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.07);
 }
 .synthesis-grid .bd-table tbody td.data-cell.grid-axis-cell-active::before {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.04);
 }
 .synthesis-grid .bd-table tbody td.data-cell.grid-axis-cell-active.grid-axis-col-focus::before,
 .synthesis-grid .bd-table tbody tr.grid-axis-row-focus td.data-cell.grid-axis-cell-active::before {
-  background: rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.08);
 }
 .synthesis-grid .bd-table tbody td.data-cell.grid-axis-cell-active .grid-cell-input {
   background: #fff9e6 !important;
@@ -448,10 +448,10 @@
   bottom: 0;
   pointer-events: none;
   z-index: 205;
-  background: rgba(0, 0, 0, 0.13);
+  background: rgba(0, 0, 0, 0.07);
 }
 .synthesis-grid .syn-axis-col-band.syn-axis-col-band-cell {
-  background: rgba(0, 0, 0, 0.17);
+  background: rgba(0, 0, 0, 0.11);
 }
 .synthesis-grid .bd-table thead th.col-letter.grid-axis-hdr-focus,
 .synthesis-grid .bd-table thead th.col-sticky-label.grid-axis-hdr-focus {
@@ -462,7 +462,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.14);
+  background: rgba(0, 0, 0, 0.07);
   pointer-events: none;
   z-index: 1;
 }
@@ -730,6 +730,15 @@
   background: #d9d9d9 !important;
   color: #333 !important;
   font-weight: 600;
+}
+/* Axis focus — même gris fort que Database (#a8a8a8), priorité sur le bandeau #d9d9d9 */
+.synthesis-grid .bd-table thead tr.hdr-row-letters th.grid-axis-hdr.grid-axis-hdr-focus {
+  background: #a8a8a8 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+}
+.synthesis-grid .bd-table thead tr.hdr-row-toggle th.grid-axis-hdr-focus {
+  background: #a8a8a8 !important;
 }
 /* Dedicated collapse-toggle row (+/−) above the column letters — pillars B / K / CG */
 .synthesis-grid .bd-table thead tr.hdr-row-toggle th {
@@ -2042,16 +2051,14 @@
 .synthesis-grid .syn-pad {
   padding: 0 !important;
   border: none !important;
-  background: transparent !important;
+  background: #fff !important;
 }
 .synthesis-grid .syn-scroll {
   /* contain: layout caused repaint glitches during virtual scroll */
   contain: paint;
   overscroll-behavior: contain;
 }
-.synthesis-grid .bd-table tbody tr.grid-row-cv td.data-cell:not(.col-sticky-label) {
-  contain: layout style;
-}
+/* contain: layout style caused row-by-row incremental paint during horizontal scroll */
 .synthesis-grid .syn-table-wrap {
   position: relative;
 }

@@ -101,6 +101,9 @@ import {
   isSynRow16CiCyFluoCol,
   isSynRow16DaDpFluoCol,
   isSynRow16DrEdFluoCol,
+  isSynRow16EfEqFluoCol,
+  isSynEfEqTableCol,
+  synRowEfeqPresetRaw,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbP3sBlackCol,
@@ -211,7 +214,7 @@ import {
   isSynSp2RestartDisplayExcelCol,
   synLabel,
   getSynAdaptBandNumeric,
-} from './synStore.js?v=syn-green-fix1';
+} from './synStore.js?v=syn-scroll-values1';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -235,7 +238,7 @@ import {
   createRowScrollCache,
   SYN_MAX_RENDERED_COLS,
   SYN_MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=scroll-perf2';
+} from './gridScroll.js?v=scroll-perf4';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 /** Width of the section fold/unfold column inserted before the row numbers. */
@@ -341,10 +344,13 @@ export default {
     const viewportH = ref(600);
     const viewportW = ref(1000);
     const cellMap = shallowRef((props.sheet && props.sheet.cellMap) || new Map());
+    /** Last fully-resolved display per cell — fast path while scrolling (no SOMMEPROD). */
+    const scrollDisplayCache = new Map();
 
     watch(
       () => props.sheet,
       (sheet) => {
+        scrollDisplayCache.clear();
         if (sheet && sheet.cellMap instanceof Map) {
           cellMap.value = sheet.cellMap;
         } else if (sheet) {
@@ -476,7 +482,7 @@ export default {
       shouldVirtualizeCols(tableWidth.value, viewportW.value)
     );
     const colBufferPx = computed(() => synColOverscanPx(viewportW.value));
-    /** Column window — monotonic: visited cols stay mounted (scroll-back = instant). */
+    /** Monotonic col window — visited cols stay warm; capped at SYN_MAX_RENDERED_COLS. */
     const colScrollCache = createColScrollCache(SYN_MAX_RENDERED_COLS, {
       monotonic: true,
     });
@@ -639,7 +645,20 @@ export default {
       }
       return out;
     });
-    const rowCount = computed(() => bodyRows.value.length);
+    /** Header panel (rows 3–22 + panel gaps) — always mounted, never vertically virtualized. */
+    const dataBodyStartIndex = computed(() =>
+      bodyRows.value.findIndex((e) => e.excelRow != null && e.excelRow >= 25)
+    );
+    const headerBlockRows = computed(() => {
+      const idx = dataBodyStartIndex.value;
+      return idx < 0 ? bodyRows.value : bodyRows.value.slice(0, idx);
+    });
+    const dataBodyRows = computed(() => {
+      const idx = dataBodyStartIndex.value;
+      return idx < 0 ? [] : bodyRows.value.slice(idx);
+    });
+
+    const rowCount = computed(() => dataBodyRows.value.length);
 
     /** Stable navigable excel-row list — memoized for cell-nav/search reference checks. */
     const navExcelRows = computed(() =>
@@ -688,8 +707,12 @@ export default {
       return map;
     });
 
+    const headerBlockHeight = computed(
+      () => headerBlockRows.value.length * ROW_H
+    );
+
     const rowScrollCache = createRowScrollCache(SYN_MAX_RENDERED_ROWS, {
-      monotonic: true,
+      monotonic: false,
     });
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
@@ -706,8 +729,9 @@ export default {
         visibleRowEnd.value = count;
         return;
       }
+      const dataScrollTop = Math.max(0, scrollTop.value - headerBlockHeight.value);
       const range = rowScrollCache.resolve(
-        scrollTop.value,
+        dataScrollTop,
         viewportH.value,
         count,
         rowOverscanPx.value
@@ -717,7 +741,7 @@ export default {
     });
 
     const visibleRows = computed(() =>
-      bodyRows.value.slice(visibleRowStart.value, visibleRowEnd.value)
+      dataBodyRows.value.slice(visibleRowStart.value, visibleRowEnd.value)
     );
     const topSpacer = computed(() =>
       virtualizeRows.value ? visibleRowStart.value * ROW_H : 0
@@ -821,21 +845,14 @@ export default {
     });
 
     const editEpoch = ref(0);
-    /** Live SOMMEPROD enabled immediately — BD+ columns have no materialized snapshot. */
-    const liveCalcReady = ref(true);
-    /** Static values while scrolling — live calc refreshes when scroll stops. */
-    const scrollActive = ref(false);
-    let scrollEndTimer = null;
-
+    /** Live SOMMEPROD only after BD index is ready (avoids stale export flash). */
+    const liveCalcReady = computed(() =>
+      Boolean(
+        props.session && props.session.ready && props.session.ready.value
+      )
+    );
     function onGridScroll(e) {
       scrollSync.onScroll(e);
-      if (!scrollActive.value) scrollActive.value = true;
-      if (scrollEndTimer) clearTimeout(scrollEndTimer);
-      scrollEndTimer = setTimeout(() => {
-        scrollEndTimer = null;
-        scrollActive.value = false;
-        editEpoch.value += 1;
-      }, 80);
     }
     const synCalcTick = computed(() =>
       props.session && props.session.synCalcTick && props.session.synCalcTick.value != null
@@ -891,21 +908,9 @@ export default {
           ? props.session.synCalcTick.value
           : 0,
       () => {
-        scrollActive.value = false;
         editEpoch.value += 1;
         invalidateDisplayCache();
       }
-    );
-
-    watch(
-      () =>
-        props.session && props.session.ready && props.session.ready.value
-          ? props.session.ready.value
-          : false,
-      (ready) => {
-        if (ready) liveCalcReady.value = true;
-      },
-      { immediate: true }
     );
 
     watch(
@@ -949,8 +954,10 @@ export default {
       () => Boolean(props.session && props.session.ready && props.session.ready.value),
       (ready, wasReady) => {
         if (ready && !wasReady) {
+          scrollDisplayCache.clear();
           editEpoch.value += 1;
           invalidateDisplayCache();
+          bumpCellModelCache();
         }
       }
     );
@@ -1236,8 +1243,8 @@ export default {
 
     function computeGreenRowSum(row, col) {
       const n = computeGreenRowSumNumber(row, col);
-      if (n == null) return '';
-      return formatVal(String(n));
+      if (n == null) return rememberCellDisplay(row, col, '');
+      return rememberCellDisplay(row, col, formatVal(String(n)));
     }
 
     function isSynRow16CurbTotalCol(col) {
@@ -1300,6 +1307,10 @@ export default {
     /** Effective numeric value of a Control source row (as displayed). */
     function controlSourceNumber(row, col) {
       if (row === SYN_CTRL_DIFF_MINUEND_ROW && isSynRow16CurbTotalCol(col)) {
+        if (isSynEfEqTableCol(col)) {
+          const preset = synRowEfeqPresetRaw(row, col);
+          if (preset !== undefined) return synParseNumOrNull(preset);
+        }
         return computeSynRow16CurbTotalNumber(col);
       }
       return synParseNumOrNull(cellRawValue(row, col));
@@ -1525,6 +1536,12 @@ export default {
         : 0
     );
 
+    function rememberCellDisplay(row, col, out) {
+      if (row == null) return out;
+      scrollDisplayCache.set(`${row}:${col}`, out);
+      return out;
+    }
+
     function cellDisplay(row, col) {
       const cacheKey = `${synCalcTick.value}:${adaptationSumTick.value}:${editEpoch.value}:${liveCalcReady.value ? 1 : 0}:${liveBdEdited.value ? 1 : 0}`;
       if (cacheKey !== displayCacheKey) {
@@ -1555,10 +1572,17 @@ export default {
         return computeGreenRowSum(row, col);
       }
       // Row 16 (CURB MASS) = live Σ of every green-row total in the column,
-      // suffixed " kg". Computed on the fly (never cached) so it tracks any
-      // change to the green totals it sums.
+      // suffixed " kg". EF…EQ uses seeded presets when defined.
       if (Number(row) === 16 && isSynRow16CurbTotalCol(col)) {
+        if (isSynEfEqTableCol(col) && synRowEfeqPresetRaw(row, col) !== undefined) {
+          const cell = getCell(cellMap.value, row, col);
+          return cellDisplayStatic(row, col, cell, synLabel(cellMap.value, row), synRowStyleClass(cellMap.value, row, props.sheet));
+        }
         return computeSynRow16CurbTotal(col);
+      }
+      if (Number(row) === 16 && isSynEfEqTableCol(col) && synRowEfeqPresetRaw(row, col) !== undefined) {
+        const cell = getCell(cellMap.value, row, col);
+        return cellDisplayStatic(row, col, cell, synLabel(cellMap.value, row), synRowStyleClass(cellMap.value, row, props.sheet));
       }
       // Row 20 (Control, Excel 19) = live row16 − row18 difference. Computed on
       // the fly (never cached) so it tracks any change to row 16 or row 18.
@@ -1581,7 +1605,7 @@ export default {
       if (isSynAdaptationSumCell(row, col, props.sheet)) {
         const out = adaptationSumLocal(col);
         displayCache.set(hitKey, out);
-        return out;
+        return rememberCellDisplay(row, col, out);
       }
       if (isSynPillarColAtRow(col, row, pillarColumns.value)) {
         if (usesPillarLetterOverlay(col)) {
@@ -1596,7 +1620,7 @@ export default {
           props.sheet
         );
         displayCache.set(hitKey, pillar);
-        return pillar;
+        return rememberCellDisplay(row, col, pillar);
       }
       const cell = getCell(cellMap.value, row, col);
       const label = synLabel(cellMap.value, row);
@@ -1639,13 +1663,13 @@ export default {
             ? fromSession
             : formatVal(fromSession);
           displayCache.set(hitKey, out);
-          return out;
+          return rememberCellDisplay(row, col, out);
         }
       }
 
       const out = cellDisplayStatic(row, col, cell, label, rowClass);
       displayCache.set(hitKey, out);
-      return out;
+      return rememberCellDisplay(row, col, out);
     }
 
     /**
@@ -2122,6 +2146,9 @@ export default {
       if (isSynRow16DrEdFluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
+      if (isSynRow16EfEqFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
       if (isSynApbbRow16FluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
@@ -2294,6 +2321,9 @@ export default {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynRow16DrEdFluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynRow16EfEqFluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynApbbRow16FluoCol(row, col)) {
@@ -2570,26 +2600,12 @@ export default {
 
     function getCachedScrollCellModel(entry, colEntry, colIdx) {
       const colsLen = scrollColsLen.value;
-      // Never cache scroll-column models — display must stay live for every column
-      // (BD…GE rely on session SOMMEPROD; a stale cache showed coloured empty cells).
-      return buildScrollCellModel(entry, colEntry, colIdx, colsLen);
+      const key = `${cellModelCacheGen}:${rowEntryKey(entry)}:${colEntry.col}:${colIdx}:${colsLen}`;
+      if (scrollCellCache.has(key)) return scrollCellCache.get(key);
+      const model = buildScrollCellModel(entry, colEntry, colIdx, colsLen);
+      scrollCellCache.set(key, model);
+      return model;
     }
-
-    const scrollCellsByRowKey = computed(() => {
-      if (!props.paneVisible) return {};
-      void editEpoch.value;
-      void synCalcTick.value;
-      void adaptationSumTick.value;
-      void liveCalcReady.value;
-      void cellModelCacheGen;
-      const cols = visibleScrollCols.value;
-      const out = {};
-      for (const entry of visibleRows.value) {
-        const key = rowEntryKey(entry);
-        out[key] = cols.map((c, i) => getCachedScrollCellModel(entry, c, i));
-      }
-      return out;
-    });
 
     const leftPadStyle = computed(() => {
       const lp = leftPad.value;
@@ -2623,13 +2639,14 @@ export default {
       );
     }
 
-    /** Row metadata — stable when only horizontal scroll changes. */
-    const visibleRowMeta = computed(() => {
+    function buildRowMetaList(entries) {
       if (!props.paneVisible) return [];
       const map = cellMap.value;
       const sheet = props.sheet;
       const collapsed = collapsedSections.value;
-      return visibleRows.value.map((entry) => {
+      const pinned = pinnedCols.value;
+      const cols = visibleScrollCols.value;
+      return entries.map((entry) => {
         const isSection =
           entry.excelRow != null &&
           synRowStyleClass(map, entry.excelRow, sheet) === 'syn-row-section';
@@ -2647,19 +2664,49 @@ export default {
           isSection,
           sectionCollapsed: isSection && collapsed.has(entry.excelRow),
           rowClasses: cachedEntryRowClasses(entry),
+          pinnedCells: pinned.map((p) => getCachedPinnedCellModel(entry, p)),
+          scrollCells: cols.map((c, i) => getCachedScrollCellModel(entry, c, i)),
         };
       });
-    });
+    }
 
-    const pinnedCellsByRowKey = computed(() => {
-      if (!props.paneVisible) return {};
+    /** Header panel rows — stable on vertical scroll; updates on horizontal scroll / edits. */
+    const headerRowMeta = computed(() => {
+      void colRangeStart.value;
+      void colRangeEnd.value;
       void editEpoch.value;
       void synCalcTick.value;
-      const pinned = pinnedCols.value;
-      const out = {};
-      for (const entry of visibleRows.value) {
-        const key = rowEntryKey(entry);
-        out[key] = pinned.map((p) => getCachedPinnedCellModel(entry, p));
+      void adaptationSumTick.value;
+      void cellModelCacheGen;
+      return buildRowMetaList(headerBlockRows.value);
+    });
+
+    /** Data body rows — vertically virtualized. */
+    const visibleRowMeta = computed(() => {
+      void colRangeStart.value;
+      void colRangeEnd.value;
+      void visibleRowStart.value;
+      void visibleRowEnd.value;
+      void editEpoch.value;
+      void synCalcTick.value;
+      void adaptationSumTick.value;
+      void cellModelCacheGen;
+      return buildRowMetaList(visibleRows.value);
+    });
+
+    const tableBodySections = computed(() => {
+      const out = [];
+      for (const row of headerRowMeta.value) {
+        out.push({ kind: 'row', key: `hdr-${row.key}`, row });
+      }
+      if (topSpacer.value > 0) {
+        out.push({ kind: 'spacer-top', key: 'sp-top', height: topSpacer.value });
+      }
+      for (const row of visibleRowMeta.value) {
+        out.push({ kind: 'row', key: row.key, row });
+      }
+      if (bottomSpacer.value > 0) {
+        out.push({ kind: 'spacer-bot', key: 'sp-bot', height: bottomSpacer.value });
       }
       return out;
     });
@@ -2754,11 +2801,9 @@ export default {
     onMounted(() => {
       updateViewport();
       scrollSync.flush();
-      liveCalcReady.value = true;
       window.addEventListener('resize', updateViewport);
     });
     onUnmounted(() => {
-      if (scrollEndTimer) clearTimeout(scrollEndTimer);
       if (greenPersistTimer) clearTimeout(greenPersistTimer);
       window.removeEventListener('resize', updateViewport);
       scrollSync.dispose();
@@ -3000,16 +3045,12 @@ export default {
       pinnedCols,
       visibleScrollCols,
       tableWidth,
-      visibleRowMeta,
-      pinnedCellsByRowKey,
-      scrollCellsByRowKey,
-      topSpacer,
-      bottomSpacer,
+      tableBodySections,
+      colspan,
       leftPad,
       rightPad,
       leftPadStyle,
       rightPadStyle,
-      colspan,
       SYN_STICKY_COL,
       SYN_HEADER_PANEL_LAST_ROW,
       colStyle,
@@ -3126,14 +3167,16 @@ export default {
               <th
                 v-for="entry in pinnedCols"
                 :key="'T-' + entry.col"
-                class="syn-col-toggle-cell col-sticky-label"
+                class="syn-col-toggle-cell col-sticky-label grid-axis-hdr"
+                :class="{ 'grid-axis-hdr-focus': axisCol === entry.col }"
                 :style="[colStyle(entry.col, entry.width), stickyStyle(entry.col)]"
               ></th>
               <th v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></th>
               <th
                 v-for="entry in visibleScrollCols"
                 :key="'T-' + entry.col"
-                class="syn-col-toggle-cell"
+                class="syn-col-toggle-cell grid-axis-hdr"
+                :class="{ 'grid-axis-hdr-focus': axisCol === entry.col }"
                 :style="colStyle(entry.col, entry.width)"
               ><button
                   v-if="isColGroupToggle(entry.letter)"
@@ -3197,56 +3240,59 @@ export default {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="topSpacer > 0" class="bd-spacer-top">
-              <td :colspan="colspan" :style="{ height: topSpacer + 'px', border: 'none', padding: 0 }"></td>
+            <template v-for="section in tableBodySections" :key="section.key">
+            <tr
+              v-if="section.kind === 'spacer-top' || section.kind === 'spacer-bot'"
+              :class="section.kind === 'spacer-top' ? 'bd-spacer-top' : 'bd-spacer-bottom'"
+            >
+              <td :colspan="colspan" :style="{ height: section.height + 'px', border: 'none', padding: 0 }"></td>
             </tr>
             <tr
-              v-for="row in visibleRowMeta"
-              :key="row.key"
+              v-else
               class="grid-row-cv"
               :class="[
-                row.rowClasses,
+                section.row.rowClasses,
                 {
-                  'grid-axis-row-focus': row.excelRow != null && axisRow === row.excelRow,
-                  'grid-axis-row-copied': row.excelRow != null && isCopiedRow(row.excelRow),
+                  'grid-axis-row-focus': section.row.excelRow != null && axisRow === section.row.excelRow,
+                  'grid-axis-row-copied': section.row.excelRow != null && isCopiedRow(section.row.excelRow),
                 },
               ]"
             >
               <td
                 class="syn-fold-col"
-                :class="{ 'syn-fold-col-section': row.isSection }"
+                :class="{ 'syn-fold-col-section': section.row.isSection }"
               >
                 <button
-                  v-if="row.isSection"
+                  v-if="section.row.isSection"
                   type="button"
                   class="syn-fold-btn"
-                  :title="(row.sectionCollapsed ? 'Déplier' : 'Plier') + ' la section'"
-                  @click="toggleSection(row.excelRow)"
-                >{{ row.sectionCollapsed ? '+' : '\u2212' }}</button>
+                  :title="(section.row.sectionCollapsed ? 'Déplier' : 'Plier') + ' la section'"
+                  @click="toggleSection(section.row.excelRow)"
+                >{{ section.row.sectionCollapsed ? '+' : '\u2212' }}</button>
               </td>
               <td
                 class="row-num syn-row-num grid-axis-hdr"
                 :class="{
-                  'syn-adaptation-sum-row-num': row.isAdaptationSumRow,
-                  'grid-axis-hdr-focus': row.excelRow != null && axisRow === row.excelRow,
-                  'grid-axis-copied': row.excelRow != null && isCopiedRow(row.excelRow),
+                  'syn-adaptation-sum-row-num': section.row.isAdaptationSumRow,
+                  'grid-axis-hdr-focus': section.row.excelRow != null && axisRow === section.row.excelRow,
+                  'grid-axis-copied': section.row.excelRow != null && isCopiedRow(section.row.excelRow),
                 }"
-                :title="row.rowLabel || ''"
-                @mousedown="row.excelRow != null && onAxisRowNumClick(row.excelRow, $event)"
-                @contextmenu="row.excelRow != null && row.excelRow > SYN_HEADER_PANEL_LAST_ROW && onRowContextMenu(row, $event)"
+                :title="section.row.rowLabel || ''"
+                @mousedown="section.row.excelRow != null && onAxisRowNumClick(section.row.excelRow, $event)"
+                @contextmenu="section.row.excelRow != null && section.row.excelRow > SYN_HEADER_PANEL_LAST_ROW && onRowContextMenu(section.row, $event)"
               >
-                {{ row.rowNum }}
+                {{ section.row.rowNum }}
                 <button
-                  v-if="isInsertableSynRow(row.entry)"
+                  v-if="isInsertableSynRow(section.row.entry)"
                   type="button"
                   class="grid-insert-btn grid-insert-row"
                   title="Insérer une ligne vierge en dessous"
-                  @mousedown.stop="onInsertRowAfter(row.excelRow, $event)"
+                  @mousedown.stop="onInsertRowAfter(section.row.excelRow, $event)"
                 >+</button>
               </td>
               <td
-                v-for="cell in pinnedCellsByRowKey[row.key]"
-                :key="row.key + '-p-' + cell.col"
+                v-for="cell in section.row.pinnedCells"
+                :key="section.row.key + '-p-' + cell.col"
                 class="data-cell col-sticky-label syn-label-col"
                 :class="[
                   { readonly: cell.readonly },
@@ -3287,8 +3333,8 @@ export default {
               </td>
               <td v-if="leftPad > 0" class="syn-pad" :style="leftPadStyle"></td>
               <td
-                v-for="cell in scrollCellsByRowKey[row.key]"
-                :key="row.key + '-' + cell.col"
+                v-for="cell in section.row.scrollCells"
+                :key="section.row.key + '-' + cell.col"
                 class="data-cell"
                 :class="[
                   { readonly: cell.readonly },
@@ -3329,9 +3375,7 @@ export default {
               </td>
               <td v-if="rightPad > 0" class="syn-pad" :style="rightPadStyle"></td>
             </tr>
-            <tr v-if="bottomSpacer > 0" class="bd-spacer-bottom">
-              <td :colspan="colspan" :style="{ height: bottomSpacer + 'px', border: 'none', padding: 0 }"></td>
-            </tr>
+            </template>
           </tbody>
         </table>
         </div>
