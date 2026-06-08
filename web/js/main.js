@@ -12,7 +12,7 @@ import {
 } from 'vue';
 import BdGrid from './BdGrid.js?v=bd-ctx1';
 import { computeBodyDisplayRows } from './bdStore.js';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-axis3';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-green-fix1';
 import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';

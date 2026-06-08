@@ -28,12 +28,12 @@ export function colOverscanPx(viewportW, minPx = 640) {
 }
 
 /**
- * Synthesis horizontal buffer (~0.6 screen each side). The old 1.6-screen buffer
- * mounted ~65 cols/row (≈8900 cells) and made every horizontal scroll a heavy
- * layout/paint; scrollLeft is synced without lag so a tighter buffer stays covered.
+ * Synthesis horizontal buffer (~1.2 screens each side). Wider than the old 0.6×
+ * window so fast flings stay inside already-mounted DOM; monotonic col cache caps
+ * total nodes at SYN_MAX_RENDERED_COLS.
  */
 export function synColOverscanPx(viewportW) {
-  return Math.min(1200, Math.max(500, Math.floor(viewportW * 0.6)));
+  return Math.min(2800, Math.max(900, Math.floor(viewportW * 1.2)));
 }
 
 /** Binary search on precomputed column layout (`left`, `width`). */

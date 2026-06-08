@@ -85,6 +85,8 @@ import {
   synRow17BlueTextStyle,
   isSynRow17BlueEvery3Col,
   synRow17MaaBlueStyle,
+  isSynRow16BgCol,
+  synRow16BgStyle,
   isSynRow18BgCol,
   synRow18BgStyle,
   isSynRow18GreyTextCol,
@@ -97,6 +99,8 @@ import {
   isSynRow16BdboFluoCol,
   isSynRow16BsCeFluoCol,
   isSynRow16CiCyFluoCol,
+  isSynRow16DaDpFluoCol,
+  isSynRow16DrEdFluoCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbP3sBlackCol,
@@ -109,18 +113,21 @@ import {
   synBsCeRow5Style,
   isSynCiCyRow5Col,
   synCiCyRow5Style,
+  isSynDaDpRow5Col,
+  synDaDpRow5Style,
+  isSynDrEdRow5Col,
+  synDrEdRow5Style,
+  isSynEfEqRow5Col,
+  synEfEqRow5Style,
   isSynRow17FluoEvery3FromMCol,
   synRow16FluoStyle,
   SYN_DISPLAY_GREEN_ROWS,
   SYN_DISPLAY_GREEN_BG,
   isSynDisplayRowGreyMaaCol,
   synDisplayRowGreyMaaStyle,
-  isSynDisplayRowGreenMaaCol,
+  isSynDisplayRowGreenSummaryCol,
   synDisplayRowGreenMaaStyle,
-  isSynDisplayRowGreenAcanCol,
-  synDisplayRowGreenAcanStyle,
-  isSynDisplayRowGreenApbbCol,
-  synDisplayRowGreenApbbStyle,
+  synGreenSumExcelCols,
   isSynApbbRow16SummaryCol,
   isSynDisplayRowBlueCol,
   isSynRow16CurbTotalSummaryCol,
@@ -176,6 +183,10 @@ import {
   isSynHdrFjFzDividerRightEntry,
   isSynHdrFjFzDividerLeftEntry,
   isSynHdrFjFzDividerRightEdgeEntry,
+  isSynGbGeTableCellEntry,
+  isSynHdrGbGeDividerRightEntry,
+  isSynHdrGbGeDividerLeftEntry,
+  isSynHdrGbGeDividerRightEdgeEntry,
   SYN_HEADER_PANEL_LAST_ROW,
   isSynSpacerDisplayExcelCol,
   isSynForceWhiteExcelCol,
@@ -200,7 +211,7 @@ import {
   isSynSp2RestartDisplayExcelCol,
   synLabel,
   getSynAdaptBandNumeric,
-} from './synStore.js?v=syn-form4';
+} from './synStore.js?v=syn-green-fix1';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -224,7 +235,7 @@ import {
   createRowScrollCache,
   SYN_MAX_RENDERED_COLS,
   SYN_MAX_RENDERED_ROWS,
-} from './gridScroll.js?v=scroll-perf1';
+} from './gridScroll.js?v=scroll-perf2';
 const SYN_HEAD_ROW_H = 22;
 const ROW_NUM_W = 56;
 /** Width of the section fold/unfold column inserted before the row numbers. */
@@ -243,21 +254,14 @@ function isSynMirrorLfromMCell(row, col) {
   return col === SYN_MIRROR_DST_EXCEL_COL && Number(row) >= SYN_MIRROR_FIRST_ROW;
 }
 
-/** Excel columns that carry an automatic green total (display M…AA and AC…AN). */
-const SYN_GREEN_TOTAL_EXCEL_COLS = (() => {
-  const out = [];
-  const addRange = (startDisp, endDisp) => {
-    for (let n = colToNum(startDisp); n <= colToNum(endDisp); n++) {
-      out.push(displayToExcelCol(numToCol(n)));
-    }
-  };
-  addRange('M', 'AA');
-  addRange('AC', 'AN');
-  for (const d of ['AP', 'AU', 'AX', 'AY', 'BA']) {
-    out.push(displayToExcelCol(d));
+/** Excel columns that carry an automatic green total (all summary tables). */
+let _synGreenTotalExcelCols;
+function getSynGreenTotalExcelCols() {
+  if (!_synGreenTotalExcelCols) {
+    _synGreenTotalExcelCols = synGreenSumExcelCols();
   }
-  return out;
-})();
+  return _synGreenTotalExcelCols;
+}
 
 /**
  * Row-1 (column-letter header) collapse groups. Clicking the "−" button on the
@@ -472,9 +476,9 @@ export default {
       shouldVirtualizeCols(tableWidth.value, viewportW.value)
     );
     const colBufferPx = computed(() => synColOverscanPx(viewportW.value));
-    /** Column window — viewport-first (monotonic off avoids 60k+ DOM nodes). */
+    /** Column window — monotonic: visited cols stay mounted (scroll-back = instant). */
     const colScrollCache = createColScrollCache(SYN_MAX_RENDERED_COLS, {
-      monotonic: false,
+      monotonic: true,
     });
     const colRangeStart = ref(0);
     const colRangeEnd = ref(0);
@@ -685,7 +689,7 @@ export default {
     });
 
     const rowScrollCache = createRowScrollCache(SYN_MAX_RENDERED_ROWS, {
-      monotonic: false,
+      monotonic: true,
     });
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
@@ -817,8 +821,8 @@ export default {
     });
 
     const editEpoch = ref(0);
-    /** Defer SUMPRODUCT until after first paint. */
-    const liveCalcReady = ref(false);
+    /** Live SOMMEPROD enabled immediately — BD+ columns have no materialized snapshot. */
+    const liveCalcReady = ref(true);
     /** Static values while scrolling — live calc refreshes when scroll stops. */
     const scrollActive = ref(false);
     let scrollEndTimer = null;
@@ -846,12 +850,14 @@ export default {
     );
     const displayCache = new Map();
     const scrollStyleCache = new Map();
+    const scrollClassCache = new Map();
     const rowClassesCache = new Map();
     let displayCacheKey = '';
 
     function invalidateDisplayCache() {
       displayCache.clear();
       scrollStyleCache.clear();
+      scrollClassCache.clear();
       rowClassesCache.clear();
       displayCacheKey = '';
     }
@@ -897,16 +903,7 @@ export default {
           ? props.session.ready.value
           : false,
       (ready) => {
-        if (!ready || liveCalcReady.value) return;
-        const enable = () => {
-          // Avoid kicking off heavy SUMPRODUCT while the user is actively scrolling.
-          if (!scrollActive.value) liveCalcReady.value = true;
-        };
-        if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(enable, { timeout: 1200 });
-        } else {
-          setTimeout(enable, 300);
-        }
+        if (ready) liveCalcReady.value = true;
       },
       { immediate: true }
     );
@@ -933,6 +930,9 @@ export default {
             const needle = `:${row}:${col}:`;
             for (const sk of scrollStyleCache.keys()) {
               if (sk.includes(needle)) scrollStyleCache.delete(sk);
+            }
+            for (const sk of scrollClassCache.keys()) {
+              if (sk.includes(needle)) scrollClassCache.delete(sk);
             }
           }
           // Re-render so the refreshed cells (and the grid-derived Control /
@@ -961,6 +961,9 @@ export default {
       const needle = `:${sumRow}:${col}:`;
       for (const sk of scrollStyleCache.keys()) {
         if (sk.includes(needle)) scrollStyleCache.delete(sk);
+      }
+      for (const sk of scrollClassCache.keys()) {
+        if (sk.includes(needle)) scrollClassCache.delete(sk);
       }
       bumpCellModelCache();
     }
@@ -1157,11 +1160,7 @@ export default {
     function isSynGreenSumCell(row, col) {
       if (row == null) return false;
       const displayRow = displayRowByExcel.value.get(row);
-      return (
-        isSynDisplayRowGreenMaaCol(displayRow, col) ||
-        isSynDisplayRowGreenAcanCol(displayRow, col) ||
-        isSynDisplayRowGreenApbbCol(displayRow, col)
-      );
+      return isSynDisplayRowGreenSummaryCol(displayRow, col);
     }
 
     /**
@@ -1199,7 +1198,6 @@ export default {
       if (
         isLiveCalc &&
         !materialized &&
-        liveCalcReady.value &&
         props.session &&
         props.session.getDisplayValue &&
         props.session.ready &&
@@ -1286,6 +1284,7 @@ export default {
     /** Control / Portfolio diff columns — display C…J + every summary table (not BQ gutter). */
     function isSynMetricDiffCol(col) {
       if (isSynSpacerDisplayExcelCol(col)) return false;
+      if (isSynForceWhiteExcelCol(col)) return false;
       if (isSynBqGutterExcelCol(col)) return false;
       return isSynVehicleMassCol(col) || isSynHeaderPanelVehicleCol(col);
     }
@@ -1370,6 +1369,7 @@ export default {
     function cellReadonly(row, col) {
       if (row == null) return true;
       if (isUserGapCol(col)) return true;
+      if (isSynForceWhiteExcelCol(col)) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
       if (isSynMirrorLfromMCell(row, col)) return true;
       if (isSynBodyEmptyFromRow27Cell(row, col)) return true;
@@ -1623,8 +1623,6 @@ export default {
       if (
         isLiveCalc &&
         !materialized &&
-        liveCalcReady.value &&
-        !scrollActive.value &&
         props.session &&
         props.session.getDisplayValue &&
         props.session.ready &&
@@ -1665,7 +1663,7 @@ export default {
 
     function loadGreenBaseline() {
       for (const greenRow of greenSumSourceRows.value.keys()) {
-        for (const col of SYN_GREEN_TOTAL_EXCEL_COLS) {
+        for (const col of getSynGreenTotalExcelCols()) {
           const c = cellMap.value.get(`${greenRow}:${col}`);
           if (c && c.userEdited && c.v != null) {
             lastPersistedGreen.set(`${greenRow}:${col}`, String(c.v));
@@ -1702,7 +1700,7 @@ export default {
       for (const greenRow of greenSumSourceRows.value.keys()) {
         const sources = greenSumSourceRows.value.get(greenRow);
         if (!sources || !sources.length) continue;
-        for (const col of SYN_GREEN_TOTAL_EXCEL_COLS) {
+        for (const col of getSynGreenTotalExcelCols()) {
           const value = computeGreenRowSum(greenRow, col);
           const key = `${greenRow}:${col}`;
           if (lastPersistedGreen.get(key) === value) continue;
@@ -1880,6 +1878,7 @@ export default {
         'syn-ef-eq-table-frame',
         'syn-es-fe-table-frame',
         'syn-fj-fz-table-frame',
+        'syn-gb-ge-table-frame',
       ];
     }
 
@@ -1914,6 +1913,7 @@ export default {
           list.push('syn-ef-eq-edge-top');
           list.push('syn-es-fe-edge-top');
           list.push('syn-fj-fz-edge-top');
+          list.push('syn-gb-ge-edge-top');
         }
         if (row === SYN_HEADER_PANEL_LAST_ROW) {
           list.push('syn-ac-an-edge-bottom');
@@ -1926,6 +1926,7 @@ export default {
           list.push('syn-ef-eq-edge-bottom');
           list.push('syn-es-fe-edge-bottom');
           list.push('syn-fj-fz-edge-bottom');
+          list.push('syn-gb-ge-edge-bottom');
         }
       }
       if (row >= 3 && row <= 14) list.push('syn-filter-band');
@@ -2000,17 +2001,18 @@ export default {
         scrollStyleCache.set(styleKey, out);
         return out;
       }
+      if (isSynRow16BgCol(row, col)) {
+        const out = { ...base, ...synRow16BgStyle() };
+        scrollStyleCache.set(styleKey, out);
+        return out;
+      }
       // Body rows 26+ (non header panel): skip heavy header style chain.
       if (row >= SYN_GRID_FIRST_ROW && !isSynHeaderPanelRow(row)) {
         const out = { ...base, ...cellInlineStyle(row, col) };
         if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreyMaaStyle());
-        } else if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
+        } else if (isSynDisplayRowGreenSummaryCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreenMaaStyle());
-        } else if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
-          Object.assign(out, synDisplayRowGreenAcanStyle());
-        } else if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
-          Object.assign(out, synDisplayRowGreenApbbStyle());
         } else if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowBlueStyle());
         }
@@ -2070,6 +2072,15 @@ export default {
       if (isSynCiCyRow5Col(row, col)) {
         return { ...base, ...synCiCyRow5Style() };
       }
+      if (isSynDaDpRow5Col(row, col)) {
+        return { ...base, ...synDaDpRow5Style() };
+      }
+      if (isSynDrEdRow5Col(row, col)) {
+        return { ...base, ...synDrEdRow5Style() };
+      }
+      if (isSynEfEqRow5Col(row, col)) {
+        return { ...base, ...synEfEqRow5Style() };
+      }
       if (isSynBqRow5Col(row, col)) {
         return { ...base, ...synBqRow5Style() };
       }
@@ -2082,14 +2093,9 @@ export default {
       if (isSynProjHeaderGreyCol(row, col)) {
         return { ...base, ...synProjHeaderGreyStyle() };
       }
-      if (isSynProjHeaderRedCol(row, col)) {
-        return { ...base, ...synProjHeaderRedStyle() };
-      }
-      if (row === 19 || row === 20) {
-        // Control (Excel 19, displayed 20) and portfolio (Excel 20, displayed 21)
-        // rows: value-conditional colouring is handled by the syn-metric-sign-neg
-        // / -pos classes (negative → #92d050 green, positive → HEV red #ff0000).
-        // Keep the inline background neutral so a zero / empty cell stays blank.
+      if (row === 19 || row === 20 || row === 21) {
+        // Control / Portfolio / Forecast (Excel 19–21): metric colouring is CSS-only
+        // (sign-based green/red on 19–20). Keep inline backgrounds neutral.
         return base;
       }
       if (isSynRow25MaGreenCol(row, col)) {
@@ -2110,6 +2116,12 @@ export default {
       if (isSynRow16CiCyFluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
+      if (isSynRow16DaDpFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
+      if (isSynRow16DrEdFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
       if (isSynApbbRow16FluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
@@ -2125,14 +2137,8 @@ export default {
       if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreyMaaStyle() };
       }
-      if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
+      if (isSynDisplayRowGreenSummaryCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenMaaStyle() };
-      }
-      if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
-        return { ...base, ...synDisplayRowGreenAcanStyle() };
-      }
-      if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
-        return { ...base, ...synDisplayRowGreenApbbStyle() };
       }
       if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowBlueStyle() };
@@ -2193,14 +2199,8 @@ export default {
       if (isSynDisplayRowGreyMaaCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-grey-maa', display);
       }
-      if (isSynDisplayRowGreenMaaCol(displayRow, col)) {
+      if (isSynDisplayRowGreenSummaryCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-green-maa', display);
-      }
-      if (isSynDisplayRowGreenAcanCol(displayRow, col)) {
-        return withHdrPanelBold(row, col, 'syn-displayrow-green-acan', display);
-      }
-      if (isSynDisplayRowGreenApbbCol(displayRow, col)) {
-        return withHdrPanelBold(row, col, 'syn-displayrow-green-apbb', display);
       }
       if (isSynDisplayRowBlueCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-blue', display);
@@ -2211,6 +2211,9 @@ export default {
       if (greyCol) return withHdrPanelBold(row, col, greyCol, display);
       const adaptCol = synAdaptBandColClass(row, col, pillarColumns.value);
       if (adaptCol) return withHdrPanelBold(row, col, adaptCol, display);
+      if (isSynRow16BgCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-bg', display);
+      }
       const metricWhiteCol = synMetricCjWhiteColClass(row, col);
       if (metricWhiteCol) return withHdrPanelBold(row, col, metricWhiteCol, display);
       const accent = synCellAccentClass(display);
@@ -2237,6 +2240,15 @@ export default {
       if (isSynCiCyRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-ci-cy-row5', display);
       }
+      if (isSynDaDpRow5Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-da-dp-row5', display);
+      }
+      if (isSynDrEdRow5Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-dr-ed-row5', display);
+      }
+      if (isSynEfEqRow5Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-ef-eq-row5', display);
+      }
       if (isSynBqRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-bq-row5', display);
       }
@@ -2251,6 +2263,14 @@ export default {
       }
       if (isSynProjHeaderGreyCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-grey', display);
+      }
+      // Control / Portfolio (Excel 19–20, display 20–21) — sign-based fill before
+      // any static header colours (Portfolio must not get the pink proj-hdr-red band).
+      if ((row === 19 || row === 20) && isSynMetricDiffCol(col)) {
+        const signCls = synMetricCellClass(row, col, display);
+        if (signCls) {
+          return withHdrPanelBold(row, col, signCls, display);
+        }
       }
       if (isSynProjHeaderRedCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-red', display);
@@ -2270,16 +2290,14 @@ export default {
       if (isSynRow16CiCyFluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
-      if (isSynApbbRow16FluoCol(row, col)) {
+      if (isSynRow16DaDpFluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
-      // Control / Portfolio (Excel 19–20, display 20–21) — sign-based fill on every
-      // metric-diff column before header-panel defaults block it.
-      if ((row === 19 || row === 20) && isSynMetricDiffCol(col)) {
-        const signCls = synMetricCellClass(row, col, display);
-        if (signCls) {
-          return withHdrPanelBold(row, col, signCls, display);
-        }
+      if (isSynRow16DrEdFluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynApbbRow16FluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynHeaderPanelRow(row)) {
         const hdrCls = synHeaderPanelVehicleClass(row, col, display);
@@ -2336,6 +2354,16 @@ export default {
         return gapParts.filter(Boolean).join(' ');
       }
       const row = entry.excelRow;
+      // White gutters (EE, ER, FF, GF, …) — blank, no table colour or bold frame edges.
+      if (isSynForceWhiteExcelCol(col)) {
+        const whiteParts = [
+          withHdrPanelBold(row, col, 'syn-force-white-col', display),
+          synExcelColTraceClass(col),
+        ];
+        const whiteSpacerCls = synSpacerColClass(col);
+        if (whiteSpacerCls) whiteParts.push(whiteSpacerCls);
+        return whiteParts.filter(Boolean).join(' ');
+      }
       const parts = [
         cellExtraClass(row, col, display),
         synPillarAccentClass(col),
@@ -2398,6 +2426,10 @@ export default {
       if (isSynHdrFjFzDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-fjfz-right');
       if (isSynHdrFjFzDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-fj-left');
       if (isSynHdrFjFzDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-fz-right');
+      if (isSynGbGeTableCellEntry(entry, col)) parts.push('syn-gb-ge-cell');
+      if (isSynHdrGbGeDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-gbge-right');
+      if (isSynHdrGbGeDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-gb-left');
+      if (isSynHdrGbGeDividerRightEdgeEntry(entry, col)) parts.push('syn-hdr-edge-ge-right');
       return parts.filter(Boolean).join(' ');
     }
 
@@ -2435,6 +2467,15 @@ export default {
       };
     }
 
+    function cachedScrollCellClassNames(entry, col, colIdx, colsLen, display) {
+      const row = entry.excelRow;
+      const key = `${displayCacheKey}:${row}:${col}:${colIdx}:${colsLen}:${display}`;
+      if (scrollClassCache.has(key)) return scrollClassCache.get(key);
+      const cls = scrollCellClassNames(entry, col, colIdx, colsLen, display);
+      scrollClassCache.set(key, cls);
+      return cls;
+    }
+
     function buildScrollCellModel(entry, colEntry, colIdx, colsLen) {
       const col = colEntry.col;
       const width = colEntry.width;
@@ -2447,7 +2488,7 @@ export default {
           readonly: true,
           display: '',
           html: '',
-          classes: scrollCellClassNames(entry, col, colIdx, colsLen, gapCls),
+          classes: cachedScrollCellClassNames(entry, col, colIdx, colsLen, gapCls),
           style: scrollDataCellStyle(entry, col, width),
         };
       }
@@ -2462,7 +2503,7 @@ export default {
         display,
         html: cellDisplayHtml(row, col, display),
         readonly,
-        classes: scrollCellClassNames(entry, col, colIdx, colsLen, display),
+        classes: cachedScrollCellClassNames(entry, col, colIdx, colsLen, display),
         style: scrollDataCellStyle(entry, col, width),
       };
     }
@@ -2501,7 +2542,10 @@ export default {
           adaptationSumTick.value,
           liveCalcReady.value,
         ],
-      () => bumpCellModelCache()
+      () => {
+        bumpCellModelCache();
+        invalidateDisplayCache();
+      }
     );
 
     watch(
@@ -2526,12 +2570,26 @@ export default {
 
     function getCachedScrollCellModel(entry, colEntry, colIdx) {
       const colsLen = scrollColsLen.value;
-      const key = `${cellModelCacheGen}:${rowEntryKey(entry)}:${colEntry.col}`;
-      if (scrollCellCache.has(key)) return scrollCellCache.get(key);
-      const model = buildScrollCellModel(entry, colEntry, colIdx, colsLen);
-      scrollCellCache.set(key, model);
-      return model;
+      // Never cache scroll-column models — display must stay live for every column
+      // (BD…GE rely on session SOMMEPROD; a stale cache showed coloured empty cells).
+      return buildScrollCellModel(entry, colEntry, colIdx, colsLen);
     }
+
+    const scrollCellsByRowKey = computed(() => {
+      if (!props.paneVisible) return {};
+      void editEpoch.value;
+      void synCalcTick.value;
+      void adaptationSumTick.value;
+      void liveCalcReady.value;
+      void cellModelCacheGen;
+      const cols = visibleScrollCols.value;
+      const out = {};
+      for (const entry of visibleRows.value) {
+        const key = rowEntryKey(entry);
+        out[key] = cols.map((c, i) => getCachedScrollCellModel(entry, c, i));
+      }
+      return out;
+    });
 
     const leftPadStyle = computed(() => {
       const lp = leftPad.value;
@@ -2602,20 +2660,6 @@ export default {
       for (const entry of visibleRows.value) {
         const key = rowEntryKey(entry);
         out[key] = pinned.map((p) => getCachedPinnedCellModel(entry, p));
-      }
-      return out;
-    });
-
-    const scrollCellsByRowKey = computed(() => {
-      if (!props.paneVisible) return {};
-      void editEpoch.value;
-      void synCalcTick.value;
-      void visibleScrollCols.value;
-      const cols = visibleScrollCols.value;
-      const out = {};
-      for (const entry of visibleRows.value) {
-        const key = rowEntryKey(entry);
-        out[key] = cols.map((c, i) => getCachedScrollCellModel(entry, c, i));
       }
       return out;
     });
@@ -2710,19 +2754,8 @@ export default {
     onMounted(() => {
       updateViewport();
       scrollSync.flush();
+      liveCalcReady.value = true;
       window.addEventListener('resize', updateViewport);
-      // Always warm up live SOMMEPROD — extended summary tables (BD…BO, BS…CE, …)
-      // are not in the build-time materialized pack and must read Database live.
-      requestAnimationFrame(() => {
-        const enable = () => {
-          liveCalcReady.value = true;
-        };
-        if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(enable, { timeout: 1500 });
-        } else {
-          setTimeout(enable, 350);
-        }
-      });
     });
     onUnmounted(() => {
       if (scrollEndTimer) clearTimeout(scrollEndTimer);
@@ -2938,6 +2971,22 @@ export default {
       isSynHdrFjFzDividerRightEdgeEntry: synTemplateFn(
         'isSynHdrFjFzDividerRightEdgeEntry',
         isSynHdrFjFzDividerRightEdgeEntry
+      ),
+      isSynGbGeTableCellEntry: synTemplateFn(
+        'isSynGbGeTableCellEntry',
+        isSynGbGeTableCellEntry
+      ),
+      isSynHdrGbGeDividerRightEntry: synTemplateFn(
+        'isSynHdrGbGeDividerRightEntry',
+        isSynHdrGbGeDividerRightEntry
+      ),
+      isSynHdrGbGeDividerLeftEntry: synTemplateFn(
+        'isSynHdrGbGeDividerLeftEntry',
+        isSynHdrGbGeDividerLeftEntry
+      ),
+      isSynHdrGbGeDividerRightEdgeEntry: synTemplateFn(
+        'isSynHdrGbGeDividerRightEdgeEntry',
+        isSynHdrGbGeDividerRightEdgeEntry
       ),
       isSynProjHeaderGreenCol,
       isSynTargetTextGreenCell,

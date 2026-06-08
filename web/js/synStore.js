@@ -37,6 +37,8 @@ import {
   SYN_ES_FE_TABLE_DISPLAY_END,
   SYN_FJ_FZ_TABLE_DISPLAY_START,
   SYN_FJ_FZ_TABLE_DISPLAY_END,
+  SYN_GB_GE_TABLE_DISPLAY_START,
+  SYN_GB_GE_TABLE_DISPLAY_END,
   isSynSpacerDisplayExcelCol,
   isSynSp2DisplayExcelCol,
   isSynSp2RestartDisplayExcelCol,
@@ -94,6 +96,12 @@ export const SYN_FORCE_WHITE_DISPLAY_COLS = [
   'CH',
   'CZ',
   'DQ',
+  'EE',
+  'ER',
+  'FF',
+  'GF',
+  'FH',
+  'FI',
 ];
 
 /** Excel column keys for cell lookup (derived from display letters above). */
@@ -364,6 +372,16 @@ export function applySynBodyEmptyBpBrCells(cells = [], lastRow = 422) {
   }
   return cells;
 }
+
+/** Strip export leftovers on white-gutter columns (EE, ER, FF, GF, …). */
+export function applySynForceWhiteEmptyCells(cells = []) {
+  for (let i = cells.length - 1; i >= 0; i--) {
+    const cell = cells[i];
+    if (!isSynForceWhiteExcelCol(cell.c) || cell.userEdited) continue;
+    cells.splice(i, 1);
+  }
+  return cells;
+}
 /** Rows 3–19, display C…J — bold + slightly larger text. */
 export const SYN_HDR_PANEL_BOLD_LAST_ROW = 19;
 /** Rows 18–19, display columns C–J (Excel H–O). */
@@ -391,8 +409,8 @@ export const SYN_FILTER_ROW_LABELS = {
 
 /** Mass / portfolio summary rows between filter band and ADAPTATION (Excel F16–F22). */
 export const SYN_METRIC_ROWS = new Set([15, 16, 17, 18, 19, 20, 21, 22]);
-/** Metric panel rows 15–22: display C–J white band (not 18–19). */
-export const SYN_METRIC_CJ_WHITE_ROWS = new Set([15, 16, 17, 20, 21, 22]);
+/** Metric panel rows 15–22: display C–J white band (row 16 uses #ebf1de like row 18). */
+export const SYN_METRIC_CJ_WHITE_ROWS = new Set([15, 17, 20, 21, 22]);
 /** Metric rows whose vehicle-column numbers are shown with a kg suffix. */
 export const SYN_METRIC_KG_ROWS = new Set([16, 18, 19, 20]);
 /** SP1 / SP2 / SPC pillars — vertical title rendered in a grid overlay (Excel G, P, CL & FL). */
@@ -2273,7 +2291,7 @@ export function synMetricCellClass(row, col, display) {
     return '';
   }
   if (row === 19 || row === 20) return synSignMetricClass(s);
-  if (row === 21) return 'syn-metric-forecast';
+  if (row === 21) return '';
   if (row === 22) return 'syn-row22-hev-red';
   if (row === 16) return 'syn-metric-mass';
   if (row === 17) return 'syn-row17-blue-text';
@@ -2419,6 +2437,52 @@ export function synCiCyRow5Style() {
   };
 }
 
+/** Row 5 — DA…DP silhouette band (#595959). */
+export const SYN_DADP_ROW5_BG = '#595959';
+
+export function isSynDaDpRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynDaDpTableCol(col);
+}
+
+export function synDaDpRow5Style() {
+  return {
+    background: SYN_DADP_ROW5_BG,
+    backgroundColor: SYN_DADP_ROW5_BG,
+    color: '#fff',
+  };
+}
+
+/** Row 5 — DR…ED silhouette band (fluo yellow #ffff00). */
+export function isSynDrEdRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynDrEdTableCol(col);
+}
+
+export function synDrEdRow5Style() {
+  return {
+    background: SYN_ROW16_FLUO_BG,
+    backgroundColor: SYN_ROW16_FLUO_BG,
+    color: '#000',
+  };
+}
+
+/** Row 5 — EF…EQ silhouette band (#cad40a). */
+export const SYN_EF_EQ_ROW5_BG = '#cad40a';
+
+export function isSynEfEqRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynEfEqTableCol(col);
+}
+
+export function synEfEqRow5Style() {
+  return {
+    background: SYN_EF_EQ_ROW5_BG,
+    backgroundColor: SYN_EF_EQ_ROW5_BG,
+    color: '#000',
+  };
+}
+
 /** Row 5 — all summary tables from display M. */
 export function isSynProjHeaderYellowCol(row, col) {
   const r = Number(row);
@@ -2429,6 +2493,9 @@ export function isSynProjHeaderYellowCol(row, col) {
   if (r === 5 && isSynBsCeTableCol(col)) return false;
   if (r === 5 && isSynBqTableCol(col)) return false;
   if (r === 5 && isSynCiCyTableCol(col)) return false;
+  if (r === 5 && isSynDaDpTableCol(col)) return false;
+  if (r === 5 && isSynDrEdTableCol(col)) return false;
+  if (r === 5 && isSynEfEqTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -2456,15 +2523,9 @@ export function synProjHeaderGreyStyle() {
   };
 }
 
-/** Row 20 — extended summary tables only (DR…ED, EF…EQ, ES…FE, FJ…FZ). */
-export function isSynProjHeaderRedCol(row, col) {
-  const r = Number(row);
-  if (!Number.isFinite(r) || r !== 20) return false;
-  if (!isSynProjHeaderBandExcelCol(col)) return false;
-  const n = colToNum(col);
-  const mStart = colToNum(displayToExcelCol('M'));
-  const aaEnd = colToNum(displayToExcelCol('AA'));
-  return n < mStart || n > aaEnd;
+/** @deprecated Portfolio row (display 21) — no pink band; sign-based fill only. */
+export function isSynProjHeaderRedCol(_row, _col) {
+  return false;
 }
 
 export function synProjHeaderRedStyle() {
@@ -2680,6 +2741,8 @@ export function isSynRow16FluoEvery3Col(row, col) {
   if (isSynApBbTableCol(col)) return false;
   if (isSynBsCeTableCol(col)) return false;
   if (isSynCiCyTableCol(col)) return false;
+  if (isSynDaDpTableCol(col)) return false;
+  if (isSynDrEdTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -2733,6 +2796,24 @@ export function isSynRow16CiCyFluoCol(row, col) {
   return SYN_ROW16_CICY_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
 }
 
+/** Row 16 — DA…DP curb mass (fluo yellow on DA, DF, DJ, DM). */
+export const SYN_ROW16_DADP_FLUO_DISPLAY_COLS = new Set(['DA', 'DF', 'DJ', 'DM']);
+
+export function isSynRow16DaDpFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynDaDpTableCol(col)) return false;
+  return SYN_ROW16_DADP_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** Row 16 — DR…ED curb mass (fluo yellow on DR, DU, DW, DX, EA). */
+export const SYN_ROW16_DRED_FLUO_DISPLAY_COLS = new Set(['DR', 'DU', 'DW', 'DX', 'EA']);
+
+export function isSynRow16DrEdFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynDrEdTableCol(col)) return false;
+  return SYN_ROW16_DRED_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
 export function isSynApbbP3sBlackCol(row, col) {
   if (Number(row) !== 5) return false;
@@ -2757,10 +2838,69 @@ export function isSynApbbRow16SummaryCol(col) {
   return SYN_APBB_ROW16_SUMMARY_DISPLAY_COLS.has(excelToDisplayCol(col));
 }
 
+/** BD…BO summary columns (BD, BI, BL, BN). */
+export function isSynBdboRow16SummaryCol(col) {
+  if (!isSynBdBoTableCol(col)) return false;
+  return SYN_ROW16_BDBO_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** BS…CE summary columns (BS, BX, CA, CB, CD). */
+export function isSynBsceRow16SummaryCol(col) {
+  if (!isSynBsCeTableCol(col)) return false;
+  return SYN_ROW16_BSCE_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** CI…CY summary columns (CI, CN, CR, CS, CV). */
+export function isSynCicyRow16SummaryCol(col) {
+  if (!isSynCiCyTableCol(col)) return false;
+  return SYN_ROW16_CICY_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** DA…DP summary columns (DA, DF, DJ, DM). */
+export function isSynDadpRow16SummaryCol(col) {
+  if (!isSynDaDpTableCol(col)) return false;
+  return SYN_ROW16_DADP_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** DR…ED summary columns (DR, DU, DW, DX, EA). */
+export function isSynDredRow16SummaryCol(col) {
+  if (!isSynDrEdTableCol(col)) return false;
+  return SYN_ROW16_DRED_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
 /** Row 16 — AP…BB curb mass (fluo yellow on populated summary columns). */
 export function isSynApbbRow16FluoCol(row, col) {
   if (Number(row) !== 16) return false;
   return isSynApbbRow16SummaryCol(col);
+}
+
+/** Row 16 — any cell that carries the fluorescent yellow curb-mass fill. */
+export function isSynRow16FluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  return (
+    isSynRow16MaaFluoFirstCol(row, col) ||
+    isSynRow16AcanFluoCol(row, col) ||
+    isSynRow16BdboFluoCol(row, col) ||
+    isSynRow16BsCeFluoCol(row, col) ||
+    isSynRow16CiCyFluoCol(row, col) ||
+    isSynRow16DaDpFluoCol(row, col) ||
+    isSynRow16DrEdFluoCol(row, col) ||
+    isSynApbbRow16FluoCol(row, col) ||
+    isSynRow16FluoEvery3Col(row, col)
+  );
+}
+
+/** Row 16 — non-fluo cells use the same #ebf1de background as row 18. */
+export function isSynRow16BgCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (col === SYN_LABEL_COL) return false;
+  if (isSynSpacerDisplayExcelCol(col)) return false;
+  if (isSynForceWhiteExcelCol(col)) return false;
+  return !isSynRow16FluoCol(row, col);
+}
+
+export function synRow16BgStyle() {
+  return synRow18BgStyle();
 }
 
 /** @deprecated use isSynApbbRow16FluoCol */
@@ -2923,23 +3063,54 @@ export function isSynDisplayRowGreenApbbCol(displayRow, col) {
   return isSynApbbRow16SummaryCol(col);
 }
 
-/** Union of every green-total column (M…AA, AC…AN, AP/AU/AX/AY/BA). */
+/** Display row 26+ — BD…BO, BS…CE, CI…CY, DA…DP, DR…ED and later summary tables. */
+export function isSynDisplayRowGreenExtendedCol(displayRow, col) {
+  const dr = Number(displayRow);
+  if (!Number.isFinite(dr) || dr < 26) return false;
+  if (!SYN_DISPLAY_GREEN_ROWS.has(dr)) return false;
+  if (isSynBdboRow16SummaryCol(col)) return true;
+  if (isSynBsceRow16SummaryCol(col)) return true;
+  if (isSynCicyRow16SummaryCol(col)) return true;
+  if (isSynDadpRow16SummaryCol(col)) return true;
+  if (isSynDredRow16SummaryCol(col)) return true;
+  if (isSynEfEqTableCol(col)) return true;
+  if (isSynEsFeTableCol(col)) return true;
+  if (isSynFjFzTableCol(col)) return true;
+  if (isSynGbGeTableCol(col)) return true;
+  return false;
+}
+
+/** Union of every green-total column (all summary tables from display M through GB…GE). */
 export function isSynDisplayRowGreenSummaryCol(displayRow, col) {
   return (
     isSynDisplayRowGreenMaaCol(displayRow, col) ||
     isSynDisplayRowGreenAcanCol(displayRow, col) ||
-    isSynDisplayRowGreenApbbCol(displayRow, col)
+    isSynDisplayRowGreenApbbCol(displayRow, col) ||
+    isSynDisplayRowGreenExtendedCol(displayRow, col)
   );
 }
 
 /** Row 16 (CURB MASS) — live Σ of green-row totals in green-total columns. */
 export function isSynRow16CurbTotalSummaryCol(col) {
   const SYN_ROW16_GREEN_REF_DR = 26;
-  return (
-    isSynDisplayRowGreenMaaCol(SYN_ROW16_GREEN_REF_DR, col) ||
-    isSynDisplayRowGreenAcanCol(SYN_ROW16_GREEN_REF_DR, col) ||
-    isSynApbbRow16SummaryCol(col)
-  );
+  return isSynDisplayRowGreenSummaryCol(SYN_ROW16_GREEN_REF_DR, col);
+}
+
+/** Excel columns that participate in live green-row Σ (subset of summary tables). */
+export function synGreenSumExcelCols() {
+  const refDr = 26;
+  const set = new Set();
+  for (const { start, end } of SYN_HDR_PANEL_SUMMARY_TABLE_RANGES) {
+    const lo = colToNum(displayToExcelCol(start));
+    const hi = colToNum(displayToExcelCol(end));
+    for (let d = lo; d <= hi; d++) {
+      const excel = displayToExcelCol(numToCol(d));
+      if (isSynForceWhiteExcelCol(excel)) continue;
+      if (isSynSpacerDisplayExcelCol(excel)) continue;
+      if (isSynDisplayRowGreenSummaryCol(refDr, excel)) set.add(excel);
+    }
+  }
+  return [...set];
 }
 
 /** Excel columns that carry an automatic green-row total (all summary tables). */
@@ -3001,6 +3172,8 @@ export function isSynYellowFluoGreenFromMCol(row, col, map, sheet) {
   if (isSynRow16FluoEvery3Col(row, col)) return true;
   if (isSynRow16BsCeFluoCol(row, col)) return true;
   if (isSynRow16CiCyFluoCol(row, col)) return true;
+  if (isSynRow16DaDpFluoCol(row, col)) return true;
+  if (isSynRow16DrEdFluoCol(row, col)) return true;
   return false;
 }
 
@@ -3568,6 +3741,21 @@ export const isSynHdrFjFzDividerRightEntry = _synFjFzTable.isDividerRightEntry;
 export const isSynHdrFjFzDividerLeftEntry = _synFjFzTable.isDividerLeftEntry;
 export const isSynHdrFjFzDividerRightEdgeEntry = _synFjFzTable.isDividerRightEdgeEntry;
 
+const _synGbGeTable = createSynSummaryTableApi(
+  SYN_GB_GE_TABLE_DISPLAY_START,
+  SYN_GB_GE_TABLE_DISPLAY_END
+);
+export const isSynGbGeTableRow = _synGbGeTable.isTableRow;
+export const isSynGbGeTableCol = _synGbGeTable.isTableCol;
+export const isSynGbGeTableCell = _synGbGeTable.isTableCell;
+export const isSynHdrGbGeDividerRightCol = _synGbGeTable.isDividerRightCol;
+export const isSynHdrGbGeDividerLeftCol = _synGbGeTable.isDividerLeftCol;
+export const isSynHdrGbGeDividerRightEdgeCol = _synGbGeTable.isDividerRightEdgeCol;
+export const isSynGbGeTableCellEntry = _synGbGeTable.isTableCellEntry;
+export const isSynHdrGbGeDividerRightEntry = _synGbGeTable.isDividerRightEntry;
+export const isSynHdrGbGeDividerLeftEntry = _synGbGeTable.isDividerLeftEntry;
+export const isSynHdrGbGeDividerRightEdgeEntry = _synGbGeTable.isDividerRightEdgeEntry;
+
 /** Display column L (Excel Q) — white gutter, all body rows. */
 export function synSpacerColClass(col) {
   return isSynSpacerDisplayExcelCol(col) ? 'syn-spacer-col-l' : '';
@@ -3861,7 +4049,8 @@ export function isSynHeaderPanelBoldCol(row, col) {
       isSynDrEdTableCol(col) ||
       isSynEfEqTableCol(col) ||
       isSynEsFeTableCol(col) ||
-      isSynFjFzTableCol(col))
+      isSynFjFzTableCol(col) ||
+      isSynGbGeTableCol(col))
   ) {
     return true;
   }
@@ -4150,6 +4339,7 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
 }
 
 function synDisplayValueImpl(cell, map, row, col, sheet, pillarColumns) {
+  if (isSynForceWhiteExcelCol(col)) return '';
   if (isSynBodyEmptyFromRow27Cell(row, col)) return '';
   if (
     isSynPillarColAtRow(col, row, pillarColumns) ||

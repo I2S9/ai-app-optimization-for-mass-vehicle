@@ -44,6 +44,7 @@ import {
   applySynRowsBqPresetCells,
   applySynRowsBqPresetHeaderRows,
   applySynBodyEmptyBpBrCells,
+  applySynForceWhiteEmptyCells,
 } from './synStore.js?v=syn-form4';
 import { runInChunks, yieldToMain } from './yieldMain.js?v=3';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
@@ -563,6 +564,7 @@ export async function transformSynthesisSheetAsync(sheet) {
   sanitizeSynAdaptBandExcelCells(cells);
   sanitizeSynLiveMassCells(cells);
   applySynBodyEmptyBpBrCells(cells);
+  applySynForceWhiteEmptyCells(cells);
   await yieldToMain();
   const headerRows = applySynRowsBqPresetHeaderRows(
     applySynRowsBscePresetHeaderRows(
@@ -653,6 +655,7 @@ export function transformSynthesisSheet(sheet) {
   sanitizeSynAdaptBandExcelCells(cells);
   sanitizeSynLiveMassCells(cells);
   applySynBodyEmptyBpBrCells(cells);
+  applySynForceWhiteEmptyCells(cells);
   const headerRows = applySynRowsBqPresetHeaderRows(
     applySynRowsBscePresetHeaderRows(
       applySynRowsBdboPresetHeaderRows(

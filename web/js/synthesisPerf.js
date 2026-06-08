@@ -104,6 +104,9 @@ export const SYN_ES_FE_TABLE_DISPLAY_END = 'FE';
 /** Summary table frame — display columns FJ…FZ, Excel rows 3–22 (display rows 3–23). */
 export const SYN_FJ_FZ_TABLE_DISPLAY_START = 'FJ';
 export const SYN_FJ_FZ_TABLE_DISPLAY_END = 'FZ';
+/** Summary table frame — display columns GB…GE, Excel rows 3–22 (display rows 3–23). */
+export const SYN_GB_GE_TABLE_DISPLAY_START = 'GB';
+export const SYN_GB_GE_TABLE_DISPLAY_END = 'GE';
 
 /** Coloured project-header bands (display columns) — same row rules as M…AA. */
 export const SYN_PROJ_HDR_BAND_DISPLAY_RANGES = [
