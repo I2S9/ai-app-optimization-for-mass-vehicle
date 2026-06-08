@@ -24,6 +24,7 @@ export function hasSheetEdits(edits) {
   if (!edits) return false;
   if (edits.cells && edits.cells.length) return true;
   if (edits.deletedRows && edits.deletedRows.length) return true;
+  if (edits.deletedCols && edits.deletedCols.length) return true;
   return Object.keys(edits.headerRows || {}).length > 0;
 }
 

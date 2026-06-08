@@ -2403,6 +2403,22 @@ export function synBsCeRow5Style() {
   };
 }
 
+/** Row 5 — CI…CY silhouette band (#a6a6a6). */
+export const SYN_CICY_ROW5_BG = '#a6a6a6';
+
+export function isSynCiCyRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynCiCyTableCol(col);
+}
+
+export function synCiCyRow5Style() {
+  return {
+    background: SYN_CICY_ROW5_BG,
+    backgroundColor: SYN_CICY_ROW5_BG,
+    color: '#000',
+  };
+}
+
 /** Row 5 — all summary tables from display M. */
 export function isSynProjHeaderYellowCol(row, col) {
   const r = Number(row);
@@ -2412,6 +2428,7 @@ export function isSynProjHeaderYellowCol(row, col) {
   if (r === 5 && isSynBdBoTableCol(col)) return false;
   if (r === 5 && isSynBsCeTableCol(col)) return false;
   if (r === 5 && isSynBqTableCol(col)) return false;
+  if (r === 5 && isSynCiCyTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -2662,6 +2679,7 @@ export function isSynRow16FluoEvery3Col(row, col) {
   if (Number(row) !== 16) return false;
   if (isSynApBbTableCol(col)) return false;
   if (isSynBsCeTableCol(col)) return false;
+  if (isSynCiCyTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -2704,6 +2722,15 @@ export function isSynRow16BsCeFluoCol(row, col) {
   if (Number(row) !== 16) return false;
   if (!isSynBsCeTableCol(col)) return false;
   return SYN_ROW16_BSCE_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** Row 16 — CI…CY curb mass (fluo yellow on CI, CN, CR, CS, CV). */
+export const SYN_ROW16_CICY_FLUO_DISPLAY_COLS = new Set(['CI', 'CN', 'CR', 'CS', 'CV']);
+
+export function isSynRow16CiCyFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynCiCyTableCol(col)) return false;
+  return SYN_ROW16_CICY_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
 }
 
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
@@ -2791,6 +2818,20 @@ export function isSynRow17AcanBlueCol(row, col) {
 
 /** Row 18 — Curb mass last update text colour (#808080), all columns except display A. */
 export const SYN_ROW18_GREY_TEXT = '#808080';
+
+/** Excel row 18 — full-page background (#ebf1de), every cell except display A. */
+export function isSynRow18BgCol(row, col) {
+  if (Number(row) !== 18) return false;
+  return col !== SYN_LABEL_COL;
+}
+
+export function synRow18BgStyle() {
+  return {
+    background: SYN_HDR_METRIC_ROW_BG,
+    backgroundColor: SYN_HDR_METRIC_ROW_BG,
+    color: '#000',
+  };
+}
 
 /** Excel row 18: grey text on every cell except display column A (Excel F). */
 export function isSynRow18GreyTextCol(row, col) {
@@ -2959,6 +3000,7 @@ export function isSynYellowFluoGreenFromMCol(row, col, map, sheet) {
   if (synRowStyleClass(map, row, sheet) === 'syn-row-section') return true;
   if (isSynRow16FluoEvery3Col(row, col)) return true;
   if (isSynRow16BsCeFluoCol(row, col)) return true;
+  if (isSynRow16CiCyFluoCol(row, col)) return true;
   return false;
 }
 
@@ -4040,7 +4082,7 @@ export function synHeaderPanelVehicleClass(row, col, displayText) {
     .trim()
     .toUpperCase();
   if (v.includes('P1H')) return 'syn-hdr-val-p1h';
-  if ((row === 18 || row === 19) && !isSynFilterGreyExcelCol(col)) {
+  if (row === 19 && !isSynFilterGreyExcelCol(col)) {
     return 'syn-hdr-row-metric-bg';
   }
   return 'syn-hdr-val-default';

@@ -10,10 +10,10 @@ import {
   nextTick,
   provide,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=bd-axis2';
+import BdGrid from './BdGrid.js?v=bd-ctx1';
 import { computeBodyDisplayRows } from './bdStore.js';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-axis2';
-import { createEditHistory } from './editHistory.js?v=undo3';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-axis3';
+import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MnsGrid from './MnsGrid.js?v=mns21-realtime';
@@ -245,17 +245,15 @@ const App = {
       if (Array.isArray(raw.deletedRows) && raw.deletedRows.length) {
         sheet.deletedRows = [...raw.deletedRows];
       }
+      if (Array.isArray(raw.deletedCols) && raw.deletedCols.length) {
+        sheet.deletedCols = [...raw.deletedCols];
+      }
       sheet.userRowGaps = Array.isArray(raw.userRowGaps)
         ? raw.userRowGaps.map((g) => ({ ...g }))
         : [];
       sheet.userColGaps = Array.isArray(raw.userColGaps)
         ? raw.userColGaps.map((g) => ({ ...g }))
         : [];
-    }
-
-    function healSynUserGaps() {
-      if (synRaw.value) clearUserGaps(synRaw.value);
-      if (synthesisSheet.value) clearUserGaps(synthesisSheet.value);
     }
 
     function syncDeletedRowsOntoSheet(raw, sheet) {
@@ -360,7 +358,6 @@ const App = {
         return;
       }
       if (!force && synthesisSheet.value && synSheetBuiltAt === synSheetRevision.value) {
-        healSynUserGaps();
         syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
         return;
       }
@@ -369,7 +366,6 @@ const App = {
         await yieldToMain();
         await seedSynMaterializedFromPack(resolved);
         synthesisSheet.value = resolved;
-        healSynUserGaps();
         syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
         synSheetBuiltAt = synSheetRevision.value;
         return;
@@ -379,7 +375,6 @@ const App = {
       await yieldToMain();
       await seedSynMaterializedFromPack(transformed);
       synthesisSheet.value = transformed;
-      healSynUserGaps();
       syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
       synSheetBuiltAt = synSheetRevision.value;
       const fp = rawFingerprint(synRaw.value);
@@ -1173,42 +1168,80 @@ const App = {
       }
     }
 
+    function snapshotAxisDeleteState(raw) {
+      return {
+        deletedRows: [...(raw.deletedRows || [])].map(Number).filter(Number.isFinite),
+        deletedCols: [...(raw.deletedCols || [])].map(String).filter(Boolean),
+        cells: [],
+      };
+    }
+
+    function applyAxisPasteCells(sheetName, axis, target, cells) {
+      const { raw, grid, engine } = sheetRawAndGrid(sheetName);
+      if (!raw || !engine) return;
+      if (axis === 'row') {
+        pasteRowCells(raw, target, cells);
+        clearGridRowCells(grid, target);
+        for (const p of cells || []) {
+          if (!p.c) continue;
+          syncSheetCellPayload(grid, target, p.c, p);
+          const v = p.v != null ? String(p.v) : '';
+          void session
+            .setCellValue(engine, target, p.c, v)
+            .catch((e) => console.warn('Axis paste row:', e));
+        }
+      } else if (axis === 'col') {
+        pasteColCells(raw, target, cells);
+        clearGridColCells(grid, target);
+        for (const p of cells || []) {
+          if (p.r == null) continue;
+          syncSheetCellPayload(grid, p.r, target, p);
+          const v = p.v != null ? String(p.v) : '';
+          void session
+            .setCellValue(engine, p.r, target, v)
+            .catch((e) => console.warn('Axis paste col:', e));
+        }
+      }
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+    }
+
     async function onAxisPaste() {
       const clip = axisClipboard.value;
       const sel = axisSelection.value;
       if (!clip || !sel.sheet || clip.sheet !== sel.sheet) return;
-      const { raw, grid, engine } = sheetRawAndGrid(sel.sheet);
-      if (!raw || !engine) return;
+      const { raw } = sheetRawAndGrid(sel.sheet);
+      if (!raw) return;
 
+      let before = [];
+      let target = null;
+      let axis = null;
       if (clip.type === 'row' && sel.row != null) {
-        pasteRowCells(raw, sel.row, clip.cells);
-        clearGridRowCells(grid, sel.row);
-        for (const p of clip.cells || []) {
-          if (!p.c) continue;
-          syncSheetCellPayload(grid, sel.row, p.c, p);
-          const v = p.v != null ? String(p.v) : '';
-          void session
-            .setCellValue(engine, sel.row, p.c, v)
-            .catch((e) => console.warn('Axis paste row:', e));
-        }
+        axis = 'row';
+        target = sel.row;
+        before = collectRowCells(raw, sel.row);
       } else if (clip.type === 'col' && sel.col) {
-        pasteColCells(raw, sel.col, clip.cells);
-        clearGridColCells(grid, sel.col);
-        for (const p of clip.cells || []) {
-          if (p.r == null) continue;
-          syncSheetCellPayload(grid, p.r, sel.col, p);
-          const v = p.v != null ? String(p.v) : '';
-          void session
-            .setCellValue(engine, p.r, sel.col, v)
-            .catch((e) => console.warn('Axis paste col:', e));
-        }
+        axis = 'col';
+        target = sel.col;
+        before = collectColCells(raw, sel.col);
       } else {
         return;
       }
 
-      externalEditTick.value += 1;
-      dirty.value += 1;
-      autoSave.schedule();
+      if (!applyingHistory) {
+        editHistory.push({
+          type: 'axisPaste',
+          sheet: sel.sheet,
+          axis,
+          target,
+          before,
+          after: clip.cells || [],
+        });
+        historyTick.value = editHistory.revision;
+      }
+
+      applyAxisPasteCells(sel.sheet, axis, target, clip.cells || []);
     }
 
     function applyUserGapsToGrid(raw, grid) {
@@ -1237,8 +1270,42 @@ const App = {
       autoSave.schedule();
     }
 
+    function applyAxisDeleteSnapshot(sheetName, snapshot) {
+      const { raw, grid } = sheetRawAndGrid(sheetName);
+      if (!raw || !snapshot) return;
+      raw.deletedRows = [...(snapshot.deletedRows || [])];
+      raw.deletedCols = [...(snapshot.deletedCols || [])];
+      if (grid) {
+        grid.deletedRows = raw.deletedRows;
+        grid.deletedCols = raw.deletedCols;
+      }
+      if (sheetName === 'SYNTHESIS' && preservedSynRaw && preservedSynRaw !== raw) {
+        preservedSynRaw.deletedRows = [...raw.deletedRows];
+        preservedSynRaw.deletedCols = [...raw.deletedCols];
+      }
+      const engineSheet = sheetName === 'SYNTHESIS' ? 'SYNTHESIS' : 'BD';
+      for (const cell of snapshot.cells || []) {
+        const v = cell.v != null ? String(cell.v) : '';
+        upsertRawCell(raw, cell.r, cell.c, v);
+        if (grid) syncSheetCell(grid, cell.r, cell.c, v);
+        void session
+          .setCellValue(engineSheet, cell.r, cell.c, v)
+          .catch((e) => console.warn('Axis delete restore:', e));
+      }
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+      if (sheetName === 'BD') {
+        bumpBdSheetRevision();
+        void applyBdFromRaw(false);
+      } else if (sheetName === 'SYNTHESIS') {
+        bumpSynSheetRevision();
+        void applySynFromRaw(false);
+      }
+    }
+
     function onRowInsert({ sheet, afterExcelRow }) {
-      if (sheet !== 'BD') return;
+      if (sheet !== 'BD' && sheet !== 'SYNTHESIS') return;
       const row = Number(afterExcelRow);
       if (!Number.isFinite(row)) return;
       const { raw, grid } = sheetRawAndGrid(sheet);
@@ -1247,12 +1314,14 @@ const App = {
       addUserRowGap(raw, row);
       if (grid) {
         applyUserGapsToGrid(raw, grid);
-        grid.bodyDisplayRows = computeBodyDisplayRows(grid);
+        if (sheet === 'BD') {
+          grid.bodyDisplayRows = computeBodyDisplayRows(grid);
+        }
       }
       if (!applyingHistory) {
         editHistory.push({
           type: 'userGaps',
-          sheet: 'BD',
+          sheet,
           before,
           after: cloneUserGapsSnapshot(raw),
         });
@@ -1264,7 +1333,7 @@ const App = {
     }
 
     function onColumnInsert({ sheet, afterCol }) {
-      if (sheet !== 'BD') return;
+      if (sheet !== 'BD' && sheet !== 'SYNTHESIS') return;
       if (!afterCol || isUserGapCol(afterCol)) return;
       const { raw, grid } = sheetRawAndGrid(sheet);
       if (!raw) return;
@@ -1274,7 +1343,7 @@ const App = {
       if (!applyingHistory) {
         editHistory.push({
           type: 'userGaps',
-          sheet: 'BD',
+          sheet,
           before,
           after: cloneUserGapsSnapshot(raw),
         });
@@ -1348,6 +1417,10 @@ const App = {
           await applyMatrixSnapshot(entry.bdBefore, entry.synBefore);
         } else if (entry.type === 'userGaps') {
           applyUserGapsSnapshot(entry.sheet, entry.before);
+        } else if (entry.type === 'axisDelete') {
+          applyAxisDeleteSnapshot(entry.sheet, entry.before);
+        } else if (entry.type === 'axisPaste') {
+          applyAxisPasteCells(entry.sheet, entry.axis, entry.target, entry.before);
         } else {
           applyHistoryCell({ ...entry, value: entry.oldValue });
         }
@@ -1368,6 +1441,10 @@ const App = {
           await applyMatrixSnapshot(entry.bdAfter, entry.synAfter);
         } else if (entry.type === 'userGaps') {
           applyUserGapsSnapshot(entry.sheet, entry.after);
+        } else if (entry.type === 'axisDelete') {
+          applyAxisDeleteSnapshot(entry.sheet, entry.after);
+        } else if (entry.type === 'axisPaste') {
+          applyAxisPasteCells(entry.sheet, entry.axis, entry.target, entry.after);
         } else {
           applyHistoryCell({ ...entry, value: entry.newValue });
         }
@@ -1534,6 +1611,92 @@ const App = {
     }
 
     /**
+     * Soft-delete a grid column: hide it (persisted in raw.deletedCols) and clear
+     * every cell it holds so it no longer feeds calculations.
+     */
+    function onColDelete({ sheet, col }) {
+      const c = String(col || '');
+      if (!c) return;
+      const raw =
+        sheet === 'SYNTHESIS'
+          ? synRaw.value
+          : sheet === 'BD'
+            ? bdRaw.value
+            : null;
+      const gridSheet =
+        sheet === 'SYNTHESIS' ? synthesisSheet.value : bdSheet.value;
+      if (!raw) return;
+
+      const before = snapshotAxisDeleteState(raw);
+      before.cells = collectColCells(raw, c).map((p) => ({
+        r: p.r,
+        c,
+        v: p.v != null ? String(p.v) : '',
+        f: p.f,
+      }));
+
+      const set = new Set((raw.deletedCols || []).map(String).filter(Boolean));
+      set.add(c);
+      raw.deletedCols = [...set];
+      if (gridSheet) gridSheet.deletedCols = raw.deletedCols;
+      if (sheet === 'SYNTHESIS' && preservedSynRaw && preservedSynRaw !== raw) {
+        const pset = new Set(
+          (preservedSynRaw.deletedCols || []).map(String).filter(Boolean)
+        );
+        pset.add(c);
+        preservedSynRaw.deletedCols = [...pset];
+      }
+
+      const rows = new Set();
+      for (const cell of raw.cells || []) {
+        if (cell.c === c && cell.v != null && String(cell.v) !== '') {
+          rows.add(Number(cell.r));
+        }
+      }
+      const hdr = raw.headerRows || {};
+      for (const [rowKey, cols] of Object.entries(hdr)) {
+        const cell = cols[c];
+        if (cell && cell.v != null && String(cell.v) !== '') {
+          rows.add(Number(rowKey));
+        }
+      }
+      const engineSheet = sheet === 'SYNTHESIS' ? 'SYNTHESIS' : 'BD';
+      for (const row of rows) {
+        upsertRawCell(raw, row, c, '');
+        if (gridSheet) syncSheetCell(gridSheet, row, c, '');
+        void session
+          .setCellValue(engineSheet, row, c, '')
+          .catch((e) => console.warn('Col delete recalc:', e));
+      }
+
+      const after = snapshotAxisDeleteState(raw);
+      after.cells = before.cells.map((cell) => ({ r: cell.r, c: cell.c, v: '' }));
+
+      if (!applyingHistory) {
+        editHistory.push({
+          type: 'axisDelete',
+          sheet,
+          axis: 'col',
+          id: c,
+          before,
+          after,
+        });
+        historyTick.value = editHistory.revision;
+      }
+
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+      if (sheet === 'BD') {
+        bumpBdSheetRevision();
+        void applyBdFromRaw(false);
+      } else if (sheet === 'SYNTHESIS') {
+        bumpSynSheetRevision();
+        void applySynFromRaw(false);
+      }
+    }
+
+    /**
      * Soft-delete a grid row: hide it (persisted in raw.deletedRows so it survives
      * reload) and clear every cell it holds so it no longer feeds calculations.
      */
@@ -1549,6 +1712,14 @@ const App = {
       const gridSheet =
         sheet === 'SYNTHESIS' ? synthesisSheet.value : bdSheet.value;
       if (!raw) return;
+
+      const before = snapshotAxisDeleteState(raw);
+      before.cells = collectRowCells(raw, row).map((p) => ({
+        r: row,
+        c: p.c,
+        v: p.v != null ? String(p.v) : '',
+        f: p.f,
+      }));
 
       const set = new Set(
         (raw.deletedRows || []).map(Number).filter(Number.isFinite)
@@ -1577,6 +1748,21 @@ const App = {
         void session
           .setCellValue(engineSheet, row, col, '')
           .catch((e) => console.warn('Row delete recalc:', e));
+      }
+
+      const after = snapshotAxisDeleteState(raw);
+      after.cells = before.cells.map((cell) => ({ r: cell.r, c: cell.c, v: '' }));
+
+      if (!applyingHistory) {
+        editHistory.push({
+          type: 'axisDelete',
+          sheet,
+          axis: 'row',
+          id: row,
+          before,
+          after,
+        });
+        historyTick.value = editHistory.revision;
       }
 
       externalEditTick.value += 1;
@@ -2227,9 +2413,12 @@ const App = {
               :axis-clipboard="axisClipboard"
               @cell-change="onCellChange"
               @row-delete="onRowDelete"
+              @column-delete="onColDelete"
               @row-insert="onRowInsert"
               @column-insert="onColumnInsert"
               @axis-select="onAxisSelect"
+              @axis-copy="onAxisCopy"
+              @axis-paste="onAxisPaste"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"
             />
@@ -2248,9 +2437,12 @@ const App = {
               :axis-clipboard="axisClipboard"
               @cell-change="onCellChange"
               @row-delete="onRowDelete"
+              @column-delete="onColDelete"
               @row-insert="onRowInsert"
               @column-insert="onColumnInsert"
               @axis-select="onAxisSelect"
+              @axis-copy="onAxisCopy"
+              @axis-paste="onAxisPaste"
               @derived-change="onDerivedChange"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"

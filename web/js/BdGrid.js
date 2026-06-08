@@ -50,6 +50,7 @@ import {
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
+import { createGridAxisContextMenu } from './gridAxisContextMenu.js?v=ctx1';
 import { expandColumnsWithUserGaps, isUserGapCol, userGapColAnchor } from './gridUserGaps.js?v=ugap2';
 import {
   buildSearchIndex,
@@ -76,8 +77,11 @@ export default {
     'search-row-hidden',
     'search-navigated',
     'axis-select',
+    'axis-copy',
+    'axis-paste',
     'row-insert',
     'column-insert',
+    'column-delete',
   ],
   setup(props, { emit }) {
     const scrollEl = ref(null);
@@ -99,7 +103,14 @@ export default {
     }
     const deletedRows = ref(readDeletedRows());
 
-    const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
+    function readDeletedCols() {
+      const src =
+        (props.rawBd && props.rawBd.deletedCols) ||
+        (props.sheet && props.sheet.deletedCols) ||
+        [];
+      return new Set(src.map(String).filter(Boolean));
+    }
+    const deletedCols = ref(readDeletedCols());
 
     const widthMap = computed(() => {
       void props.externalEditTick;
@@ -121,7 +132,11 @@ export default {
 
     const columns = computed(() => {
       void props.externalEditTick;
-      return expandColumnsWithUserGaps(props.sheet.columns || [], props.sheet);
+      let cols = props.sheet.columns || [];
+      if (deletedCols.value.size) {
+        cols = cols.filter((c) => !deletedCols.value.has(c));
+      }
+      return expandColumnsWithUserGaps(cols, props.sheet);
     });
 
     /**
@@ -715,37 +730,57 @@ export default {
       () => [props.sheet, props.rawBd],
       () => {
         deletedRows.value = readDeletedRows();
+        deletedCols.value = readDeletedCols();
       }
     );
 
+    const axisCtxMenu = createGridAxisContextMenu({
+      emit,
+      getClipboard: () => props.axisClipboard,
+      sheetName: props.sheetName || 'BD',
+      canOpenRow: (data) => data && data.row != null && data.row >= 2,
+      canOpenCol: (data) => data && data.col && !isUserGapCol(data.col) && data.col !== 'A',
+    });
+    const {
+      ctxMenu,
+      canPaste,
+      deleteLabel,
+      closeCtxMenu,
+      onRowContextMenu: onRowContextMenuBase,
+      onColContextMenu: onColContextMenuBase,
+      onCtxCopy,
+      onCtxPaste,
+      onCtxDelete: onCtxDeleteBase,
+    } = axisCtxMenu;
+
     function onRowContextMenu(entry, event) {
-      if (!entry || entry.excelRow == null || entry.excelRow < 2) return;
-      event.preventDefault();
-      ctxMenu.value = {
-        visible: true,
-        x: event.clientX,
-        y: event.clientY,
-        row: entry.excelRow,
-        displayRow: entry.displayRow,
-      };
+      if (!entry || entry.excelRow == null) return;
+      onRowContextMenuBase(
+        { row: entry.excelRow, displayRow: entry.displayRow },
+        event
+      );
     }
 
-    function closeCtxMenu() {
-      if (ctxMenu.value.visible) {
-        ctxMenu.value = { visible: false, x: 0, y: 0, row: null, displayRow: null };
+    function onColContextMenu(col, event) {
+      onColContextMenuBase(col, col, event);
+    }
+
+    function onCtxDelete() {
+      const menu = ctxMenu.value;
+      if (menu.axis === 'row' && menu.row != null) {
+        const next = new Set(deletedRows.value);
+        next.add(menu.row);
+        deletedRows.value = next;
+        invalidateDisplayCache();
+        editEpoch.value += 1;
+      } else if (menu.axis === 'col' && menu.col) {
+        const next = new Set(deletedCols.value);
+        next.add(menu.col);
+        deletedCols.value = next;
+        invalidateDisplayCache();
+        editEpoch.value += 1;
       }
-    }
-
-    function confirmDeleteRow() {
-      const row = ctxMenu.value.row;
-      closeCtxMenu();
-      if (row == null) return;
-      const next = new Set(deletedRows.value);
-      next.add(row);
-      deletedRows.value = next;
-      invalidateDisplayCache();
-      editEpoch.value += 1;
-      emit('row-delete', { sheet: props.sheetName || 'BD', excelRow: row });
+      onCtxDeleteBase();
     }
 
     function cellDisplay(row, col) {
@@ -930,9 +965,14 @@ export default {
       isSearchFocus: gridSearch.isSearchFocus,
       onScroll: scrollSync.onScroll,
       ctxMenu,
+      canPaste,
+      deleteLabel,
       onRowContextMenu,
+      onColContextMenu,
       closeCtxMenu,
-      confirmDeleteRow,
+      onCtxCopy,
+      onCtxPaste,
+      onCtxDelete,
       isCellActive,
       cellShowValue,
       onCellMouseDown,
@@ -973,6 +1013,7 @@ export default {
                   }"
                   :style="colStyle(col)"
                   @mousedown="onAxisColHeaderClick(col, $event)"
+                  @contextmenu="!isUserGapCol(col) && col !== 'A' && onColContextMenu(col, $event)"
                 >
                   {{ col }}
                   <button
@@ -1001,6 +1042,7 @@ export default {
                   :style="colStyle(col)"
                   :title="sheet.headers[col] || col"
                   @mousedown="onAxisColHeaderClick(col, $event)"
+                  @contextmenu="!isUserGapCol(col) && col !== 'A' && onColContextMenu(col, $event)"
                 >{{ sheet.headers[col] || col }}</th>
               </template>
               <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
@@ -1021,7 +1063,6 @@ export default {
                   'grid-axis-row-copied': isCopiedRow(entry.excelRow),
                 },
               ]"
-              @contextmenu="onRowContextMenu(entry, $event)"
             >
               <td
                 class="bd-fold-col"
@@ -1042,6 +1083,7 @@ export default {
                   'grid-axis-copied': isCopiedRow(entry.excelRow),
                 }"
                 @mousedown="entry.excelRow != null && onAxisRowNumClick(entry.excelRow, $event)"
+                @contextmenu="entry.excelRow != null && entry.excelRow >= 2 && onRowContextMenu(entry, $event)"
               >
                 {{ entry.displayRow }}
                 <button
@@ -1118,8 +1160,16 @@ export default {
           :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
           @contextmenu.prevent
         >
-          <button type="button" class="grid-ctx-item grid-ctx-danger" @click="confirmDeleteRow">
-            Supprimer la ligne {{ ctxMenu.displayRow }}
+          <button type="button" class="grid-ctx-item" @click="onCtxCopy">Copier</button>
+          <button
+            type="button"
+            class="grid-ctx-item"
+            :disabled="!canPaste"
+            @click="onCtxPaste"
+          >Coller</button>
+          <div class="grid-ctx-sep"></div>
+          <button type="button" class="grid-ctx-item grid-ctx-danger" @click="onCtxDelete">
+            {{ deleteLabel }}
           </button>
         </div>
       </template>

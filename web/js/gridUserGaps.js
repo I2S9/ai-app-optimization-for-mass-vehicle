@@ -27,7 +27,7 @@ export function cloneUserGapsSnapshot(raw) {
   };
 }
 
-/** Synthesis must not use display-only gaps — strip if present in saved session. */
+/** Strip display-only gaps (e.g. legacy corrupted session snapshots). */
 export function clearUserGaps(raw) {
   if (!raw) return;
   raw.userRowGaps = [];

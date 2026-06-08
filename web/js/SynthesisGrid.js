@@ -25,7 +25,13 @@ import {
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
-import { expandColumnsWithUserGaps, isUserGapCol } from './gridUserGaps.js?v=ugap2';
+import { createGridAxisContextMenu } from './gridAxisContextMenu.js?v=ctx1';
+import {
+  expandColumnsWithUserGaps,
+  injectUserRowGaps,
+  isSynUserGapEntry,
+  isUserGapCol,
+} from './gridUserGaps.js?v=ugap2';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -79,6 +85,8 @@ import {
   synRow17BlueTextStyle,
   isSynRow17BlueEvery3Col,
   synRow17MaaBlueStyle,
+  isSynRow18BgCol,
+  synRow18BgStyle,
   isSynRow18GreyTextCol,
   synRow18GreyTextStyle,
   isSynRow25MaGreenCol,
@@ -88,6 +96,7 @@ import {
   isSynRow16AcanFluoCol,
   isSynRow16BdboFluoCol,
   isSynRow16BsCeFluoCol,
+  isSynRow16CiCyFluoCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbP3sBlackCol,
@@ -98,6 +107,8 @@ import {
   synBdBoRow5Style,
   isSynBsCeRow5Col,
   synBsCeRow5Style,
+  isSynCiCyRow5Col,
+  synCiCyRow5Style,
   isSynRow17FluoEvery3FromMCol,
   synRow16FluoStyle,
   SYN_DISPLAY_GREEN_ROWS,
@@ -313,8 +324,11 @@ export default {
     'search-navigated',
     'derived-change',
     'axis-select',
+    'axis-copy',
+    'axis-paste',
     'row-insert',
     'column-insert',
+    'column-delete',
   ],
   setup(props, { emit }) {
     const scrollEl = ref(null);
@@ -375,11 +389,23 @@ export default {
       collapsedColGroups.value = next;
     }
 
+    function readDeletedCols() {
+      const src =
+        (props.rawSyn && props.rawSyn.deletedCols) ||
+        (props.sheet && props.sheet.deletedCols) ||
+        [];
+      return new Set(src.map(String).filter(Boolean));
+    }
+    const deletedCols = ref(readDeletedCols());
+
     const displayColumns = computed(() => {
       void props.externalEditTick;
       let cols = props.sheet.columns || [];
       if (hiddenExcelCols.value.size) {
         cols = cols.filter((c) => !hiddenExcelCols.value.has(c));
+      }
+      if (deletedCols.value.size) {
+        cols = cols.filter((c) => !deletedCols.value.has(c));
       }
       return expandColumnsWithUserGaps(cols, props.sheet);
     });
@@ -504,10 +530,10 @@ export default {
       () => [props.sheet, props.rawSyn],
       () => {
         deletedRows.value = readDeletedRows();
+        deletedCols.value = readDeletedCols();
       }
     );
 
-    const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
 
     /**
      * Row view is the combination of two independent pieces of state:
@@ -525,7 +551,9 @@ export default {
     const baseBodyRows = computed(() => {
       void props.externalEditTick;
       void (props.sheet && props.sheet.effectiveLastRow);
-      const base = computeSynBodyRows(props.sheet, cellMap.value, false);
+      void (props.sheet && props.sheet.userRowGaps);
+      let base = computeSynBodyRows(props.sheet, cellMap.value, false);
+      base = injectUserRowGaps(base, props.sheet, 1);
       if (!deletedRows.value.size) return base;
       return base.filter((e) => e.excelRow == null || !deletedRows.value.has(e.excelRow));
     });
@@ -829,9 +857,11 @@ export default {
     }
 
     function cachedEntryRowClasses(entry) {
-      const key = isGapEntry(entry)
-        ? `gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`
-        : String(entry.excelRow);
+      const key = isSynUserGapEntry(entry)
+        ? `ugap-${entry.gapKey || entry.displayRow}`
+        : isSynPanelGapEntry(entry)
+          ? `gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`
+          : String(entry.excelRow);
       if (rowClassesCache.has(key)) return rowClassesCache.get(key);
       const cls = entryRowClasses(entry);
       rowClassesCache.set(key, cls);
@@ -1253,6 +1283,13 @@ export default {
     const SYN_CTRL_DIFF_MINUEND_ROW = 16; // displayed 16 — "Curb mass"
     const SYN_CTRL_DIFF_SUBTRAHEND_ROW = 18; // displayed 18 — "Curb mass : last update"
 
+    /** Control / Portfolio diff columns — display C…J + every summary table (not BQ gutter). */
+    function isSynMetricDiffCol(col) {
+      if (isSynSpacerDisplayExcelCol(col)) return false;
+      if (isSynBqGutterExcelCol(col)) return false;
+      return isSynVehicleMassCol(col) || isSynHeaderPanelVehicleCol(col);
+    }
+
     function synParseNumOrNull(v) {
       if (v == null) return null;
       const s = String(v).trim();
@@ -1290,7 +1327,7 @@ export default {
     /** True for Control cells that carry a live row16 − row18 difference. */
     function isSynControlDiffCell(row, col) {
       if (Number(row) !== SYN_CTRL_DIFF_ROW) return false;
-      if (!isSynVehicleMassCol(col)) return false;
+      if (!isSynMetricDiffCol(col)) return false;
       return controlDiffNumber(col) != null;
     }
 
@@ -1320,7 +1357,7 @@ export default {
     /** True for Portfolio cells that carry a live row16 − row17 difference. */
     function isSynPortfolioDiffCell(row, col) {
       if (Number(row) !== SYN_PTF_DIFF_ROW) return false;
-      if (!isSynVehicleMassCol(col)) return false;
+      if (!isSynMetricDiffCol(col)) return false;
       return portfolioDiffNumber(col) != null;
     }
 
@@ -1387,36 +1424,75 @@ export default {
       );
     }
 
+    function isDeletableSynCol(col) {
+      return (
+        col &&
+        col !== SYN_STICKY_COL &&
+        !isUserGapCol(col) &&
+        !isSynSpacerDisplayExcelCol(col) &&
+        !isSynForceWhiteExcelCol(col) &&
+        !isSynBqGutterExcelCol(col)
+      );
+    }
+
+    const axisCtxMenu = createGridAxisContextMenu({
+      emit,
+      getClipboard: () => props.axisClipboard,
+      sheetName: 'SYNTHESIS',
+      canOpenRow: (data) => {
+        if (!data || data.row == null) return false;
+        return data.row > SYN_HEADER_PANEL_LAST_ROW;
+      },
+      canOpenCol: (data) => isDeletableSynCol(data && data.col),
+    });
+    const {
+      ctxMenu,
+      canPaste,
+      deleteLabel,
+      closeCtxMenu,
+      onRowContextMenu: onRowContextMenuBase,
+      onColContextMenu: onColContextMenuBase,
+      onCtxCopy,
+      onCtxPaste,
+      onCtxDelete: onCtxDeleteBase,
+    } = axisCtxMenu;
+
     function onRowContextMenu(rowMeta, event) {
       const entry = rowMeta && rowMeta.entry ? rowMeta.entry : rowMeta;
       if (!isDeletableSynRow(entry)) return;
-      event.preventDefault();
-      ctxMenu.value = {
-        visible: true,
-        x: event.clientX,
-        y: event.clientY,
-        row: entry.excelRow,
-        displayRow: rowMeta && rowMeta.rowNum != null ? rowMeta.rowNum : entry.excelRow,
-      };
+      onRowContextMenuBase(
+        {
+          row: entry.excelRow,
+          displayRow:
+            rowMeta && rowMeta.rowNum != null ? rowMeta.rowNum : entry.excelRow,
+        },
+        event
+      );
     }
 
-    function closeCtxMenu() {
-      if (ctxMenu.value.visible) {
-        ctxMenu.value = { visible: false, x: 0, y: 0, row: null, displayRow: null };
+    function onColContextMenu(entry, event) {
+      if (!entry || !isDeletableSynCol(entry.col)) return;
+      onColContextMenuBase(entry.col, entry.letter || entry.col, event);
+    }
+
+    function onCtxDelete() {
+      const menu = ctxMenu.value;
+      if (menu.axis === 'row' && menu.row != null) {
+        const next = new Set(deletedRows.value);
+        next.add(menu.row);
+        deletedRows.value = next;
+        invalidateDisplayCache();
+        bumpCellModelCache();
+        editEpoch.value += 1;
+      } else if (menu.axis === 'col' && menu.col) {
+        const next = new Set(deletedCols.value);
+        next.add(menu.col);
+        deletedCols.value = next;
+        invalidateDisplayCache();
+        bumpCellModelCache();
+        editEpoch.value += 1;
       }
-    }
-
-    function confirmDeleteRow() {
-      const row = ctxMenu.value.row;
-      closeCtxMenu();
-      if (row == null) return;
-      const next = new Set(deletedRows.value);
-      next.add(row);
-      deletedRows.value = next;
-      invalidateDisplayCache();
-      bumpCellModelCache();
-      editEpoch.value += 1;
-      emit('row-delete', { sheet: 'SYNTHESIS', excelRow: row });
+      onCtxDeleteBase();
     }
 
     function formatVal(v) {
@@ -1486,7 +1562,7 @@ export default {
       }
       // Row 20 (Control, Excel 19) = live row16 − row18 difference. Computed on
       // the fly (never cached) so it tracks any change to row 16 or row 18.
-      if (Number(row) === SYN_CTRL_DIFF_ROW && isSynVehicleMassCol(col)) {
+      if (Number(row) === SYN_CTRL_DIFF_ROW && isSynMetricDiffCol(col)) {
         const ctrl = computeControlDiffDisplay(col);
         if (ctrl != null) return ctrl;
       }
@@ -1495,7 +1571,7 @@ export default {
       if (Number(row) === SYN_PTF_DIFF_ROW && isSynBqGutterExcelCol(col)) {
         return '';
       }
-      if (Number(row) === SYN_PTF_DIFF_ROW && isSynVehicleMassCol(col)) {
+      if (Number(row) === SYN_PTF_DIFF_ROW && isSynMetricDiffCol(col)) {
         const ptf = computePortfolioDiffDisplay(col);
         if (ptf != null) return ptf;
       }
@@ -1808,6 +1884,9 @@ export default {
     }
 
     function entryRowClasses(entry) {
+      if (isSynUserGapEntry(entry)) {
+        return ['row-user-gap', 'syn-user-gap-row'];
+      }
       if (isSynPanelGapEntry(entry)) {
         const gap = ['syn-panel-gap-row', 'syn-panel-gap'];
         if (entry.gapBetween) {
@@ -1867,7 +1946,7 @@ export default {
     }
 
     function isGapEntry(entry) {
-      return isSynPanelGapEntry(entry);
+      return isSynPanelGapEntry(entry) || isSynUserGapEntry(entry);
     }
 
     function isPillarColForEntry(entry, col) {
@@ -1913,6 +1992,14 @@ export default {
       if (isSynForceWhiteExcelCol(col)) return base;
       if (isSynSpacerDisplayExcelCol(col)) return base;
       if (isSynBqGutterExcelCol(col)) return base;
+      if (isSynRow18BgCol(row, col)) {
+        const out = { ...base, ...synRow18BgStyle() };
+        if (isSynRow18GreyTextCol(row, col)) {
+          Object.assign(out, synRow18GreyTextStyle());
+        }
+        scrollStyleCache.set(styleKey, out);
+        return out;
+      }
       // Body rows 26+ (non header panel): skip heavy header style chain.
       if (row >= SYN_GRID_FIRST_ROW && !isSynHeaderPanelRow(row)) {
         const out = { ...base, ...cellInlineStyle(row, col) };
@@ -1980,6 +2067,9 @@ export default {
       if (isSynBsCeRow5Col(row, col)) {
         return { ...base, ...synBsCeRow5Style() };
       }
+      if (isSynCiCyRow5Col(row, col)) {
+        return { ...base, ...synCiCyRow5Style() };
+      }
       if (isSynBqRow5Col(row, col)) {
         return { ...base, ...synBqRow5Style() };
       }
@@ -2015,6 +2105,9 @@ export default {
         return { ...base, ...synRow16FluoStyle() };
       }
       if (isSynRow16BsCeFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
+      if (isSynRow16CiCyFluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
       if (isSynApbbRow16FluoCol(row, col)) {
@@ -2088,6 +2181,9 @@ export default {
       }
       const spacerCol = synSpacerColClass(col);
       if (spacerCol) return withHdrPanelBold(row, col, spacerCol, display);
+      if (isSynRow18BgCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row18-bg', display);
+      }
       const bevCls = synHdrBevTextClass(row, display);
       if (bevCls) return withHdrPanelBold(row, col, bevCls, display);
       const energyCls = synHdrEnergyValueClass(row, col, display);
@@ -2138,6 +2234,9 @@ export default {
       if (isSynBsCeRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-bs-ce-row5', display);
       }
+      if (isSynCiCyRow5Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-ci-cy-row5', display);
+      }
       if (isSynBqRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-bq-row5', display);
       }
@@ -2168,12 +2267,15 @@ export default {
       if (isSynRow16BsCeFluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
+      if (isSynRow16CiCyFluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
       if (isSynApbbRow16FluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
-      // Control / Portfolio (Excel 19–20, display 20–21) — sign-based fill on AP…BB
-      // before header-panel defaults (syn-hdr-panel-bold alone must not block this).
-      if ((row === 19 || row === 20) && isSynApBbTableCol(col)) {
+      // Control / Portfolio (Excel 19–20, display 20–21) — sign-based fill on every
+      // metric-diff column before header-panel defaults block it.
+      if ((row === 19 || row === 20) && isSynMetricDiffCol(col)) {
         const signCls = synMetricCellClass(row, col, display);
         if (signCls) {
           return withHdrPanelBold(row, col, signCls, display);
@@ -2366,7 +2468,10 @@ export default {
     }
 
     function rowEntryKey(entry) {
-      if (isGapEntry(entry)) {
+      if (isSynUserGapEntry(entry)) {
+        return `ugap-${entry.gapKey || entry.displayRow}`;
+      }
+      if (isSynPanelGapEntry(entry)) {
         return `panel-gap-${entry.gapKey || ((entry.gapBeforePanel ? 'top-' : 'bot-') + entry.gapIndex)}`;
       }
       return String(entry.excelRow);
@@ -2444,10 +2549,20 @@ export default {
      */
     function synRowNumberLabel(entry) {
       if (!entry) return '';
+      if (isSynUserGapEntry(entry)) return entry.displayRow != null ? entry.displayRow : '';
       if (entry.gapKey === 'between-18-19') return 19;
       const r = entry.excelRow;
       if (r == null) return '';
       return r >= 19 ? r + 1 : r;
+    }
+
+    function isInsertableSynRow(entry) {
+      return (
+        entry &&
+        entry.excelRow != null &&
+        entry.excelRow > SYN_HEADER_PANEL_LAST_ROW &&
+        !isSynPanelGapEntry(entry)
+      );
     }
 
     /** Row metadata — stable when only horizontal scroll changes. */
@@ -2847,6 +2962,7 @@ export default {
       rightPadStyle,
       colspan,
       SYN_STICKY_COL,
+      SYN_HEADER_PANEL_LAST_ROW,
       colStyle,
       stickyStyle,
       cellDisplay,
@@ -2880,9 +2996,15 @@ export default {
       onCellBlur,
       onCellKeydown,
       ctxMenu,
+      canPaste,
+      deleteLabel,
       onRowContextMenu,
+      onColContextMenu,
       closeCtxMenu,
-      confirmDeleteRow,
+      onCtxCopy,
+      onCtxPaste,
+      onCtxDelete,
+      isDeletableSynCol,
       isColGroupToggle,
       isColGroupCollapsed,
       toggleColGroup,
@@ -2892,6 +3014,7 @@ export default {
       onAxisCellPointer,
       onInsertRowAfter,
       onInsertColAfter,
+      isInsertableSynRow,
       axisRow,
       axisCol,
       axisColBand,
@@ -2985,8 +3108,16 @@ export default {
                 }"
                 :style="[colStyle(entry.col, entry.width), stickyStyle(entry.col)]"
                 @mousedown="onAxisColHeaderClick(entry.col, $event)"
+                @contextmenu="isDeletableSynCol(entry.col) && onColContextMenu(entry, $event)"
               >
                 {{ entry.letter }}
+                <button
+                  v-if="isDeletableSynCol(entry.col)"
+                  type="button"
+                  class="grid-insert-btn grid-insert-col"
+                  title="Insérer une colonne vierge à droite"
+                  @mousedown.stop="onInsertColAfter(entry.col, $event)"
+                >+</button>
               </th>
               <th v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></th>
               <th
@@ -3002,8 +3133,16 @@ export default {
                 }"
                 :style="colStyle(entry.col, entry.width)"
                 @mousedown="onAxisColHeaderClick(entry.col, $event)"
+                @contextmenu="isDeletableSynCol(entry.col) && onColContextMenu(entry, $event)"
               >
                 {{ entry.letter }}
+                <button
+                  v-if="isDeletableSynCol(entry.col)"
+                  type="button"
+                  class="grid-insert-btn grid-insert-col"
+                  title="Insérer une colonne vierge à droite"
+                  @mousedown.stop="onInsertColAfter(entry.col, $event)"
+                >+</button>
               </th>
               <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
             </tr>
@@ -3023,7 +3162,6 @@ export default {
                   'grid-axis-row-copied': row.excelRow != null && isCopiedRow(row.excelRow),
                 },
               ]"
-              @contextmenu="onRowContextMenu(row, $event)"
             >
               <td
                 class="syn-fold-col"
@@ -3046,8 +3184,16 @@ export default {
                 }"
                 :title="row.rowLabel || ''"
                 @mousedown="row.excelRow != null && onAxisRowNumClick(row.excelRow, $event)"
+                @contextmenu="row.excelRow != null && row.excelRow > SYN_HEADER_PANEL_LAST_ROW && onRowContextMenu(row, $event)"
               >
                 {{ row.rowNum }}
+                <button
+                  v-if="isInsertableSynRow(row.entry)"
+                  type="button"
+                  class="grid-insert-btn grid-insert-row"
+                  title="Insérer une ligne vierge en dessous"
+                  @mousedown.stop="onInsertRowAfter(row.excelRow, $event)"
+                >+</button>
               </td>
               <td
                 v-for="cell in pinnedCellsByRowKey[row.key]"
@@ -3153,8 +3299,16 @@ export default {
           :style="{ left: ctxMenu.x + 'px', top: ctxMenu.y + 'px' }"
           @contextmenu.prevent
         >
-          <button type="button" class="grid-ctx-item grid-ctx-danger" @click="confirmDeleteRow">
-            Supprimer la ligne {{ ctxMenu.displayRow }}
+          <button type="button" class="grid-ctx-item" @click="onCtxCopy">Copier</button>
+          <button
+            type="button"
+            class="grid-ctx-item"
+            :disabled="!canPaste"
+            @click="onCtxPaste"
+          >Coller</button>
+          <div class="grid-ctx-sep"></div>
+          <button type="button" class="grid-ctx-item grid-ctx-danger" @click="onCtxDelete">
+            {{ deleteLabel }}
           </button>
         </div>
       </template>
