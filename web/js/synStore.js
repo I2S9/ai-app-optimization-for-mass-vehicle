@@ -1872,11 +1872,62 @@ export function synProjHeaderGreenStyle() {
   };
 }
 
+/** Row 5 — AC…AN O3W silhouette band (orange #FFC000). */
+export const SYN_ACAN_O3W_ORANGE_BG = '#FFC000';
+
+export function isSynAcanO3wOrangeCol(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynAcAnTableCol(col);
+}
+
+export function synAcanO3wOrangeStyle() {
+  return {
+    background: SYN_ACAN_O3W_ORANGE_BG,
+    backgroundColor: SYN_ACAN_O3W_ORANGE_BG,
+    color: '#000',
+  };
+}
+
+/** Row 5 — BD…BO silhouette band (#C4BD97). */
+export const SYN_BDBO_ROW5_BG = '#C4BD97';
+
+export function isSynBdBoRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynBdBoTableCol(col);
+}
+
+export function synBdBoRow5Style() {
+  return {
+    background: SYN_BDBO_ROW5_BG,
+    backgroundColor: SYN_BDBO_ROW5_BG,
+    color: '#000',
+  };
+}
+
+/** Row 5 — BS…CE silhouette band (#E26B0A). */
+export const SYN_BSCE_ROW5_BG = '#E26B0A';
+
+export function isSynBsCeRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynBsCeTableCol(col);
+}
+
+export function synBsCeRow5Style() {
+  return {
+    background: SYN_BSCE_ROW5_BG,
+    backgroundColor: SYN_BSCE_ROW5_BG,
+    color: '#000',
+  };
+}
+
 /** Row 5 — all summary tables from display M. */
 export function isSynProjHeaderYellowCol(row, col) {
   const r = Number(row);
   if (!Number.isFinite(r) || !SYN_PROJ_HDR_YELLOW_ROWS.has(r)) return false;
   if (r === 5 && isSynApBbTableCol(col)) return false;
+  if (r === 5 && isSynAcAnTableCol(col)) return false;
+  if (r === 5 && isSynBdBoTableCol(col)) return false;
+  if (r === 5 && isSynBsCeTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
