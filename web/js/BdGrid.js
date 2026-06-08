@@ -49,6 +49,7 @@ import {
 } from './bdColumnConfig.js?v=input-fix1';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
+import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis1';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -487,6 +488,15 @@ export default {
       return Math.max(0, scrollableWidth.value - (last.left + last.width));
     });
 
+    const axisHighlight = createGridAxisHighlight();
+    const {
+      syncFromCell: syncAxisFromCell,
+      onRowNumClick: onAxisRowNumClick,
+      onColHeaderClick: onAxisColHeaderClick,
+      isAxisRow,
+      isAxisCol,
+    } = axisHighlight;
+
     const cellEditor = createGridCellEditor({
       isNumericAt: (row, col) => isBdNumericEntryCell(row, col),
       displayAt: (row, col) => cellDisplay(row, col),
@@ -495,9 +505,9 @@ export default {
     const {
       isCellActive,
       cellShowValue,
-      onCellMouseDown,
-      onCellSpanMouseDown,
-      onCellFocus,
+      onCellMouseDown: onCellMouseDownBase,
+      onCellSpanMouseDown: onCellSpanMouseDownBase,
+      onCellFocus: onCellFocusBase,
       onCellInput,
       onCellBlur,
       onCellKeydown: onCellKeydownBase,
@@ -506,6 +516,26 @@ export default {
       activateCell,
       setNavigationLock,
     } = cellEditor;
+
+    function onCellMouseDown(row, col, event) {
+      syncAxisFromCell(row, col);
+      onCellMouseDownBase(row, col, event);
+    }
+
+    function onCellSpanMouseDown(row, col, event) {
+      syncAxisFromCell(row, col);
+      onCellSpanMouseDownBase(row, col, event);
+    }
+
+    function onCellFocus(row, col, event) {
+      syncAxisFromCell(row, col);
+      onCellFocusBase(row, col, event);
+    }
+
+    function onAxisCellPointer(row, col, event) {
+      if (event.button !== 0) return;
+      syncAxisFromCell(row, col);
+    }
 
     const cellNavigation = createGridCellNavigation({
       getColumns: () => columns.value,
@@ -826,6 +856,11 @@ export default {
       onCellBlur,
       onCellKeydown,
       toggleSection,
+      onAxisRowNumClick,
+      onAxisColHeaderClick,
+      onAxisCellPointer,
+      isAxisRow,
+      isAxisCol,
     };
   },
   template: `
@@ -839,9 +874,13 @@ export default {
               <template v-for="(col, idx) in renderColumns" :key="'letter-' + col">
                 <th v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></th>
                 <th
-                  class="col-letter"
-                  :class="{ 'col-sticky-date': isStickyDateCol(col) }"
+                  class="col-letter grid-axis-hdr"
+                  :class="{
+                    'col-sticky-date': isStickyDateCol(col),
+                    'grid-axis-hdr-focus': isAxisCol(col),
+                  }"
                   :style="colStyle(col)"
+                  @mousedown="onAxisColHeaderClick(col, $event)"
                 >{{ col }}</th>
               </template>
               <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
@@ -852,10 +891,14 @@ export default {
               <template v-for="(col, idx) in renderColumns" :key="'h1-' + col">
                 <th v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></th>
                 <th
-                  class="col-hdr"
-                  :class="{ 'col-sticky-date': isStickyDateCol(col) }"
+                  class="col-hdr grid-axis-hdr"
+                  :class="{
+                    'col-sticky-date': isStickyDateCol(col),
+                    'grid-axis-hdr-focus': isAxisCol(col),
+                  }"
                   :style="colStyle(col)"
                   :title="sheet.headers[col] || col"
+                  @mousedown="onAxisColHeaderClick(col, $event)"
                 >{{ sheet.headers[col] || col }}</th>
               </template>
               <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
@@ -869,7 +912,10 @@ export default {
               v-for="entry in visibleRows"
               :key="entry.excelRow"
               class="grid-row-cv"
-              :class="rowStyleClass(entry.excelRow)"
+              :class="[
+                rowStyleClass(entry.excelRow),
+                { 'grid-axis-row-focus': isAxisRow(entry.excelRow) },
+              ]"
               @contextmenu="onRowContextMenu(entry, $event)"
             >
               <td
@@ -884,7 +930,11 @@ export default {
                   @click="toggleSection(entry.excelRow)"
                 >{{ entry.sectionCollapsed ? '+' : '\u2212' }}</button>
               </td>
-              <td class="row-num">{{ entry.displayRow }}</td>
+              <td
+                class="row-num grid-axis-hdr"
+                :class="{ 'grid-axis-hdr-focus': isAxisRow(entry.excelRow) }"
+                @mousedown="onAxisRowNumClick(entry.excelRow, $event)"
+              >{{ entry.displayRow }}</td>
               <template v-for="(col, idx) in renderColumns" :key="entry.excelRow + '-' + col">
                 <td v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></td>
                 <td
@@ -896,13 +946,17 @@ export default {
                       'col-free-field': col === BD_FREE_FIELD_COL,
                       'grid-search-hit': isSearchHit(entry.excelRow, col),
                       'grid-search-focus': isSearchFocus(entry.excelRow, col),
+                      'grid-axis-col-focus': isAxisCol(col),
                     },
                     cellStaticClass(entry.excelRow, col),
                   ]"
                   :style="cellStyleFor(entry.excelRow, col)"
                 >
                   <template v-if="cellReadonly(entry.excelRow, col)">
-                    <span :title="cellTitle(entry.excelRow, col)">{{ cellDisplay(entry.excelRow, col) }}</span>
+                    <span
+                      :title="cellTitle(entry.excelRow, col)"
+                      @mousedown="onAxisCellPointer(entry.excelRow, col, $event)"
+                    >{{ cellDisplay(entry.excelRow, col) }}</span>
                   </template>
                   <input
                     v-else-if="isCellActive(entry.excelRow, col)"

@@ -20,9 +20,11 @@ import {
   computeAdaptationRowSum,
   isSynCalculatedMassCell,
   isSynMassCalcCol,
+  isSynTrustMaterializedLiveCell,
 } from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
+import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis1';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -164,6 +166,17 @@ import {
   isSynSpacerDisplayExcelCol,
   isSynForceWhiteExcelCol,
   synSpacerColClass,
+  isSynBqGutterExcelCol,
+  synBqGutterColClass,
+  isSynBqTableCellEntry,
+  isSynHdrBqDividerLeftEntry,
+  isSynHdrBqDividerRightEntry,
+  isSynBqRow5Col,
+  synBqRow5Style,
+  isSynBqRow14Col,
+  synBqRow14Style,
+  isSynBqPortfolioXCell,
+  isSynBodyEmptyFromRow27Cell,
   SYN_GRID_FIRST_ROW,
   isSynNumericEntryCell,
   SYN_BUILTIN_PILLAR_META,
@@ -172,7 +185,7 @@ import {
   isSynSp2RestartDisplayExcelCol,
   synLabel,
   getSynAdaptBandNumeric,
-} from './synStore.js?v=grid-perf2';
+} from './synStore.js?v=grid-bpbr1';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -978,6 +991,15 @@ export default {
       }
     }
 
+    const axisHighlight = createGridAxisHighlight();
+    const {
+      syncFromCell: syncAxisFromCell,
+      onRowNumClick: onAxisRowNumClick,
+      onColHeaderClick: onAxisColHeaderClick,
+      isAxisRow,
+      isAxisCol,
+    } = axisHighlight;
+
     const cellEditor = createGridCellEditor({
       isNumericAt: (row, col) =>
         isSynNumericEntryCell(row, col, pillarColumns.value),
@@ -987,7 +1009,7 @@ export default {
     const {
       isCellActive,
       cellShowValue,
-      onCellMouseDown,
+      onCellMouseDown: onCellMouseDownBase,
       onCellSpanMouseDown: onCellSpanMouseDownBase,
       onCellFocus: onCellFocusBase,
       onCellInput: onCellInputBase,
@@ -999,12 +1021,24 @@ export default {
       setNavigationLock,
     } = cellEditor;
 
+    function onCellMouseDown(row, col, event) {
+      syncAxisFromCell(row, col);
+      onCellMouseDownBase(row, col, event);
+    }
+
     function onCellSpanMouseDown(row, col, event) {
+      syncAxisFromCell(row, col);
       onCellSpanMouseDownBase(row, col, event);
     }
 
     function onCellFocus(row, col, event) {
+      syncAxisFromCell(row, col);
       onCellFocusBase(row, col, event);
+    }
+
+    function onAxisCellPointer(row, col, event) {
+      if (event.button !== 0) return;
+      syncAxisFromCell(row, col);
     }
 
     /**
@@ -1044,6 +1078,7 @@ export default {
     function cellRawValue(row, col) {
       if (row == null) return '';
       if (isSynGreyLockedCell(row, col)) return '';
+      if (isSynBodyEmptyFromRow27Cell(row, col)) return '';
       if (isSynMirrorLfromMCell(row, col)) {
         return cellRawValue(row, SYN_MIRROR_SRC_EXCEL_COL);
       }
@@ -1060,10 +1095,12 @@ export default {
         label,
         rowClass
       );
-      const sheetMaterialized =
-        Boolean(props.sheet && props.sheet.materializedCalc) && !liveBdEdited.value;
-      const materialized =
-        sheetMaterialized || (cell && cell.mat && !cell.userEdited && !isLiveCalc);
+      const materialized = isSynTrustMaterializedLiveCell(
+        cell,
+        props.sheet,
+        liveBdEdited.value,
+        isLiveCalc
+      );
       if (
         isLiveCalc &&
         !materialized &&
@@ -1245,6 +1282,7 @@ export default {
       if (row == null) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
       if (isSynMirrorLfromMCell(row, col)) return true;
+      if (isSynBodyEmptyFromRow27Cell(row, col)) return true;
       if (isSynGreyLockedCell(row, col)) return true;
       if (isSynGreenSumCell(row, col)) return true;
       // Row 16 (CURB MASS) holds an automatic Σ of the column's green totals.
@@ -1376,6 +1414,11 @@ export default {
         displayCache.set(hitKeyGrey, '');
         return '';
       }
+      if (isSynBodyEmptyFromRow27Cell(row, col)) {
+        const hitKeyEmpty = `${row}:${col}`;
+        displayCache.set(hitKeyEmpty, '');
+        return '';
+      }
       // Green display-row cells = live Σ of the rows beneath until the next green
       // row (same column). Computed on the fly (never cached) so any change to a
       // source cell is reflected instantly.
@@ -1394,8 +1437,11 @@ export default {
         const ctrl = computeControlDiffDisplay(col);
         if (ctrl != null) return ctrl;
       }
-      // Row 21 (Portfolio, Excel 20) = live row16 − row17 difference. Computed on
-      // the fly (never cached) so it tracks any change to row 16 or row 17.
+      // Row 21 (Portfolio, Excel 20) = live row16 − row17 difference. BQ shows a
+      // static diagonal X when PM pre-target (row 17) is blank.
+      if (Number(row) === SYN_PTF_DIFF_ROW && isSynBqGutterExcelCol(col)) {
+        return '';
+      }
       if (Number(row) === SYN_PTF_DIFF_ROW && isSynMassCalcCol(col)) {
         const ptf = computePortfolioDiffDisplay(col);
         if (ptf != null) return ptf;
@@ -1438,14 +1484,12 @@ export default {
       // a BD calc input. After that, impacted live-calc cells must recompute so
       // Synthesis reflects the Database change in real time (only invalidated
       // cells actually recompute — the session caches the rest).
-      const sheetMaterialized =
-        Boolean(props.sheet && props.sheet.materializedCalc) && !liveBdEdited.value;
-      const materialized =
-        sheetMaterialized ||
-        (cell &&
-          cell.mat &&
-          !cell.userEdited &&
-          !isLiveCalc);
+      const materialized = isSynTrustMaterializedLiveCell(
+        cell,
+        props.sheet,
+        liveBdEdited.value,
+        isLiveCalc
+      );
 
       if (
         isLiveCalc &&
@@ -1700,6 +1744,7 @@ export default {
         'syn-ap-bb-table-frame',
         'syn-bs-ce-table-frame',
         'syn-bd-bo-table-frame',
+        'syn-bq-table-frame',
         'syn-ci-cy-table-frame',
         'syn-da-dp-table-frame',
         'syn-dr-ed-table-frame',
@@ -1814,6 +1859,7 @@ export default {
       }
       if (isSynForceWhiteExcelCol(col)) return base;
       if (isSynSpacerDisplayExcelCol(col)) return base;
+      if (isSynBqGutterExcelCol(col)) return base;
       // Body rows 26+ (non header panel): skip heavy header style chain.
       if (row >= SYN_GRID_FIRST_ROW && !isSynHeaderPanelRow(row)) {
         const out = { ...base, ...cellInlineStyle(row, col) };
@@ -1880,6 +1926,12 @@ export default {
       }
       if (isSynBsCeRow5Col(row, col)) {
         return { ...base, ...synBsCeRow5Style() };
+      }
+      if (isSynBqRow5Col(row, col)) {
+        return { ...base, ...synBqRow5Style() };
+      }
+      if (isSynBqRow14Col(row, col)) {
+        return { ...base, ...synBqRow14Style() };
       }
       if (isSynProjHeaderYellowCol(row, col)) {
         return { ...base, ...synProjHeaderYellowStyle() };
@@ -1971,6 +2023,8 @@ export default {
           display
         );
       }
+      const bqGutterCol = synBqGutterColClass(col);
+      if (bqGutterCol) return withHdrPanelBold(row, col, bqGutterCol, display);
       if (isSynForceWhiteExcelCol(col)) {
         return withHdrPanelBold(row, col, 'syn-force-white-col', display);
       }
@@ -2025,6 +2079,15 @@ export default {
       }
       if (isSynBsCeRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-bs-ce-row5', display);
+      }
+      if (isSynBqRow5Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-bq-row5', display);
+      }
+      if (isSynBqRow14Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-bq-row14', display);
+      }
+      if (isSynBqPortfolioXCell(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-bq-portfolio-x', display);
       }
       if (isSynProjHeaderYellowCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-proj-hdr-yellow', display);
@@ -2101,6 +2164,10 @@ export default {
         // (which only spares .syn-spacer-col-l / .syn-force-white-col) draws a black
         // line across L and AB between rows 19 and 20.
         if (isSynForceWhiteExcelCol(col)) gapParts.push('syn-force-white-col');
+        const gapBqCls = synBqGutterColClass(col);
+        if (gapBqCls) {
+          gapParts.push(gapBqCls, 'syn-hdr-edge-bq-left', 'syn-hdr-edge-bq-right');
+        }
         const gapSpacerCls = synSpacerColClass(col);
         if (gapSpacerCls) gapParts.push(gapSpacerCls);
         // Keep the bold M…AA frame edges continuous across the blank gap row so the
@@ -2123,6 +2190,10 @@ export default {
       if (isSynProjHeaderRedCol(row, col)) parts.push('syn-proj-hdr-red');
       if (headerEdgeRight(row, colIdx, colsLen)) parts.push('syn-header-edge-right');
       if (isSynSpacerDisplayExcelCol(col)) parts.push('syn-spacer-col-l');
+      if (isSynBqTableCellEntry(entry, col)) parts.push('syn-bq-cell');
+      if (isSynHdrBqDividerLeftEntry(entry, col)) parts.push('syn-hdr-edge-bq-left');
+      if (isSynHdrBqDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-bq-right');
+      if (isSynBqPortfolioXCell(row, col)) parts.push('syn-bq-portfolio-x');
       if (isSynHdrCjDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-cj-right');
       if (isSynHdrMaDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-ma-right');
       if (isSynHdrLmDividerRightEntry(entry, col)) parts.push('syn-hdr-edge-lm-right');
@@ -2467,10 +2538,8 @@ export default {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
-      // Skip the eager live-calc warm-up only when the materialized pack is still
-      // authoritative. After a BD edit was restored (liveBdEdited), the pack is stale,
-      // so we must let liveCalcReady turn on to recompute the blue cells.
-      if (props.sheet && props.sheet.materializedCalc && !liveBdEdited.value) return;
+      // Always warm up live SOMMEPROD — extended summary tables (BD…BO, BS…CE, …)
+      // are not in the build-time materialized pack and must read Database live.
       requestAnimationFrame(() => {
         const enable = () => {
           liveCalcReady.value = true;
@@ -2509,6 +2578,11 @@ export default {
       isSynSpacerDisplayExcelCol,
       isSynForceWhiteExcelCol,
       synSpacerColClass,
+      isSynBqGutterExcelCol,
+      synBqGutterColClass,
+      isSynBqTableCellEntry,
+      isSynHdrBqDividerLeftEntry,
+      isSynHdrBqDividerRightEntry,
       isSynHdrLmDividerRightCol,
       isSynHdrLmDividerLeftCol,
       isSynHdrAaDividerRightCol,
@@ -2755,6 +2829,11 @@ export default {
       isColGroupCollapsed,
       toggleColGroup,
       toggleSection,
+      onAxisRowNumClick,
+      onAxisColHeaderClick,
+      onAxisCellPointer,
+      isAxisRow,
+      isAxisCol,
     };
   },
   template: `
@@ -2823,19 +2902,24 @@ export default {
               <th
                 v-for="entry in pinnedCols"
                 :key="'L-' + entry.col"
-                class="col-letter col-sticky-label"
+                class="col-letter col-sticky-label grid-axis-hdr"
+                :class="{ 'grid-axis-hdr-focus': isAxisCol(entry.col) }"
                 :style="[colStyle(entry.col, entry.width), stickyStyle(entry.col)]"
+                @mousedown="onAxisColHeaderClick(entry.col, $event)"
               >{{ entry.letter }}</th>
               <th v-if="leftPad > 0" class="syn-pad" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px' }"></th>
               <th
                 v-for="entry in visibleScrollCols"
                 :key="'L-' + entry.col"
-                class="col-letter"
+                class="col-letter grid-axis-hdr"
                 :class="{
                   'syn-spacer-col-l-hdr': isSynSpacerDisplayExcelCol(entry.col),
+                  'syn-bq-gutter-col-hdr': isSynBqGutterExcelCol(entry.col),
                   'syn-force-white-col': isSynForceWhiteExcelCol(entry.col),
+                  'grid-axis-hdr-focus': isAxisCol(entry.col),
                 }"
                 :style="colStyle(entry.col, entry.width)"
+                @mousedown="onAxisColHeaderClick(entry.col, $event)"
               >{{ entry.letter }}</th>
               <th v-if="rightPad > 0" class="syn-pad" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px' }"></th>
             </tr>
@@ -2848,7 +2932,10 @@ export default {
               v-for="row in visibleRowMeta"
               :key="row.key"
               class="grid-row-cv"
-              :class="row.rowClasses"
+              :class="[
+                row.rowClasses,
+                { 'grid-axis-row-focus': row.excelRow != null && isAxisRow(row.excelRow) },
+              ]"
               @contextmenu="onRowContextMenu(row, $event)"
             >
               <td
@@ -2864,9 +2951,13 @@ export default {
                 >{{ row.sectionCollapsed ? '+' : '\u2212' }}</button>
               </td>
               <td
-                class="row-num syn-row-num"
-                :class="{ 'syn-adaptation-sum-row-num': row.isAdaptationSumRow }"
+                class="row-num syn-row-num grid-axis-hdr"
+                :class="{
+                  'syn-adaptation-sum-row-num': row.isAdaptationSumRow,
+                  'grid-axis-hdr-focus': row.excelRow != null && isAxisRow(row.excelRow),
+                }"
                 :title="row.rowLabel || ''"
+                @mousedown="onAxisRowNumClick(row.excelRow, $event)"
               >
                 {{ row.rowNum }}
               </td>
@@ -2880,12 +2971,13 @@ export default {
                   {
                     'grid-search-hit': isSearchHit(cell.row, cell.col),
                     'grid-search-focus': isSearchFocus(cell.row, cell.col),
+                    'grid-axis-col-focus': isAxisCol(cell.col),
                   },
                 ]"
                 :style="cell.style"
               >
                 <template v-if="cell.gap || cell.readonly">
-                  <span>{{ cell.display }}</span>
+                  <span @mousedown="onAxisCellPointer(cell.row, cell.col, $event)">{{ cell.display }}</span>
                 </template>
                 <input
                   v-else-if="isCellActive(cell.row, cell.col)"
@@ -2919,12 +3011,13 @@ export default {
                   {
                     'grid-search-hit': isSearchHit(cell.row, cell.col),
                     'grid-search-focus': isSearchFocus(cell.row, cell.col),
+                    'grid-axis-col-focus': isAxisCol(cell.col),
                   },
                 ]"
                 :style="cell.style"
               >
                 <template v-if="cell.gap || cell.readonly">
-                  <span>{{ cell.display }}</span>
+                  <span @mousedown="onAxisCellPointer(cell.row, cell.col, $event)">{{ cell.display }}</span>
                 </template>
                 <input
                   v-else-if="isCellActive(cell.row, cell.col)"

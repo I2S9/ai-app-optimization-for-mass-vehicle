@@ -15,7 +15,8 @@ import {
   buildSumproductL2Index,
   buildSynSectionRowList,
   buildVehColFilterIndex,
-  computeSumproduct,
+  resolveSynSumproductValue,
+  SYN_SUMPRODUCT_REF,
   computeSynSectionSum,
   computeSynAbDiff,
   computeAdaptationRowSum,
@@ -39,7 +40,14 @@ import {
   synAdaptationSumFromRow,
   synAdaptationSumToRow,
 } from './synthesisCalc.js?v=grid-perf9';
-import { getSynAdaptBandNumeric, synRowMaaPresetRaw, synRowAcanPresetRaw, synRowApbbPresetRaw } from './synStore.js?v=grid-perf2';
+import {
+  getSynAdaptBandNumeric,
+  synRowMaaPresetRaw,
+  synRowAcanPresetRaw,
+  synRowApbbPresetRaw,
+  synRowBdboPresetRaw,
+  isSynBodyEmptyFromRow27Cell,
+} from './synStore.js?v=grid-bpbr1';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
@@ -345,10 +353,12 @@ export function createWorkbookSession() {
     const excelCol = synVehicleMassExcelCol(col);
     const cacheKey = `b:${row}:${excelCol}`;
     if (sumproductCache.has(cacheKey)) {
-      return parseFloat(sumproductCache.get(cacheKey)) || 0;
+      const cached = sumproductCache.get(cacheKey);
+      if (cached === SYN_SUMPRODUCT_REF) return SYN_SUMPRODUCT_REF;
+      return parseFloat(cached) || 0;
     }
     const filterRows = getVehColFilterRows(excelCol);
-    const n = computeSumproduct(
+    const result = resolveSynSumproductValue(
       bdCols,
       row,
       excelCol,
@@ -357,16 +367,21 @@ export function createWorkbookSession() {
       sumproductL2Index,
       filterRows
     );
-    const rounded = Math.round(n * 10000) / 10000;
-    sumproductCache.set(cacheKey, String(rounded));
-    return rounded;
+    if (result === SYN_SUMPRODUCT_REF) {
+      sumproductCache.set(cacheKey, SYN_SUMPRODUCT_REF);
+      return SYN_SUMPRODUCT_REF;
+    }
+    sumproductCache.set(cacheKey, String(result));
+    return result;
   }
 
   function getSectionMaaValue(sectionRow, col) {
     const excelCol = synVehicleMassExcelCol(col);
     const cacheKey = `g:${sectionRow}:${excelCol}`;
     if (sumproductCache.has(cacheKey)) {
-      return parseFloat(sumproductCache.get(cacheKey)) || 0;
+      const cached = sumproductCache.get(cacheKey);
+      if (cached === SYN_SUMPRODUCT_REF) return SYN_SUMPRODUCT_REF;
+      return parseFloat(cached) || 0;
     }
     const n = computeSynSectionSum(
       sectionRow,
@@ -380,6 +395,10 @@ export function createWorkbookSession() {
           ? synSheetMeta.lastRow
           : 422
     );
+    if (n === SYN_SUMPRODUCT_REF) {
+      sumproductCache.set(cacheKey, SYN_SUMPRODUCT_REF);
+      return SYN_SUMPRODUCT_REF;
+    }
     sumproductCache.set(cacheKey, String(n));
     return n;
   }
@@ -429,6 +448,12 @@ export function createWorkbookSession() {
       row <= 22
     ) {
       const preset = synRowApbbPresetRaw(row, col);
+      if (preset !== undefined) {
+        return parseSynNum(preset);
+      }
+    }
+    if (isSynVehicleMassCol(col) && row >= 3 && row <= 22) {
+      const preset = synRowBdboPresetRaw(row, col);
       if (preset !== undefined) {
         return parseSynNum(preset);
       }
@@ -522,6 +547,20 @@ export function createWorkbookSession() {
     bumpDisplay(true);
   }
 
+  function synFilterPresetRaw(row, col) {
+    if (row < 3 || row > 22) return undefined;
+    const excelCol = synVehicleMassExcelCol(col);
+    const maa = synRowMaaPresetRaw(row, excelCol);
+    if (maa !== undefined && maa != null && maa !== '') return String(maa);
+    const acan = synRowAcanPresetRaw(row, excelCol);
+    if (acan !== undefined && acan != null && acan !== '') return String(acan);
+    const apbb = synRowApbbPresetRaw(row, excelCol);
+    if (apbb !== undefined && apbb != null && apbb !== '') return String(apbb);
+    const bdbo = synRowBdboPresetRaw(row, excelCol);
+    if (bdbo !== undefined && bdbo != null && bdbo !== '') return String(bdbo);
+    return undefined;
+  }
+
   function getSynCell(row, col) {
     if (!synGridGetter) return '';
     if (col === 'F' && synLabelGetter) {
@@ -530,8 +569,11 @@ export function createWorkbookSession() {
         return String(label).trim();
       }
     }
-    const cell = synGridGetter(row, col);
-    return cell && cell.v != null && cell.v !== '' ? String(cell.v) : '';
+    const excelCol = synVehicleMassExcelCol(col);
+    const cell = synGridGetter(row, excelCol);
+    if (cell && cell.v != null && cell.v !== '') return String(cell.v);
+    const preset = synFilterPresetRaw(row, excelCol);
+    return preset != null ? preset : '';
   }
 
   function getAdaptationBlockNumeric(row, col) {
@@ -634,6 +676,9 @@ export function createWorkbookSession() {
   }
 
   function getDisplayValue(sheetName, row, col, cell) {
+    if (sheetName === 'SYNTHESIS' && isSynBodyEmptyFromRow27Cell(row, col)) {
+      return '';
+    }
     if (sheetName === 'SYNTHESIS' && isSynAdaptationSumCell(row, col, synSheetMeta)) {
       if (!synGridGetter) return '';
       const n = computeAdaptationRowSum(
@@ -696,6 +741,18 @@ export function createWorkbookSession() {
         return String(preset);
       }
     }
+    if (
+      sheetName === 'SYNTHESIS' &&
+      isSynVehicleMassCol(col) &&
+      row >= 3 &&
+      row <= 22
+    ) {
+      const preset = synRowBdboPresetRaw(row, col);
+      if (preset !== undefined) {
+        if (preset == null || preset === '') return '';
+        return String(preset);
+      }
+    }
     const synLabel = getSynLabel(row);
     const rowClass = getSynRowClass(row);
     if (sheetName === 'SYNTHESIS' && isSynAbDiffCell(row, col, synSheetMeta)) {
@@ -712,29 +769,22 @@ export function createWorkbookSession() {
       sheetName === 'SYNTHESIS' &&
       isSynSectionSumDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
     ) {
-      return '0';
-    }
-    if (
-      sheetName === 'SYNTHESIS' &&
-      bdCols &&
-      isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
-    ) {
-      if (!String(synLabel).trim()) {
-        return '0';
-      }
-      return String(getBlueMaaValue(row, col));
+      return SYN_SUMPRODUCT_REF;
     }
     if (
       sheetName === 'SYNTHESIS' &&
       isSynSumproductDataCell(row, col, synSheetMeta, cell, synLabel, rowClass)
     ) {
-      return '0';
+      if (!bdCols) return SYN_SUMPRODUCT_REF;
+      if (!String(synLabel).trim()) return SYN_SUMPRODUCT_REF;
+      const blue = getBlueMaaValue(row, col);
+      return String(blue);
     }
     if (
       sheetName === 'SYNTHESIS' &&
       isSynCalculatedMassCell(cell, row, col, synSheetMeta, synLabel, rowClass)
     ) {
-      return '0';
+      return SYN_SUMPRODUCT_REF;
     }
     if (sheetName === 'BD' && col === BD_MASS_COL && cell) {
       const cached =

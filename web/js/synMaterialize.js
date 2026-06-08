@@ -15,7 +15,8 @@ import {
   buildSumproductL2Index,
   buildVehColFilterIndex,
   buildSynSectionRowList,
-  computeSumproduct,
+  resolveSynSumproductValue,
+  SYN_SUMPRODUCT_REF,
   computeSynSectionSum,
   computeSynAbDiff,
   computeAdaptationRowSum,
@@ -42,8 +43,10 @@ function parseSynNum(raw) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function formatCalc(n) {
-  return formatSynNumericDisplay(String(Math.round(n * 10000) / 10000));
+function formatCalc(v) {
+  const s = String(v);
+  if (s === SYN_SUMPRODUCT_REF || s.includes('#REF!')) return SYN_SUMPRODUCT_REF;
+  return formatSynNumericDisplay(String(Math.round(parseFloat(s) * 10000) / 10000));
 }
 
 /**
@@ -119,9 +122,11 @@ export function createSynCalcContext(bdSheet, synSheet) {
     const excelCol = synVehicleMassExcelCol(col);
     const cacheKey = `b:${row}:${excelCol}`;
     if (sumproductCache.has(cacheKey)) {
-      return parseFloat(sumproductCache.get(cacheKey)) || 0;
+      const cached = sumproductCache.get(cacheKey);
+      if (cached === SYN_SUMPRODUCT_REF) return SYN_SUMPRODUCT_REF;
+      return parseFloat(cached) || 0;
     }
-    const n = computeSumproduct(
+    const result = resolveSynSumproductValue(
       bdCols,
       row,
       excelCol,
@@ -130,9 +135,12 @@ export function createSynCalcContext(bdSheet, synSheet) {
       sumproductL2Index,
       getVehColFilterRows(excelCol)
     );
-    const rounded = Math.round(n * 10000) / 10000;
-    sumproductCache.set(cacheKey, String(rounded));
-    return rounded;
+    if (result === SYN_SUMPRODUCT_REF) {
+      sumproductCache.set(cacheKey, SYN_SUMPRODUCT_REF);
+      return SYN_SUMPRODUCT_REF;
+    }
+    sumproductCache.set(cacheKey, String(result));
+    return result;
   }
 
   let synSectionRows = buildSynSectionRowList(synSheet, getSynLabel, getSynRowClass);
@@ -145,7 +153,9 @@ export function createSynCalcContext(bdSheet, synSheet) {
     const excelCol = synVehicleMassExcelCol(col);
     const cacheKey = `g:${sectionRow}:${excelCol}`;
     if (sumproductCache.has(cacheKey)) {
-      return parseFloat(sumproductCache.get(cacheKey)) || 0;
+      const cached = sumproductCache.get(cacheKey);
+      if (cached === SYN_SUMPRODUCT_REF) return SYN_SUMPRODUCT_REF;
+      return parseFloat(cached) || 0;
     }
     const n = computeSynSectionSum(
       sectionRow,
@@ -159,6 +169,10 @@ export function createSynCalcContext(bdSheet, synSheet) {
           ? synSheet.lastRow
           : 422
     );
+    if (n === SYN_SUMPRODUCT_REF) {
+      sumproductCache.set(cacheKey, SYN_SUMPRODUCT_REF);
+      return SYN_SUMPRODUCT_REF;
+    }
     sumproductCache.set(cacheKey, String(n));
     return n;
   }

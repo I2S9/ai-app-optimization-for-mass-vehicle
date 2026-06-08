@@ -37,7 +37,12 @@ import {
   applySynRowsAcanPresetHeaderRows,
   applySynRowsApbbPresetCells,
   applySynRowsApbbPresetHeaderRows,
-} from './synStore.js?v=syn-apbb8';
+  applySynRowsBdboPresetCells,
+  applySynRowsBdboPresetHeaderRows,
+  applySynRowsBqPresetCells,
+  applySynRowsBqPresetHeaderRows,
+  applySynBodyEmptyBpBrCells,
+} from './synStore.js?v=grid-bpbr1';
 import { runInChunks, yieldToMain } from './yieldMain.js?v=3';
 import { filterSynDisplayColumns } from './synthesisPerf.js';
 import {
@@ -550,19 +555,26 @@ export async function transformSynthesisSheetAsync(sheet) {
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
   applySynRowsApbbPresetCells(cells);
+  applySynRowsBdboPresetCells(cells);
+  applySynRowsBqPresetCells(cells);
   sanitizeSynAdaptBandExcelCells(cells);
   sanitizeSynLiveMassCells(cells);
+  applySynBodyEmptyBpBrCells(cells);
   await yieldToMain();
-  const headerRows = applySynRowsApbbPresetHeaderRows(
-    applySynRowsAcanPresetHeaderRows(
-      applySynRowsMaaPresetHeaderRows(
-        Object.fromEntries(
-          Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
-            row,
+  const headerRows = applySynRowsBqPresetHeaderRows(
+    applySynRowsBdboPresetHeaderRows(
+      applySynRowsApbbPresetHeaderRows(
+        applySynRowsAcanPresetHeaderRows(
+          applySynRowsMaaPresetHeaderRows(
             Object.fromEntries(
-              Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
-            ),
-          ])
+              Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
+                row,
+                Object.fromEntries(
+                  Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
+                ),
+              ])
+            )
+          )
         )
       )
     )
@@ -630,18 +642,25 @@ export function transformSynthesisSheet(sheet) {
   applySynRowsMaaPresetCells(cells);
   applySynRowsAcanPresetCells(cells);
   applySynRowsApbbPresetCells(cells);
+  applySynRowsBdboPresetCells(cells);
+  applySynRowsBqPresetCells(cells);
   sanitizeSynAdaptBandExcelCells(cells);
   sanitizeSynLiveMassCells(cells);
-  const headerRows = applySynRowsApbbPresetHeaderRows(
-    applySynRowsAcanPresetHeaderRows(
-      applySynRowsMaaPresetHeaderRows(
-        Object.fromEntries(
-          Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
-            row,
+  applySynBodyEmptyBpBrCells(cells);
+  const headerRows = applySynRowsBqPresetHeaderRows(
+    applySynRowsBdboPresetHeaderRows(
+      applySynRowsApbbPresetHeaderRows(
+        applySynRowsAcanPresetHeaderRows(
+          applySynRowsMaaPresetHeaderRows(
             Object.fromEntries(
-              Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
-            ),
-          ])
+              Object.entries(sheet.headerRows || {}).map(([row, cols]) => [
+                row,
+                Object.fromEntries(
+                  Object.entries(cols).map(([col, cell]) => [col, { ...cell }])
+                ),
+              ])
+            )
+          )
         )
       )
     )

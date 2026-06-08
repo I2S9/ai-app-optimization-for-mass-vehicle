@@ -19,6 +19,8 @@ import {
   SYN_AP_BB_TABLE_DISPLAY_END,
   isSynHeaderPanelVehicleCol,
   isSynBuiltinPillarExcelCol,
+  isSynHdrSummaryTableCol,
+  SYN_HDR_PANEL_SUMMARY_TABLE_RANGES,
 } from './synthesisPerf.js';
 
 const BD_END_ROW = 3480;
@@ -186,34 +188,83 @@ export function synApbbExcelCols() {
   return out;
 }
 
-/** Excel column for cellMap lookups and BD filter axis (display AC → AH). */
+/** Excel column for cellMap lookups and BD filter axis (any summary table). */
 export function synVehicleMassExcelCol(col) {
   const d = synMassDisplayCol(col);
-  const n = colToNum(d);
-  if (
-    n >= colToNum(SYN_APBB_DISPLAY_START) &&
-    n <= colToNum(SYN_APBB_DISPLAY_END)
-  ) {
-    return displayToExcelCol(d);
-  }
-  if (
-    n >= colToNum(SYN_ACAN_DISPLAY_START) &&
-    n <= colToNum(SYN_ACAN_DISPLAY_END)
-  ) {
-    return displayToExcelCol(d);
-  }
-  if (
-    n >= colToNum(SYN_MAA_DISPLAY_START) &&
-    n <= colToNum(SYN_MAA_DISPLAY_END)
-  ) {
-    return displayToExcelCol(d);
-  }
-  return String(col);
+  const excel = displayToExcelCol(d);
+  if (isSynHdrSummaryTableCol(excel)) return excel;
+  const s = String(col);
+  if (isSynHdrSummaryTableCol(s)) return s;
+  return excel;
 }
 
-/** Live SOMMEPROD columns: display M…AA + AC…AN + AP…BB (Excel R…AF, AH…AS, AU…BG). */
+/** Live SOMMEPROD columns — every summary table (M…AA, AC…AN, AP…BB, BD…BO, …). */
 export function isSynVehicleMassCol(col) {
-  return isSynMaaMassCol(col) || isSynAcanMassCol(col) || isSynApbbMassCol(col);
+  return isSynHdrSummaryTableCol(synVehicleMassExcelCol(col));
+}
+
+/** Displayed when SOMMEPROD inputs are invalid (bad filter / missing label / no BD). */
+export const SYN_SUMPRODUCT_REF = '#REF!';
+
+/** True when a filter criterion cell cannot be evaluated (formula error, etc.). */
+export function isSynInvalidFilterCrit(raw) {
+  const c = String(raw != null ? raw : '').trim();
+  if (!c) return false;
+  if (c.startsWith('=')) return true;
+  if (/^IF\s*\(/i.test(c)) return true;
+  if (/#REF!|#NAME\?|#VALUE!|#N\/A|#NULL!|#NUM!|#DIV\/0!/i.test(c)) return true;
+  return false;
+}
+
+/** Any filter row (3–14) on this vehicle column has an invalid criterion. */
+export function synSumproductCriteriaInvalid(vehCol, getSynCell) {
+  if (!getSynCell) return true;
+  for (const [, filterRow] of SYN_FILTER_BD_ROWS) {
+    if (isSynInvalidFilterCrit(getSynCell(filterRow, vehCol))) return true;
+  }
+  return false;
+}
+
+/**
+ * Live SOMMEPROD for one blue cell — numeric result or {@link SYN_SUMPRODUCT_REF}.
+ */
+export function resolveSynSumproductValue(
+  bdCols,
+  synRow,
+  vehCol,
+  getSynCell,
+  getBdValue,
+  l2Index = null,
+  filterRows = null
+) {
+  if (!bdCols) return SYN_SUMPRODUCT_REF;
+  if (synSumproductCriteriaInvalid(vehCol, getSynCell)) return SYN_SUMPRODUCT_REF;
+  const labelKey = canonicalL2MatchKey(getSynCell(synRow, 'F'));
+  if (!labelKey) return SYN_SUMPRODUCT_REF;
+  const n = computeSumproduct(
+    bdCols,
+    synRow,
+    vehCol,
+    getSynCell,
+    getBdValue,
+    l2Index,
+    filterRows
+  );
+  return Math.round(n * 10000) / 10000;
+}
+
+/**
+ * True when a live mass cell (blue SOMMEPROD / green section sum) should keep showing
+ * the build-time materialized snapshot instead of recomputing from Database.
+ * Extended summary tables (BD…BO, BS…CE, …) only materialize after a full build —
+ * cells without `mat` must always use the live engine.
+ */
+export function isSynTrustMaterializedLiveCell(cell, sheet, liveBdEdited, isLiveCalc) {
+  const pack = Boolean(sheet && sheet.materializedCalc) && !liveBdEdited;
+  if (!isLiveCalc) {
+    return pack || Boolean(cell && cell.mat && !cell.userEdited);
+  }
+  return pack && Boolean(cell && cell.mat && !cell.userEdited);
 }
 
 /** Filter-row edit (rows 3–14) on a project vehicle column — invalidates that column's BD filter cache. */
@@ -644,7 +695,11 @@ export function computeSynSectionSum(
   let sum = 0;
   for (let r = sectionRow + 1; r < end; r++) {
     if (!isBlueRow(r)) continue;
-    sum += parseNum(getBlueValueAt(r, col));
+    const v = getBlueValueAt(r, col);
+    if (v === SYN_SUMPRODUCT_REF || String(v).includes('#REF!')) {
+      return SYN_SUMPRODUCT_REF;
+    }
+    sum += parseNum(v);
   }
   return Math.round(sum * 10000) / 10000;
 }
@@ -743,14 +798,14 @@ function isSynNumericRaw(raw) {
   return /^-?\d+([.,]\d+)?([eE][+-]?\d+)?$/.test(s);
 }
 
-/** Excel cols with live mass engine on row 26+ (M…AA, AC…AN, AP…BB, AB Δ). */
+/** Excel cols with live mass engine on row 26+ (all summary tables + AB Δ). */
 export function synLiveMassExcelCols() {
-  const set = new Set([
-    ...synMaaExcelCols(),
-    ...synAcanExcelCols(),
-    ...synApbbExcelCols(),
-    synAbDiffExcelCol(),
-  ]);
+  const set = new Set([synAbDiffExcelCol()]);
+  for (const { start, end } of SYN_HDR_PANEL_SUMMARY_TABLE_RANGES) {
+    for (let d = colToNum(start); d <= colToNum(end); d++) {
+      set.add(displayToExcelCol(numToCol(d)));
+    }
+  }
   return [...set];
 }
 
@@ -762,6 +817,7 @@ export function sanitizeSynLiveMassCells(cells = []) {
     if (Number(cell.r) < SYN_CALC_FIRST_ROW) continue;
     if (!cols.has(cell.c)) continue;
     if (cell.userEdited) continue;
+    if (cell.mat) continue;
     cells.splice(i, 1);
   }
   return cells;
