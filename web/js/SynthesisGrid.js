@@ -19,7 +19,7 @@ import {
   synAdaptationSumRow,
   computeAdaptationRowSum,
   isSynCalculatedMassCell,
-  isSynMassCalcCol,
+  isSynVehicleMassCol,
   isSynTrustMaterializedLiveCell,
 } from './synthesisCalc.js?v=grid-perf2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
@@ -102,14 +102,11 @@ import {
   SYN_DISPLAY_GREEN_BG,
   isSynDisplayRowGreyMaaCol,
   synDisplayRowGreyMaaStyle,
-  isSynDisplayRowGreenMaaCol,
+  isSynDisplayRowGreenSummaryCol,
   synDisplayRowGreenMaaStyle,
-  isSynDisplayRowGreenAcanCol,
-  synDisplayRowGreenAcanStyle,
-  isSynDisplayRowGreenApbbCol,
-  synDisplayRowGreenApbbStyle,
-  isSynApbbRow16SummaryCol,
   isSynDisplayRowBlueCol,
+  isSynRow16CurbTotalSummaryCol,
+  synGreenTotalExcelCols,
   synDisplayRowBlueStyle,
   isSynYellowFluoGreenFromMCol,
   synYellowFluoGreenFromMStyle,
@@ -176,6 +173,7 @@ import {
   isSynBqRow14Col,
   synBqRow14Style,
   isSynBqPortfolioXCell,
+  isSynBqTableRow,
   isSynBodyEmptyFromRow27Cell,
   SYN_GRID_FIRST_ROW,
   isSynNumericEntryCell,
@@ -185,7 +183,7 @@ import {
   isSynSp2RestartDisplayExcelCol,
   synLabel,
   getSynAdaptBandNumeric,
-} from './synStore.js?v=grid-bpbr1';
+} from './synStore.js?v=syn-form2';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -228,21 +226,8 @@ function isSynMirrorLfromMCell(row, col) {
   return col === SYN_MIRROR_DST_EXCEL_COL && Number(row) >= SYN_MIRROR_FIRST_ROW;
 }
 
-/** Excel columns that carry an automatic green total (display M…AA, AC…AN, AP/AU/AX/AY/BA). */
-const SYN_GREEN_TOTAL_EXCEL_COLS = (() => {
-  const out = [];
-  const addRange = (startDisp, endDisp) => {
-    for (let n = colToNum(startDisp); n <= colToNum(endDisp); n++) {
-      out.push(displayToExcelCol(numToCol(n)));
-    }
-  };
-  addRange('M', 'AA');
-  addRange('AC', 'AN');
-  for (const d of ['AP', 'AU', 'AX', 'AY', 'BA']) {
-    out.push(displayToExcelCol(d));
-  }
-  return out;
-})();
+/** Excel columns that carry an automatic green total (all summary tables). */
+const SYN_GREEN_TOTAL_EXCEL_COLS = synGreenTotalExcelCols();
 
 /**
  * Row-1 (column-letter header) collapse groups. Clicking the "−" button on the
@@ -1062,11 +1047,7 @@ export default {
     function isSynGreenSumCell(row, col) {
       if (row == null) return false;
       const displayRow = displayRowByExcel.value.get(row);
-      return (
-        isSynDisplayRowGreenMaaCol(displayRow, col) ||
-        isSynDisplayRowGreenAcanCol(displayRow, col) ||
-        isSynDisplayRowGreenApbbCol(displayRow, col)
-      );
+      return isSynDisplayRowGreenSummaryCol(displayRow, col);
     }
 
     /**
@@ -1130,6 +1111,8 @@ export default {
       let sum = 0;
       let any = false;
       for (const r of sources) {
+        const sourceDisplayRow = displayRowByExcel.value.get(r);
+        if (!isSynDisplayRowBlueCol(sourceDisplayRow, col)) continue;
         const raw = cellRawValue(r, col);
         if (raw == null || String(raw).trim() === '') continue;
         const n = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.'));
@@ -1147,19 +1130,8 @@ export default {
       return formatVal(String(n));
     }
 
-    /**
-     * Row 16 (CURB MASS) green-total columns — the summary-table columns that
-     * carry an automatic green total beneath them (display M…AA and AC…AN).
-     * Every green row has its green cells in those same columns, so a fixed
-     * reference green display row (26) is enough to test the column.
-     */
-    const SYN_ROW16_GREEN_REF_DR = 26;
     function isSynRow16CurbTotalCol(col) {
-      return (
-        isSynDisplayRowGreenMaaCol(SYN_ROW16_GREEN_REF_DR, col) ||
-        isSynDisplayRowGreenAcanCol(SYN_ROW16_GREEN_REF_DR, col) ||
-        isSynApbbRow16SummaryCol(col)
-      );
+      return isSynRow16CurbTotalSummaryCol(col);
     }
 
     /**
@@ -1212,9 +1184,7 @@ export default {
       if (row === SYN_CTRL_DIFF_MINUEND_ROW && isSynRow16CurbTotalCol(col)) {
         return computeSynRow16CurbTotalNumber(col);
       }
-      const cell = getCell(cellMap.value, row, col);
-      if (!cell) return null;
-      return synParseNumOrNull(cell.v);
+      return synParseNumOrNull(cellRawValue(row, col));
     }
 
     /** row16 − row18 for a column, or null when either side has no number. */
@@ -1238,7 +1208,7 @@ export default {
     /** True for Control cells that carry a live row16 − row18 difference. */
     function isSynControlDiffCell(row, col) {
       if (Number(row) !== SYN_CTRL_DIFF_ROW) return false;
-      if (!isSynMassCalcCol(col)) return false;
+      if (!isSynVehicleMassCol(col)) return false;
       return controlDiffNumber(col) != null;
     }
 
@@ -1268,7 +1238,7 @@ export default {
     /** True for Portfolio cells that carry a live row16 − row17 difference. */
     function isSynPortfolioDiffCell(row, col) {
       if (Number(row) !== SYN_PTF_DIFF_ROW) return false;
-      if (!isSynMassCalcCol(col)) return false;
+      if (!isSynVehicleMassCol(col)) return false;
       return portfolioDiffNumber(col) != null;
     }
 
@@ -1433,7 +1403,7 @@ export default {
       }
       // Row 20 (Control, Excel 19) = live row16 − row18 difference. Computed on
       // the fly (never cached) so it tracks any change to row 16 or row 18.
-      if (Number(row) === SYN_CTRL_DIFF_ROW && isSynMassCalcCol(col)) {
+      if (Number(row) === SYN_CTRL_DIFF_ROW && isSynVehicleMassCol(col)) {
         const ctrl = computeControlDiffDisplay(col);
         if (ctrl != null) return ctrl;
       }
@@ -1442,7 +1412,7 @@ export default {
       if (Number(row) === SYN_PTF_DIFF_ROW && isSynBqGutterExcelCol(col)) {
         return '';
       }
-      if (Number(row) === SYN_PTF_DIFF_ROW && isSynMassCalcCol(col)) {
+      if (Number(row) === SYN_PTF_DIFF_ROW && isSynVehicleMassCol(col)) {
         const ptf = computePortfolioDiffDisplay(col);
         if (ptf != null) return ptf;
       }
@@ -1865,12 +1835,8 @@ export default {
         const out = { ...base, ...cellInlineStyle(row, col) };
         if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreyMaaStyle());
-        } else if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
+        } else if (isSynDisplayRowGreenSummaryCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreenMaaStyle());
-        } else if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
-          Object.assign(out, synDisplayRowGreenAcanStyle());
-        } else if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
-          Object.assign(out, synDisplayRowGreenApbbStyle());
         } else if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowBlueStyle());
         }
@@ -1976,14 +1942,8 @@ export default {
       if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreyMaaStyle() };
       }
-      if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
+      if (isSynDisplayRowGreenSummaryCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenMaaStyle() };
-      }
-      if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
-        return { ...base, ...synDisplayRowGreenAcanStyle() };
-      }
-      if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
-        return { ...base, ...synDisplayRowGreenApbbStyle() };
       }
       if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowBlueStyle() };
@@ -2024,7 +1984,9 @@ export default {
         );
       }
       const bqGutterCol = synBqGutterColClass(col);
-      if (bqGutterCol) return withHdrPanelBold(row, col, bqGutterCol, display);
+      if (bqGutterCol && isSynBqTableRow(row)) {
+        return withHdrPanelBold(row, col, bqGutterCol, display);
+      }
       if (isSynForceWhiteExcelCol(col)) {
         return withHdrPanelBold(row, col, 'syn-force-white-col', display);
       }
@@ -2039,14 +2001,8 @@ export default {
       if (isSynDisplayRowGreyMaaCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-grey-maa', display);
       }
-      if (isSynDisplayRowGreenMaaCol(displayRow, col)) {
+      if (isSynDisplayRowGreenSummaryCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-green-maa', display);
-      }
-      if (isSynDisplayRowGreenAcanCol(displayRow, col)) {
-        return withHdrPanelBold(row, col, 'syn-displayrow-green-acan', display);
-      }
-      if (isSynDisplayRowGreenApbbCol(displayRow, col)) {
-        return withHdrPanelBold(row, col, 'syn-displayrow-green-apbb', display);
       }
       if (isSynDisplayRowBlueCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-blue', display);
@@ -2164,10 +2120,6 @@ export default {
         // (which only spares .syn-spacer-col-l / .syn-force-white-col) draws a black
         // line across L and AB between rows 19 and 20.
         if (isSynForceWhiteExcelCol(col)) gapParts.push('syn-force-white-col');
-        const gapBqCls = synBqGutterColClass(col);
-        if (gapBqCls) {
-          gapParts.push(gapBqCls, 'syn-hdr-edge-bq-left', 'syn-hdr-edge-bq-right');
-        }
         const gapSpacerCls = synSpacerColClass(col);
         if (gapSpacerCls) gapParts.push(gapSpacerCls);
         // Keep the bold M…AA frame edges continuous across the blank gap row so the
@@ -2972,6 +2924,7 @@ export default {
                     'grid-search-hit': isSearchHit(cell.row, cell.col),
                     'grid-search-focus': isSearchFocus(cell.row, cell.col),
                     'grid-axis-col-focus': isAxisCol(cell.col),
+                    'grid-axis-cell-active': isCellActive(cell.row, cell.col),
                   },
                 ]"
                 :style="cell.style"
@@ -3012,6 +2965,7 @@ export default {
                     'grid-search-hit': isSearchHit(cell.row, cell.col),
                     'grid-search-focus': isSearchFocus(cell.row, cell.col),
                     'grid-axis-col-focus': isAxisCol(cell.col),
+                    'grid-axis-cell-active': isCellActive(cell.row, cell.col),
                   },
                 ]"
                 :style="cell.style"
