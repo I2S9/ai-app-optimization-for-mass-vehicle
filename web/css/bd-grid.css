@@ -787,8 +787,8 @@
   border: 1px solid #b4b4b4 !important;
 }
 /* Header panel — default grey fill (accent / P1H / HEV cells keep their own colour) */
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-row16-fluo-every3):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-bq-row5):not(.syn-bq-row14),
-.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-row16-fluo-every3):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-bq-row5):not(.syn-bq-row14),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-row16-fluo-every3):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-fj-fz-row5):not(.syn-bq-row5):not(.syn-bq-row14),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.readonly:not(.syn-pillar-col):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-row-num):not(.syn-proj-hdr-green):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-row16-fluo-every3):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-fj-fz-row5):not(.syn-bq-row5):not(.syn-bq-row14),
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-header-block td.syn-row-num {
@@ -943,8 +943,8 @@
 }
 /* Bold vertical divider between display L and M (rows 3–22) — see end of file */
 /* Filter band (rows 3–14) — same panel, slightly deeper grey */
-.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-bq-row5):not(.syn-bq-row14),
-.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-bq-row5):not(.syn-bq-row14),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell:not(.syn-pillar-col):not([class*='syn-metric-']):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-fj-fz-row5):not(.syn-bq-row5):not(.syn-bq-row14),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.readonly:not(.syn-pillar-col):not(.syn-proj-hdr-green):not(.syn-val-avenger-like):not(.syn-val-p1x):not(.syn-hdr-val-p1h):not(.syn-hdr-val-hev):not(.syn-hdr-val-mhevp2):not(.syn-filter-col-grey):not(.syn-hdr-row-metric-bg):not(.syn-row16-bg):not(.syn-row18-bg):not(.syn-apbb-p3s-black):not(.syn-acan-o3w-orange):not(.syn-bd-bo-row5):not(.syn-bs-ce-row5):not(.syn-ci-cy-row5):not(.syn-da-dp-row5):not(.syn-dr-ed-row5):not(.syn-ef-eq-row5):not(.syn-fj-fz-row5):not(.syn-bq-row5):not(.syn-bq-row14),
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-label-col,
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.col-sticky-label,
 .synthesis-grid .bd-table tbody tr.syn-filter-band td.syn-row-num {
@@ -3854,6 +3854,21 @@
   background: #cad40a !important;
   background-color: #cad40a !important;
   color: #000 !important;
+}
+
+/* Row 5 — FJ…FZ silhouette band (black fill, white text) */
+.synthesis-grid .bd-table tbody td.data-cell.syn-fj-fz-row5,
+.synthesis-grid .bd-table tbody td.data-cell.syn-fj-fz-row5 input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-fj-fz-row5 span,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-fj-fz-row5:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-fj-fz-row5:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-fj-fz-row5:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-fj-fz-row5:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-fj-fz-row5:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-fj-fz-row5:not(.syn-pillar-col) span {
+  background: #000 !important;
+  background-color: #000 !important;
+  color: #fff !important;
 }
 
 /* Row 5 — AC…AN O3W silhouette band (orange #FFC000) */

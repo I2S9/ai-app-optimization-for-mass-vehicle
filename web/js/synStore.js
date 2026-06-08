@@ -99,6 +99,7 @@ export const SYN_FORCE_WHITE_DISPLAY_COLS = [
   'EE',
   'ER',
   'FF',
+  'GA', // white gutter between FJ…FZ and GB…GE (display lignes 3–23)
   'GF',
   'FH',
   'FI',
@@ -381,6 +382,7 @@ export function applySynForceWhiteEmptyCells(cells = []) {
   for (let i = cells.length - 1; i >= 0; i--) {
     const cell = cells[i];
     if (!isSynForceWhiteExcelCol(cell.c) || cell.userEdited) continue;
+    if (isSynRow16FhFiPresetCell(cell.r, cell.c)) continue;
     cells.splice(i, 1);
   }
   return cells;
@@ -1839,6 +1841,104 @@ export function applySynRowsEfeqPresetHeaderRows(headerRows = {}) {
   return headerRows;
 }
 
+/** Row 16 — display FH/FI curb-mass presets (white gutters otherwise forced blank). */
+export const SYN_ROW16_FH_FI_PRESET_DISPLAY_COLS = new Set(['FH', 'FI']);
+
+const SYN_ROW16_FH_FI_PRESETS = new Map([
+  [
+    16,
+    new Map([
+      ['FH', 2014],
+      ['FI', 7],
+    ]),
+  ],
+]);
+
+function isSynRow16FhFiPresetExcelCol(col) {
+  return SYN_ROW16_FH_FI_PRESET_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+export function isSynRow16FhFiPresetCell(row, col) {
+  return Number(row) === 16 && isSynRow16FhFiPresetExcelCol(col);
+}
+
+export function synRowFhFiPresetRaw(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return undefined;
+  const rowMap = SYN_ROW16_FH_FI_PRESETS.get(r);
+  if (!rowMap || !isSynRow16FhFiPresetExcelCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!rowMap.has(d)) return undefined;
+  const v = rowMap.get(d);
+  if (v === undefined) return undefined;
+  return v;
+}
+
+function formatSynRow16FhFiPresetDisplay(row, col, raw) {
+  const display = excelToDisplayCol(col);
+  if (display === 'FH') {
+    return formatSynNumericDisplay(String(raw));
+  }
+  return formatSynHdrMaaMetricDisplay(row, String(raw), col);
+}
+
+/** Row 16 — seed FH/FI presets after white-gutter stripping. */
+export function applySynRow16FhFiPresetCells(cells = []) {
+  const index = synPresetCellIndex(cells);
+  for (const [row, rowMap] of SYN_ROW16_FH_FI_PRESETS) {
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const key = `${row}:${col}`;
+      let cell = index.get(key);
+      if (cell && cell.userEdited) continue;
+      if (value == null) {
+        if (cell) {
+          cell.v = '';
+          delete cell.f;
+          delete cell.bg;
+        } else {
+          cell = { r: row, c: col, v: '' };
+          cells.push(cell);
+          index.set(key, cell);
+        }
+        continue;
+      }
+      if (!cell) {
+        cell = { r: row, c: col, v: String(value) };
+        cells.push(cell);
+        index.set(key, cell);
+      } else {
+        cell.v = String(value);
+        delete cell.f;
+        delete cell.bg;
+      }
+    }
+  }
+  return cells;
+}
+
+/** Row 16 — seed headerRows with FH/FI presets (keeps userEdited). */
+export function applySynRow16FhFiPresetHeaderRows(headerRows = {}) {
+  for (const [row, rowMap] of SYN_ROW16_FH_FI_PRESETS) {
+    const rowKey = String(row);
+    if (!headerRows[rowKey]) headerRows[rowKey] = {};
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const existing = headerRows[rowKey][col];
+      if (existing && existing.userEdited) continue;
+      headerRows[rowKey][col] = {
+        ...(existing || {}),
+        v: value == null ? '' : String(value),
+        f: undefined,
+      };
+      if (headerRows[rowKey][col].f === undefined) {
+        delete headerRows[rowKey][col].f;
+      }
+    }
+  }
+  return headerRows;
+}
+
 const SYN_MAA_ROW_135_PATTERN = [
   0, 0, 13.5, 0, 0, 13.5, 0, 13.5, 13.5, 0, 0, 13.5, 0, 0, 13.5,
 ];
@@ -2584,6 +2684,20 @@ export function synEfEqRow5Style() {
   };
 }
 
+/** Row 5 — FJ…FZ silhouette band (black fill, white text). */
+export function isSynFjFzRow5Col(row, col) {
+  if (Number(row) !== 5) return false;
+  return isSynFjFzTableCol(col);
+}
+
+export function synFjFzRow5Style() {
+  return {
+    background: '#000000',
+    backgroundColor: '#000000',
+    color: '#ffffff',
+  };
+}
+
 /** Row 5 — all summary tables from display M. */
 export function isSynProjHeaderYellowCol(row, col) {
   const r = Number(row);
@@ -2597,6 +2711,7 @@ export function isSynProjHeaderYellowCol(row, col) {
   if (r === 5 && isSynDaDpTableCol(col)) return false;
   if (r === 5 && isSynDrEdTableCol(col)) return false;
   if (r === 5 && isSynEfEqTableCol(col)) return false;
+  if (r === 5 && isSynFjFzTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -3013,7 +3128,7 @@ export function isSynRow16BgCol(row, col) {
   if (Number(row) !== 16) return false;
   if (col === SYN_LABEL_COL) return false;
   if (isSynSpacerDisplayExcelCol(col)) return false;
-  if (isSynForceWhiteExcelCol(col)) return false;
+  if (isSynForceWhiteExcelCol(col) && !isSynRow16FhFiPresetCell(row, col)) return false;
   return !isSynRow16FluoCol(row, col);
 }
 
@@ -4458,6 +4573,26 @@ export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
 }
 
 function synDisplayValueImpl(cell, map, row, col, sheet, pillarColumns) {
+  if (isSynRow16FhFiPresetCell(row, col)) {
+    if (cell && cell.userEdited) {
+      const rawEdited = displayValue(cell);
+      if (isSynNumericRaw(rawEdited)) {
+        return synTranslateText(formatSynRow16FhFiPresetDisplay(row, col, rawEdited), col);
+      }
+      return synTranslateText(rawEdited, col);
+    }
+    const fhFiPreset = synRowFhFiPresetRaw(row, col);
+    if (fhFiPreset !== undefined) {
+      if (fhFiPreset == null || fhFiPreset === '') return '';
+      if (typeof fhFiPreset === 'number' || isSynNumericRaw(String(fhFiPreset))) {
+        return synTranslateText(
+          formatSynRow16FhFiPresetDisplay(row, col, String(fhFiPreset)),
+          col
+        );
+      }
+      return synTranslateText(String(fhFiPreset), col);
+    }
+  }
   if (isSynForceWhiteExcelCol(col)) return '';
   if (isSynBodyEmptyFromRow27Cell(row, col)) return '';
   if (

@@ -104,6 +104,7 @@ import {
   isSynRow16EfEqFluoCol,
   isSynEfEqTableCol,
   synRowEfeqPresetRaw,
+  isSynRow16FhFiPresetCell,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbP3sBlackCol,
@@ -122,6 +123,8 @@ import {
   synDrEdRow5Style,
   isSynEfEqRow5Col,
   synEfEqRow5Style,
+  isSynFjFzRow5Col,
+  synFjFzRow5Style,
   isSynRow17FluoEvery3FromMCol,
   synRow16FluoStyle,
   SYN_DISPLAY_GREEN_ROWS,
@@ -1380,7 +1383,7 @@ export default {
     function cellReadonly(row, col) {
       if (row == null) return true;
       if (isUserGapCol(col)) return true;
-      if (isSynForceWhiteExcelCol(col)) return true;
+      if (isSynForceWhiteExcelCol(col) && !isSynRow16FhFiPresetCell(row, col)) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
       if (isSynMirrorLfromMCell(row, col)) return true;
       if (isSynBodyEmptyFromRow27Cell(row, col)) return true;
@@ -1388,6 +1391,7 @@ export default {
       if (isSynGreenSumCell(row, col)) return true;
       // Row 16 (CURB MASS) holds an automatic Σ of the column's green totals.
       if (Number(row) === 16 && isSynRow16CurbTotalCol(col)) return true;
+      if (isSynRow16FhFiPresetCell(row, col)) return true;
       // Row 20 (Control) is the live row16 − row18 difference.
       if (isSynControlDiffCell(row, col)) return true;
       // Row 21 (Portfolio) is the live row16 − row17 difference.
@@ -2105,6 +2109,9 @@ export default {
       if (isSynEfEqRow5Col(row, col)) {
         return { ...base, ...synEfEqRow5Style() };
       }
+      if (isSynFjFzRow5Col(row, col)) {
+        return { ...base, ...synFjFzRow5Style() };
+      }
       if (isSynBqRow5Col(row, col)) {
         return { ...base, ...synBqRow5Style() };
       }
@@ -2209,7 +2216,7 @@ export default {
       if (bqGutterCol && isSynBqTableRow(row)) {
         return withHdrPanelBold(row, col, bqGutterCol, display);
       }
-      if (isSynForceWhiteExcelCol(col)) {
+      if (isSynForceWhiteExcelCol(col) && !isSynRow16FhFiPresetCell(row, col)) {
         return withHdrPanelBold(row, col, 'syn-force-white-col', display);
       }
       const spacerCol = synSpacerColClass(col);
@@ -2275,6 +2282,9 @@ export default {
       }
       if (isSynEfEqRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-ef-eq-row5', display);
+      }
+      if (isSynFjFzRow5Col(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-fj-fz-row5', display);
       }
       if (isSynBqRow5Col(row, col)) {
         return withHdrPanelBold(row, col, 'syn-bq-row5', display);
@@ -2385,7 +2395,7 @@ export default {
       }
       const row = entry.excelRow;
       // White gutters (EE, ER, FF, GF, …) — blank, no table colour or bold frame edges.
-      if (isSynForceWhiteExcelCol(col)) {
+      if (isSynForceWhiteExcelCol(col) && !isSynRow16FhFiPresetCell(row, col)) {
         const whiteParts = [
           withHdrPanelBold(row, col, 'syn-force-white-col', display),
           synExcelColTraceClass(col),
