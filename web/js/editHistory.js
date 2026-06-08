@@ -12,6 +12,10 @@ export function createEditHistory({ maxSteps = 200, maxMatrixSteps = 30 } = {}) 
   const redoStack = [];
   let revision = 0;
 
+  function cloneGapList(list) {
+    return Array.isArray(list) ? list.map((g) => ({ ...g })) : [];
+  }
+
   function push(entry) {
     if (entry && entry.type === 'matrix') {
       if (!entry.bdBefore || !entry.bdAfter) return;
@@ -27,6 +31,20 @@ export function createEditHistory({ maxSteps = 200, maxMatrixSteps = 30 } = {}) 
         const firstMatrix = undoStack.findIndex((e) => e.type === 'matrix');
         if (firstMatrix >= 0) undoStack.splice(firstMatrix, 1);
       }
+    } else if (entry && entry.type === 'userGaps') {
+      if (!entry.sheet || !entry.before || !entry.after) return;
+      undoStack.push({
+        type: 'userGaps',
+        sheet: entry.sheet,
+        before: {
+          rowGaps: cloneGapList(entry.before.rowGaps),
+          colGaps: cloneGapList(entry.before.colGaps),
+        },
+        after: {
+          rowGaps: cloneGapList(entry.after.rowGaps),
+          colGaps: cloneGapList(entry.after.colGaps),
+        },
+      });
     } else {
       const oldValue = String(entry && entry.oldValue != null ? entry.oldValue : '');
       const newValue = String(entry && entry.newValue != null ? entry.newValue : '');

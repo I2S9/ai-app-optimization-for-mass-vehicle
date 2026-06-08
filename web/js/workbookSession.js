@@ -47,7 +47,8 @@ import {
   synRowApbbPresetRaw,
   synRowBdboPresetRaw,
   isSynBodyEmptyFromRow27Cell,
-} from './synStore.js?v=grid-bpbr1';
+  synFilterStaleProjectDisplay,
+} from './synStore.js?v=syn-form4';
 import { isSynProjHeaderGreenExcelCol } from './synthesisPerf.js';
 
 export function createWorkbookSession() {
@@ -700,10 +701,31 @@ export function createWorkbookSession() {
         synLabel,
         rowClass
       );
-      if (!isLiveMass) return displayValue(cell);
+      if (!isLiveMass) {
+        return synFilterStaleProjectDisplay(
+          displayValue(cell),
+          cell,
+          row,
+          col,
+          synSheetMeta,
+          null,
+          getSynLabel(row),
+          getSynRowClass(row)
+        );
+      }
     }
     if (cell && cell.userEdited && !isSynAdaptationSumCell(row, col, synSheetMeta)) {
-      return displayValue(cell);
+      const edited = displayValue(cell);
+      return synFilterStaleProjectDisplay(
+        edited,
+        cell,
+        row,
+        col,
+        synSheetMeta,
+        null,
+        getSynLabel(row),
+        getSynRowClass(row)
+      );
     }
     if (
       sheetName === 'SYNTHESIS' &&
@@ -795,7 +817,18 @@ export function createWorkbookSession() {
       const computed = engine.getCellValue(sheetName, row, col);
       if (computed !== '' && computed !== '#REF!') return computed;
     }
-    return displayValue(cell);
+    const raw = displayValue(cell);
+    if (sheetName !== 'SYNTHESIS') return raw;
+    return synFilterStaleProjectDisplay(
+      raw,
+      cell,
+      row,
+      col,
+      synSheetMeta,
+      null,
+      getSynLabel(row),
+      getSynRowClass(row)
+    );
   }
 
   function isFormulaCell(sheetName, row, col, cell) {

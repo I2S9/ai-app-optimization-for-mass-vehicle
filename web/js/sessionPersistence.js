@@ -53,7 +53,7 @@ const PERSIST_VERSION = 3;
 
 /** Cells the user changed — small enough for localStorage + IndexedDB. */
 export function extractSheetEdits(raw) {
-  if (!raw) return { cells: [], headerRows: {}, deletedRows: [] };
+  if (!raw) return { cells: [], headerRows: {}, deletedRows: [], userRowGaps: [], userColGaps: [] };
   const cells = (raw.cells || [])
     .filter((c) => c.userEdited)
     .map((c) => ({
@@ -77,7 +77,19 @@ export function extractSheetEdits(raw) {
   const deletedRows = Array.isArray(raw.deletedRows)
     ? [...new Set(raw.deletedRows.map(Number).filter(Number.isFinite))]
     : [];
-  return { cells, headerRows, deletedRows };
+  const userRowGaps = Array.isArray(raw.userRowGaps)
+    ? raw.userRowGaps.map((g) => ({
+        id: String(g.id || ''),
+        afterExcelRow: Number(g.afterExcelRow),
+      })).filter((g) => g.id && Number.isFinite(g.afterExcelRow))
+    : [];
+  const userColGaps = Array.isArray(raw.userColGaps)
+    ? raw.userColGaps.map((g) => ({
+        id: String(g.id || ''),
+        afterCol: String(g.afterCol || ''),
+      })).filter((g) => g.id && g.afterCol)
+    : [];
+  return { cells, headerRows, deletedRows, userRowGaps, userColGaps };
 }
 
 /**
@@ -130,6 +142,18 @@ export function syncGridEditsToRaw(gridSheet, raw) {
     }
     raw.deletedRows = [...set];
   }
+  if (Array.isArray(gridSheet.userRowGaps)) {
+    raw.userRowGaps = gridSheet.userRowGaps.map((g) => ({
+      id: String(g.id || ''),
+      afterExcelRow: Number(g.afterExcelRow),
+    })).filter((g) => g.id && Number.isFinite(g.afterExcelRow));
+  }
+  if (Array.isArray(gridSheet.userColGaps)) {
+    raw.userColGaps = gridSheet.userColGaps.map((g) => ({
+      id: String(g.id || ''),
+      afterCol: String(g.afterCol || ''),
+    })).filter((g) => g.id && g.afterCol);
+  }
 }
 
 export function applySheetEdits(raw, edits) {
@@ -153,6 +177,18 @@ export function applySheetEdits(raw, edits) {
     }
     raw.deletedRows = [...set];
   }
+  if (Array.isArray(edits.userRowGaps)) {
+    raw.userRowGaps = edits.userRowGaps.map((g) => ({
+      id: String(g.id || ''),
+      afterExcelRow: Number(g.afterExcelRow),
+    })).filter((g) => g.id && Number.isFinite(g.afterExcelRow));
+  }
+  if (Array.isArray(edits.userColGaps)) {
+    raw.userColGaps = edits.userColGaps.map((g) => ({
+      id: String(g.id || ''),
+      afterCol: String(g.afterCol || ''),
+    })).filter((g) => g.id && g.afterCol);
+  }
 }
 
 /**
@@ -170,11 +206,15 @@ export function buildPersistRecord({
   const hasBdEdits =
     bdEdits.cells.length ||
     Object.keys(bdEdits.headerRows).length ||
-    bdEdits.deletedRows.length;
+    bdEdits.deletedRows.length ||
+    bdEdits.userRowGaps.length ||
+    bdEdits.userColGaps.length;
   const hasSynEdits =
     synEdits.cells.length ||
     Object.keys(synEdits.headerRows).length ||
-    synEdits.deletedRows.length;
+    synEdits.deletedRows.length ||
+    synEdits.userRowGaps.length ||
+    synEdits.userColGaps.length;
 
   if (!hasStructure && !hasBdEdits && !hasSynEdits) return null;
 
@@ -500,7 +540,13 @@ export function rawFingerprint(raw) {
     ? [...raw.deletedRows].map(Number).filter(Number.isFinite).sort((a, b) => a - b)
     : [];
   const delKey = delRows.length ? delRows.join(',') : '';
-  return `${TRANSFORM_VERSION}:${cells}:${cols}:${lastRow}:${edited}:${editHash.toString(36)}:del${delKey}`;
+  const uRowGaps = Array.isArray(raw.userRowGaps)
+    ? raw.userRowGaps.map((g) => `${g.afterExcelRow}:${g.id}`).sort().join('|')
+    : '';
+  const uColGaps = Array.isArray(raw.userColGaps)
+    ? raw.userColGaps.map((g) => `${g.afterCol}:${g.id}`).sort().join('|')
+    : '';
+  return `${TRANSFORM_VERSION}:${cells}:${cols}:${lastRow}:${edited}:${editHash.toString(36)}:del${delKey}:urg${uRowGaps}:ucg${uColGaps}`;
 }
 
 export function serializeTransformSheet(sheet) {

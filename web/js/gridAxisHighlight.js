@@ -3,7 +3,7 @@
  */
 import { ref } from 'vue';
 
-export function createGridAxisHighlight() {
+export function createGridAxisHighlight(getClipboard = () => null) {
   const axisRow = ref(null);
   const axisCol = ref(null);
 
@@ -34,6 +34,26 @@ export function createGridAxisHighlight() {
     return axisCol.value != null && axisCol.value === col;
   }
 
+  function clip() {
+    const c = getClipboard();
+    return c && typeof c === 'object' ? c : null;
+  }
+
+  function isCopiedRow(row) {
+    const c = clip();
+    return (
+      c &&
+      c.type === 'row' &&
+      c.row != null &&
+      Number(c.row) === Number(row)
+    );
+  }
+
+  function isCopiedCol(col) {
+    const c = clip();
+    return c && c.type === 'col' && c.col != null && c.col === col;
+  }
+
   return {
     axisRow,
     axisCol,
@@ -42,5 +62,7 @@ export function createGridAxisHighlight() {
     onColHeaderClick,
     isAxisRow,
     isAxisCol,
+    isCopiedRow,
+    isCopiedCol,
   };
 }

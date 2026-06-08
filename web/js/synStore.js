@@ -109,18 +109,75 @@ export function synForceWhiteColClass(col) {
   return isSynForceWhiteExcelCol(col) ? 'syn-force-white-col' : '';
 }
 
-/** Body band — display BP & BR empty from display ligne 27 (Excel 26) through last row. */
-export const SYN_BODY_EMPTY_FROM_ROW = 26;
-export const SYN_BODY_EMPTY_DISPLAY_COLS = new Set(['BP', 'BR']);
+/**
+ * White-gutter columns forced blank from a display ligne (inclusive) through last row.
+ * Keys = display column letters; values = first Excel row that must stay empty.
+ * Display ligne 27 → Excel 26; display ligne 26 → Excel 25.
+ */
+export const SYN_BODY_EMPTY_COL_FROM_EXCEL_ROW = {
+  BP: 26,
+  BR: 26,
+  AO: 26,
+  BC: 25,
+};
 
-export function isSynBodyEmptyDisplayExcelCol(col) {
-  return SYN_BODY_EMPTY_DISPLAY_COLS.has(excelToDisplayCol(col));
+/** @deprecated Use SYN_BODY_EMPTY_COL_FROM_EXCEL_ROW */
+export const SYN_BODY_EMPTY_FROM_ROW = 26;
+/** @deprecated Use SYN_BODY_EMPTY_COL_FROM_EXCEL_ROW */
+export const SYN_BODY_EMPTY_DISPLAY_COLS = new Set(Object.keys(SYN_BODY_EMPTY_COL_FROM_EXCEL_ROW));
+
+export function synBodyEmptyFirstExcelRow(col) {
+  const from = SYN_BODY_EMPTY_COL_FROM_EXCEL_ROW[excelToDisplayCol(col)];
+  return from != null ? from : null;
 }
 
-/** Excel row ≥ 26 (grid ligne 27+) — BP / BR must stay blank (white gutter). */
+export function isSynBodyEmptyDisplayExcelCol(col) {
+  return synBodyEmptyFirstExcelRow(col) != null;
+}
+
+/** Forced-blank white gutter (BP/BR/AO from ligne 27+, BC from ligne 26+). */
 export function isSynBodyEmptyFromRow27Cell(row, col) {
-  if (Number(row) < SYN_BODY_EMPTY_FROM_ROW) return false;
-  return isSynBodyEmptyDisplayExcelCol(col);
+  const from = synBodyEmptyFirstExcelRow(col);
+  if (from == null) return false;
+  return Number(row) >= from;
+}
+
+/** Stale Excel export text that must not appear without a live formula. */
+export function isSynStaleProjectExportText(raw) {
+  const s = String(raw != null ? raw : '').trim().toUpperCase();
+  return s === 'PROJECT' || s === 'PROJET';
+}
+
+/**
+ * Hide literal "Project"/"Projet" export leftovers when no SOMMEPROD / section-sum
+ * formula applies (label column F is never blanked).
+ */
+export function synFilterStaleProjectDisplay(
+  text,
+  cell,
+  row,
+  col,
+  sheet,
+  map,
+  labelOverride = null,
+  rowClassOverride = null
+) {
+  if (col === SYN_LABEL_COL) return text;
+  if (text == null || text === '') return text;
+  if (isSynNumericRaw(text)) return text;
+  if (!isSynStaleProjectExportText(text)) return text;
+  if (cell && cell.userEdited) return text;
+  if (cell && cell.f && /SUMPRODUCT/i.test(cell.f)) return text;
+  const label =
+    labelOverride != null ? labelOverride : map ? synLabel(map, row) : '';
+  const rowClass =
+    rowClassOverride != null
+      ? rowClassOverride
+      : map
+        ? synRowStyleClass(map, row, sheet)
+        : '';
+  if (isSynCalculatedMassCell(cell, row, col, sheet, label, rowClass)) return text;
+  return '';
 }
 
 /** Display BQ — white gutter between BD…BO and BP with bold black frame (display lignes 3–23). */
@@ -291,12 +348,12 @@ export function applySynRowsBqPresetHeaderRows(headerRows = {}) {
   return headerRows;
 }
 
-/** Strip export values on BP / BR from display ligne 27 (Excel 26) onward. */
+/** Strip export values on forced-blank gutter cols (BP/BR/AO/BC, …). */
 export function applySynBodyEmptyBpBrCells(cells = [], lastRow = 422) {
   const dropKeys = new Set();
-  for (const display of SYN_BODY_EMPTY_DISPLAY_COLS) {
+  for (const [display, fromRow] of Object.entries(SYN_BODY_EMPTY_COL_FROM_EXCEL_ROW)) {
     const col = displayToExcelCol(display);
-    for (let row = SYN_BODY_EMPTY_FROM_ROW; row <= lastRow; row++) {
+    for (let row = fromRow; row <= lastRow; row++) {
       dropKeys.add(`${row}:${col}`);
     }
   }
@@ -3917,6 +3974,17 @@ export function isSynNumericEntryCell(row, col, pillarColumns) {
 }
 
 export function synDisplayValue(cell, map, row, col, sheet, pillarColumns) {
+  return synFilterStaleProjectDisplay(
+    synDisplayValueImpl(cell, map, row, col, sheet, pillarColumns),
+    cell,
+    row,
+    col,
+    sheet,
+    map
+  );
+}
+
+function synDisplayValueImpl(cell, map, row, col, sheet, pillarColumns) {
   if (isSynBodyEmptyFromRow27Cell(row, col)) return '';
   if (
     isSynPillarColAtRow(col, row, pillarColumns) ||

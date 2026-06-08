@@ -10,15 +10,23 @@ import {
   nextTick,
   provide,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=bd-fold2';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-form3';
-import { createEditHistory } from './editHistory.js?v=undo2';
+import BdGrid from './BdGrid.js?v=bd-axis2';
+import { computeBodyDisplayRows } from './bdStore.js';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-axis2';
+import { createEditHistory } from './editHistory.js?v=undo3';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MnsGrid from './MnsGrid.js?v=mns21-realtime';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
+import {
+  collectRowCells,
+  collectColCells,
+  pasteRowCells,
+  pasteColCells,
+} from './sheetRowColOps.js?v=axis2';
+import { addUserRowGap, addUserColGap, isUserGapCol, cloneUserGapsSnapshot, clearUserGaps } from './gridUserGaps.js?v=ugap2';
 import { synGridLooksHealthy } from './synStore.js?v=syn-nuke1';
 import { createWorkbookSession } from './workbookSession.js?v=realtime-sync1';
 import { startSynthesisRealtime } from './synthesisRealtime.js?v=realtime1';
@@ -232,11 +240,26 @@ const App = {
       }
     );
 
-    function syncDeletedRowsOntoSheet(raw, sheet) {
-      if (!sheet || !raw || !Array.isArray(raw.deletedRows) || !raw.deletedRows.length) {
-        return;
+    function syncRawMetaOntoSheet(raw, sheet) {
+      if (!sheet || !raw) return;
+      if (Array.isArray(raw.deletedRows) && raw.deletedRows.length) {
+        sheet.deletedRows = [...raw.deletedRows];
       }
-      sheet.deletedRows = [...raw.deletedRows];
+      sheet.userRowGaps = Array.isArray(raw.userRowGaps)
+        ? raw.userRowGaps.map((g) => ({ ...g }))
+        : [];
+      sheet.userColGaps = Array.isArray(raw.userColGaps)
+        ? raw.userColGaps.map((g) => ({ ...g }))
+        : [];
+    }
+
+    function healSynUserGaps() {
+      if (synRaw.value) clearUserGaps(synRaw.value);
+      if (synthesisSheet.value) clearUserGaps(synthesisSheet.value);
+    }
+
+    function syncDeletedRowsOntoSheet(raw, sheet) {
+      syncRawMetaOntoSheet(raw, sheet);
     }
 
     async function applyBdFromRaw(force = false) {
@@ -255,6 +278,7 @@ const App = {
       }
       if (!force && bdSheet.value && bdSheetBuiltAt === bdSheetRevision.value) {
         syncDeletedRowsOntoSheet(bdRaw.value, bdSheet.value);
+        bdSheet.value.bodyDisplayRows = computeBodyDisplayRows(bdSheet.value);
         return;
       }
       const resolved = await resolveGridSheet('bd', bdRaw.value, { force });
@@ -262,6 +286,7 @@ const App = {
         await yieldToMain();
         bdSheet.value = resolved;
         syncDeletedRowsOntoSheet(bdRaw.value, bdSheet.value);
+        bdSheet.value.bodyDisplayRows = computeBodyDisplayRows(bdSheet.value);
         bdSheetBuiltAt = bdSheetRevision.value;
         return;
       }
@@ -270,6 +295,7 @@ const App = {
       await yieldToMain();
       bdSheet.value = transformed;
       syncDeletedRowsOntoSheet(bdRaw.value, bdSheet.value);
+      bdSheet.value.bodyDisplayRows = computeBodyDisplayRows(bdSheet.value);
       bdSheetBuiltAt = bdSheetRevision.value;
       const fp = rawFingerprint(bdRaw.value);
       const pre = await fetchPrecomputedPack('bd');
@@ -334,6 +360,7 @@ const App = {
         return;
       }
       if (!force && synthesisSheet.value && synSheetBuiltAt === synSheetRevision.value) {
+        healSynUserGaps();
         syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
         return;
       }
@@ -342,6 +369,7 @@ const App = {
         await yieldToMain();
         await seedSynMaterializedFromPack(resolved);
         synthesisSheet.value = resolved;
+        healSynUserGaps();
         syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
         synSheetBuiltAt = synSheetRevision.value;
         return;
@@ -351,6 +379,7 @@ const App = {
       await yieldToMain();
       await seedSynMaterializedFromPack(transformed);
       synthesisSheet.value = transformed;
+      healSynUserGaps();
       syncDeletedRowsOntoSheet(synRaw.value, synthesisSheet.value);
       synSheetBuiltAt = synSheetRevision.value;
       const fp = rawFingerprint(synRaw.value);
@@ -632,6 +661,7 @@ const App = {
             }
           },
         });
+        clearUserGaps(synRaw.value);
         preservedSynRaw = synRaw.value;
       } finally {
         dataLoadProgress.value = null;
@@ -1042,6 +1072,219 @@ const App = {
       }
     }
 
+    function syncSheetCellPayload(gridSheet, row, col, payload) {
+      if (!gridSheet) return;
+      const map = gridSheet.cellMap instanceof Map ? gridSheet.cellMap : null;
+      if (!map) return;
+      const key = `${row}:${col}`;
+      const hasContent = Boolean(payload && (payload.v != null || payload.f));
+      let cell = map.get(key);
+      if (!hasContent) {
+        if (cell) {
+          map.delete(key);
+          gridSheet.cells = gridSheet.cells.filter((c) => c !== cell);
+        }
+        return;
+      }
+      if (!cell) {
+        cell = { r: row, c: col };
+        gridSheet.cells.push(cell);
+        map.set(key, cell);
+      }
+      if (payload.v != null) cell.v = String(payload.v);
+      else delete cell.v;
+      if (payload.f) cell.f = String(payload.f);
+      else delete cell.f;
+      cell.userEdited = true;
+    }
+
+    function clearGridRowCells(gridSheet, row) {
+      if (!gridSheet || !(gridSheet.cellMap instanceof Map)) return;
+      const map = gridSheet.cellMap;
+      const r = Number(row);
+      const remove = [];
+      for (const [key, cell] of map.entries()) {
+        if (Number(cell.r) === r) remove.push(key);
+      }
+      for (const key of remove) {
+        const cell = map.get(key);
+        map.delete(key);
+        gridSheet.cells = gridSheet.cells.filter((c) => c !== cell);
+      }
+    }
+
+    function clearGridColCells(gridSheet, col) {
+      if (!gridSheet || !(gridSheet.cellMap instanceof Map)) return;
+      const map = gridSheet.cellMap;
+      const c = String(col);
+      const remove = [];
+      for (const [key, cell] of map.entries()) {
+        if (cell.c === c) remove.push(key);
+      }
+      for (const key of remove) {
+        const cell = map.get(key);
+        map.delete(key);
+        gridSheet.cells = gridSheet.cells.filter((x) => x !== cell);
+      }
+    }
+
+    const axisSelection = ref({ sheet: null, row: null, col: null });
+    const axisClipboard = ref(null);
+
+    function sheetRawAndGrid(sheetName) {
+      if (sheetName === 'SYNTHESIS') {
+        return { raw: synRaw.value, grid: synthesisSheet.value, engine: 'SYNTHESIS' };
+      }
+      if (sheetName === 'BD') {
+        return { raw: bdRaw.value, grid: bdSheet.value, engine: 'BD' };
+      }
+      return { raw: null, grid: null, engine: null };
+    }
+
+    function onAxisSelect({ sheet, row, col }) {
+      axisSelection.value = {
+        sheet: sheet || null,
+        row: row != null ? row : null,
+        col: col != null ? col : null,
+      };
+    }
+
+    function onAxisCopy() {
+      const sel = axisSelection.value;
+      if (!sel.sheet) return;
+      const { raw } = sheetRawAndGrid(sel.sheet);
+      if (!raw) return;
+      if (sel.row != null) {
+        axisClipboard.value = {
+          sheet: sel.sheet,
+          type: 'row',
+          row: sel.row,
+          col: null,
+          cells: collectRowCells(raw, sel.row),
+        };
+      } else if (sel.col) {
+        axisClipboard.value = {
+          sheet: sel.sheet,
+          type: 'col',
+          row: null,
+          col: sel.col,
+          cells: collectColCells(raw, sel.col),
+        };
+      }
+    }
+
+    async function onAxisPaste() {
+      const clip = axisClipboard.value;
+      const sel = axisSelection.value;
+      if (!clip || !sel.sheet || clip.sheet !== sel.sheet) return;
+      const { raw, grid, engine } = sheetRawAndGrid(sel.sheet);
+      if (!raw || !engine) return;
+
+      if (clip.type === 'row' && sel.row != null) {
+        pasteRowCells(raw, sel.row, clip.cells);
+        clearGridRowCells(grid, sel.row);
+        for (const p of clip.cells || []) {
+          if (!p.c) continue;
+          syncSheetCellPayload(grid, sel.row, p.c, p);
+          const v = p.v != null ? String(p.v) : '';
+          void session
+            .setCellValue(engine, sel.row, p.c, v)
+            .catch((e) => console.warn('Axis paste row:', e));
+        }
+      } else if (clip.type === 'col' && sel.col) {
+        pasteColCells(raw, sel.col, clip.cells);
+        clearGridColCells(grid, sel.col);
+        for (const p of clip.cells || []) {
+          if (p.r == null) continue;
+          syncSheetCellPayload(grid, p.r, sel.col, p);
+          const v = p.v != null ? String(p.v) : '';
+          void session
+            .setCellValue(engine, p.r, sel.col, v)
+            .catch((e) => console.warn('Axis paste col:', e));
+        }
+      } else {
+        return;
+      }
+
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+    }
+
+    function applyUserGapsToGrid(raw, grid) {
+      if (!raw || !grid) return;
+      grid.userRowGaps = Array.isArray(raw.userRowGaps)
+        ? raw.userRowGaps.map((g) => ({ ...g }))
+        : [];
+      grid.userColGaps = Array.isArray(raw.userColGaps)
+        ? raw.userColGaps.map((g) => ({ ...g }))
+        : [];
+    }
+
+    function applyUserGapsSnapshot(sheetName, snapshot) {
+      const { raw, grid } = sheetRawAndGrid(sheetName);
+      if (!raw || !snapshot) return;
+      raw.userRowGaps = (snapshot.rowGaps || []).map((g) => ({ ...g }));
+      raw.userColGaps = (snapshot.colGaps || []).map((g) => ({ ...g }));
+      if (grid) {
+        applyUserGapsToGrid(raw, grid);
+        if (sheetName === 'BD') {
+          grid.bodyDisplayRows = computeBodyDisplayRows(grid);
+        }
+      }
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+    }
+
+    function onRowInsert({ sheet, afterExcelRow }) {
+      if (sheet !== 'BD') return;
+      const row = Number(afterExcelRow);
+      if (!Number.isFinite(row)) return;
+      const { raw, grid } = sheetRawAndGrid(sheet);
+      if (!raw) return;
+      const before = cloneUserGapsSnapshot(raw);
+      addUserRowGap(raw, row);
+      if (grid) {
+        applyUserGapsToGrid(raw, grid);
+        grid.bodyDisplayRows = computeBodyDisplayRows(grid);
+      }
+      if (!applyingHistory) {
+        editHistory.push({
+          type: 'userGaps',
+          sheet: 'BD',
+          before,
+          after: cloneUserGapsSnapshot(raw),
+        });
+        historyTick.value = editHistory.revision;
+      }
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+    }
+
+    function onColumnInsert({ sheet, afterCol }) {
+      if (sheet !== 'BD') return;
+      if (!afterCol || isUserGapCol(afterCol)) return;
+      const { raw, grid } = sheetRawAndGrid(sheet);
+      if (!raw) return;
+      const before = cloneUserGapsSnapshot(raw);
+      addUserColGap(raw, afterCol);
+      if (grid) applyUserGapsToGrid(raw, grid);
+      if (!applyingHistory) {
+        editHistory.push({
+          type: 'userGaps',
+          sheet: 'BD',
+          before,
+          after: cloneUserGapsSnapshot(raw),
+        });
+        historyTick.value = editHistory.revision;
+      }
+      externalEditTick.value += 1;
+      dirty.value += 1;
+      autoSave.schedule();
+    }
+
     function cloneRawSheet(sheet) {
       if (!sheet) return null;
       return JSON.parse(JSON.stringify(sheet));
@@ -1095,12 +1338,16 @@ const App = {
     }
 
     async function performUndo() {
+      flushActiveGridEdit();
+      await nextTick();
       const entry = editHistory.undo();
       if (!entry) return;
       applyingHistory = true;
       try {
         if (entry.type === 'matrix') {
           await applyMatrixSnapshot(entry.bdBefore, entry.synBefore);
+        } else if (entry.type === 'userGaps') {
+          applyUserGapsSnapshot(entry.sheet, entry.before);
         } else {
           applyHistoryCell({ ...entry, value: entry.oldValue });
         }
@@ -1111,12 +1358,16 @@ const App = {
     }
 
     async function performRedo() {
+      flushActiveGridEdit();
+      await nextTick();
       const entry = editHistory.redo();
       if (!entry) return;
       applyingHistory = true;
       try {
         if (entry.type === 'matrix') {
           await applyMatrixSnapshot(entry.bdAfter, entry.synAfter);
+        } else if (entry.type === 'userGaps') {
+          applyUserGapsSnapshot(entry.sheet, entry.after);
         } else {
           applyHistoryCell({ ...entry, value: entry.newValue });
         }
@@ -1148,6 +1399,22 @@ const App = {
       } else if (key === 'y') {
         e.preventDefault();
         performRedo();
+      } else if (key === 'c') {
+        const sel = axisSelection.value;
+        if (sel.sheet && (sel.row != null || sel.col)) {
+          e.preventDefault();
+          onAxisCopy();
+        }
+      } else if (key === 'v') {
+        const sel = axisSelection.value;
+        if (
+          axisClipboard.value &&
+          sel.sheet &&
+          (sel.row != null || sel.col)
+        ) {
+          e.preventDefault();
+          void onAxisPaste();
+        }
       }
     }
 
@@ -1753,6 +2020,10 @@ const App = {
       onCellChange,
       onRowDelete,
       onDerivedChange,
+      onAxisSelect,
+      onRowInsert,
+      onColumnInsert,
+      axisClipboard,
       navigate,
       toggleOutline,
       searchOpen,
@@ -1808,7 +2079,7 @@ const App = {
                 :disabled="!canUndo"
                 title="Annuler (Ctrl+Z)"
                 aria-label="Annuler"
-                @click="performUndo"
+                @click.prevent="performUndo"
               >
                 <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                   <path
@@ -1827,7 +2098,7 @@ const App = {
                 :disabled="!canRedo"
                 title="Rétablir (Ctrl+Y)"
                 aria-label="Rétablir"
-                @click="performRedo"
+                @click.prevent="performRedo"
               >
                 <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                   <path
@@ -1953,8 +2224,12 @@ const App = {
               :pane-visible="isDatabase"
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
+              :axis-clipboard="axisClipboard"
               @cell-change="onCellChange"
               @row-delete="onRowDelete"
+              @row-insert="onRowInsert"
+              @column-insert="onColumnInsert"
+              @axis-select="onAxisSelect"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"
             />
@@ -1970,8 +2245,12 @@ const App = {
               :pane-visible="isSynthesis"
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
+              :axis-clipboard="axisClipboard"
               @cell-change="onCellChange"
               @row-delete="onRowDelete"
+              @row-insert="onRowInsert"
+              @column-insert="onColumnInsert"
+              @axis-select="onAxisSelect"
               @derived-change="onDerivedChange"
               @search-navigated="onSearchNavigated"
               @search-row-hidden="onSearchRowHidden"

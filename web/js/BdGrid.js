@@ -49,7 +49,8 @@ import {
 } from './bdColumnConfig.js?v=input-fix1';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
-import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis1';
+import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
+import { expandColumnsWithUserGaps, isUserGapCol, userGapColAnchor } from './gridUserGaps.js?v=ugap2';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -67,8 +68,17 @@ export default {
     paneVisible: { type: Boolean, default: true },
     externalEditTick: { type: Number, default: 0 },
     searchCmd: { type: Object, default: null },
+    axisClipboard: { type: Object, default: null },
   },
-  emits: ['cell-change', 'row-delete', 'search-row-hidden', 'search-navigated'],
+  emits: [
+    'cell-change',
+    'row-delete',
+    'search-row-hidden',
+    'search-navigated',
+    'axis-select',
+    'row-insert',
+    'column-insert',
+  ],
   setup(props, { emit }) {
     const scrollEl = ref(null);
     const scrollTop = ref(0);
@@ -91,17 +101,28 @@ export default {
 
     const ctxMenu = ref({ visible: false, x: 0, y: 0, row: null, displayRow: null });
 
-    const widthMap = computed(() =>
-      buildWidthMap(
+    const widthMap = computed(() => {
+      void props.externalEditTick;
+      const m = buildWidthMap(
         props.sheet.colWidths,
         props.sheet.columns,
         props.sheet.headers,
         props.sheet.cells,
         props.sheet.freeFieldWidth
-      )
-    );
+      );
+      for (const col of columns.value) {
+        if (!isUserGapCol(col)) continue;
+        const anchor = userGapColAnchor(props.sheet, col);
+        const anchorW = anchor ? m.get(anchor) : null;
+        if (anchorW != null) m.set(col, anchorW);
+      }
+      return m;
+    });
 
-    const columns = computed(() => props.sheet.columns || []);
+    const columns = computed(() => {
+      void props.externalEditTick;
+      return expandColumnsWithUserGaps(props.sheet.columns || [], props.sheet);
+    });
 
     /**
      * Row view = detailLevel ('full' | 'subsections') + collapsedSections (yellow
@@ -121,11 +142,17 @@ export default {
 
     const sectionHeaderRows = computed(() => props.sheet.sectionHeaderRows);
 
-    const baseBodyRows = computed(() =>
-      props.sheet.bodyDisplayRows != null
+    const baseBodyRows = computed(() => {
+      void props.externalEditTick;
+      return props.sheet.bodyDisplayRows != null
         ? props.sheet.bodyDisplayRows
-        : computeBodyDisplayRows(props.sheet)
-    );
+        : computeBodyDisplayRows(props.sheet);
+    });
+
+    function rowEntryKey(entry) {
+      if (entry && entry.userGap) return `ugap-${entry.gapKey || entry.displayRow}`;
+      return String(entry.excelRow);
+    }
 
     /** Excel rows of every yellow section (used to bulk-collapse via the eye). */
     const allSectionRows = computed(() => {
@@ -173,6 +200,19 @@ export default {
       let displayRow = BD_BODY_DISPLAY_ROW_START;
       let sectionCollapsed = false;
       for (const e of base) {
+        if (e.userGap) {
+          if (!sectionCollapsed) {
+            out.push({
+              userGap: true,
+              gapKey: e.gapKey,
+              excelRow: null,
+              displayRow: displayRow++,
+              isSection: false,
+              sectionCollapsed: false,
+            });
+          }
+          continue;
+        }
         const r = e.excelRow;
         if (BD_HIDDEN_DISPLAY_ROWS.has(r)) continue;
         if (deletedRows.value.has(r)) continue;
@@ -488,14 +528,52 @@ export default {
       return Math.max(0, scrollableWidth.value - (last.left + last.width));
     });
 
-    const axisHighlight = createGridAxisHighlight();
+    const axisHighlight = createGridAxisHighlight(() => props.axisClipboard);
     const {
       syncFromCell: syncAxisFromCell,
-      onRowNumClick: onAxisRowNumClick,
-      onColHeaderClick: onAxisColHeaderClick,
+      onRowNumClick: onAxisRowNumClickBase,
+      onColHeaderClick: onAxisColHeaderClickBase,
       isAxisRow,
       isAxisCol,
+      isCopiedRow,
+      isCopiedCol,
     } = axisHighlight;
+
+    function emitAxisSelect(row, col) {
+      emit('axis-select', {
+        sheet: props.sheetName || 'BD',
+        row: row != null ? row : null,
+        col: col != null ? col : null,
+      });
+    }
+
+    function onAxisRowNumClick(row, event) {
+      onAxisRowNumClickBase(row, event);
+      emitAxisSelect(row, null);
+    }
+
+    function onAxisColHeaderClick(col, event) {
+      onAxisColHeaderClickBase(col, event);
+      emitAxisSelect(null, col);
+    }
+
+    function onInsertRowAfter(afterExcelRow, event) {
+      event.preventDefault();
+      event.stopPropagation();
+      emit('row-insert', {
+        sheet: props.sheetName || 'BD',
+        afterExcelRow,
+      });
+    }
+
+    function onInsertColAfter(afterCol, event) {
+      event.preventDefault();
+      event.stopPropagation();
+      emit('column-insert', {
+        sheet: props.sheetName || 'BD',
+        afterCol,
+      });
+    }
 
     const cellEditor = createGridCellEditor({
       isNumericAt: (row, col) => isBdNumericEntryCell(row, col),
@@ -519,28 +597,32 @@ export default {
 
     function onCellMouseDown(row, col, event) {
       syncAxisFromCell(row, col);
+      emitAxisSelect(row, col);
       onCellMouseDownBase(row, col, event);
     }
 
     function onCellSpanMouseDown(row, col, event) {
       syncAxisFromCell(row, col);
+      emitAxisSelect(row, col);
       onCellSpanMouseDownBase(row, col, event);
     }
 
     function onCellFocus(row, col, event) {
       syncAxisFromCell(row, col);
+      emitAxisSelect(row, col);
       onCellFocusBase(row, col, event);
     }
 
     function onAxisCellPointer(row, col, event) {
       if (event.button !== 0) return;
       syncAxisFromCell(row, col);
+      emitAxisSelect(row, col);
     }
 
     const cellNavigation = createGridCellNavigation({
       getColumns: () => columns.value,
       getRows: () => bodyExcelRows.value,
-      isNavigable: (row, col) => !cellReadonly(row, col),
+      isNavigable: (row, col) => !cellReadonly(row, col) && !isUserGapCol(col),
       getScrollEl: () => scrollEl.value,
       flushScroll: () => scrollSync.flush(),
       getRowTop: (rowIndex) => BD_HEADER_H + rowIndex * ROW_H,
@@ -625,6 +707,7 @@ export default {
 
     /** Row 1 = Excel headers only; all body rows editable. */
     function cellReadonly(row, col) {
+      if (isUserGapCol(col)) return true;
       return row < 2;
     }
 
@@ -666,6 +749,7 @@ export default {
     }
 
     function cellDisplay(row, col) {
+      if (row == null) return '';
       const cacheKey = `${calcRevision.value}:${editEpoch.value}:${engineReady.value}:${props.outlineOnly}:${props.sheet === null ? 0 : 1}`;
       if (cacheKey !== displayCacheKey) {
         invalidateDisplayCache();
@@ -806,6 +890,7 @@ export default {
       renderColumns,
       leftPad,
       rightPad,
+      rowEntryKey,
       visibleRows,
       topSpacer,
       bottomSpacer,
@@ -819,6 +904,7 @@ export default {
       cellDisplay,
       cellReadonly,
       rowStyleClass: (row) => {
+        if (row == null) return 'row-user-gap';
         const map = cellMap.value;
         const sh = sectionHeaderRows.value;
         const base = rowStyleClass(map, row, sh);
@@ -859,8 +945,13 @@ export default {
       onAxisRowNumClick,
       onAxisColHeaderClick,
       onAxisCellPointer,
+      onInsertRowAfter,
+      onInsertColAfter,
       isAxisRow,
       isAxisCol,
+      isCopiedRow,
+      isCopiedCol,
+      isUserGapCol,
     };
   },
   template: `
@@ -878,10 +969,20 @@ export default {
                   :class="{
                     'col-sticky-date': isStickyDateCol(col),
                     'grid-axis-hdr-focus': isAxisCol(col),
+                    'grid-axis-copied': isCopiedCol(col),
                   }"
                   :style="colStyle(col)"
                   @mousedown="onAxisColHeaderClick(col, $event)"
-                >{{ col }}</th>
+                >
+                  {{ col }}
+                  <button
+                    v-if="!isUserGapCol(col)"
+                    type="button"
+                    class="grid-insert-btn grid-insert-col"
+                    title="Insérer une colonne vierge à droite"
+                    @mousedown.stop="onInsertColAfter(col, $event)"
+                  >+</button>
+                </th>
               </template>
               <th v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></th>
             </tr>
@@ -895,6 +996,7 @@ export default {
                   :class="{
                     'col-sticky-date': isStickyDateCol(col),
                     'grid-axis-hdr-focus': isAxisCol(col),
+                    'grid-axis-copied': isCopiedCol(col),
                   }"
                   :style="colStyle(col)"
                   :title="sheet.headers[col] || col"
@@ -910,11 +1012,14 @@ export default {
             </tr>
             <tr
               v-for="entry in visibleRows"
-              :key="entry.excelRow"
+              :key="rowEntryKey(entry)"
               class="grid-row-cv"
               :class="[
-                rowStyleClass(entry.excelRow),
-                { 'grid-axis-row-focus': isAxisRow(entry.excelRow) },
+                entry.excelRow != null ? rowStyleClass(entry.excelRow) : 'row-user-gap',
+                {
+                  'grid-axis-row-focus': isAxisRow(entry.excelRow),
+                  'grid-axis-row-copied': isCopiedRow(entry.excelRow),
+                },
               ]"
               @contextmenu="onRowContextMenu(entry, $event)"
             >
@@ -932,21 +1037,35 @@ export default {
               </td>
               <td
                 class="row-num grid-axis-hdr"
-                :class="{ 'grid-axis-hdr-focus': isAxisRow(entry.excelRow) }"
-                @mousedown="onAxisRowNumClick(entry.excelRow, $event)"
-              >{{ entry.displayRow }}</td>
-              <template v-for="(col, idx) in renderColumns" :key="entry.excelRow + '-' + col">
+                :class="{
+                  'grid-axis-hdr-focus': isAxisRow(entry.excelRow),
+                  'grid-axis-copied': isCopiedRow(entry.excelRow),
+                }"
+                @mousedown="entry.excelRow != null && onAxisRowNumClick(entry.excelRow, $event)"
+              >
+                {{ entry.displayRow }}
+                <button
+                  v-if="entry.excelRow != null"
+                  type="button"
+                  class="grid-insert-btn grid-insert-row"
+                  title="Insérer une ligne vierge en dessous"
+                  @mousedown.stop="onInsertRowAfter(entry.excelRow, $event)"
+                >+</button>
+              </td>
+              <template v-for="(col, idx) in renderColumns" :key="rowEntryKey(entry) + '-' + col">
                 <td v-if="idx === 1 && leftPad > 0" class="col-spacer" :style="{ width: leftPad + 'px', minWidth: leftPad + 'px', maxWidth: leftPad + 'px', padding: 0, border: 'none' }"></td>
                 <td
                   class="data-cell"
                   :class="[
                     {
                       readonly: cellReadonly(entry.excelRow, col),
-                      'col-sticky-date': isStickyDateCol(col),
+                      'col-sticky-date': isStickyDateCol(col) && !isUserGapCol(col),
                       'col-free-field': col === BD_FREE_FIELD_COL,
+                      'grid-user-gap-col': isUserGapCol(col),
                       'grid-search-hit': isSearchHit(entry.excelRow, col),
                       'grid-search-focus': isSearchFocus(entry.excelRow, col),
                       'grid-axis-col-focus': isAxisCol(col),
+                      'grid-axis-col-copied': isCopiedCol(col),
                     },
                     cellStaticClass(entry.excelRow, col),
                   ]"

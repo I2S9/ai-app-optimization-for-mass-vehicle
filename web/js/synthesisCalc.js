@@ -809,16 +809,33 @@ export function synLiveMassExcelCols() {
   return [...set];
 }
 
+function isStaleProjectExportValue(v) {
+  const s = String(v != null ? v : '').trim().toUpperCase();
+  return s === 'PROJECT' || s === 'PROJET';
+}
+
 /** Drop stale export values on live calc bands so the engine always wins. */
 export function sanitizeSynLiveMassCells(cells = []) {
   const cols = new Set(synLiveMassExcelCols());
   for (let i = cells.length - 1; i >= 0; i--) {
     const cell = cells[i];
-    if (Number(cell.r) < SYN_CALC_FIRST_ROW) continue;
-    if (!cols.has(cell.c)) continue;
     if (cell.userEdited) continue;
-    if (cell.mat) continue;
-    cells.splice(i, 1);
+    if (
+      Number(cell.r) >= SYN_CALC_FIRST_ROW &&
+      cols.has(cell.c) &&
+      !cell.mat
+    ) {
+      cells.splice(i, 1);
+      continue;
+    }
+    if (
+      Number(cell.r) >= SYN_CALC_FIRST_ROW &&
+      isSynVehicleMassCol(cell.c) &&
+      isStaleProjectExportValue(cell.v) &&
+      !(cell.f && /SUMPRODUCT/i.test(cell.f))
+    ) {
+      cells.splice(i, 1);
+    }
   }
   return cells;
 }

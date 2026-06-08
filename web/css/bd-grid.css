@@ -439,12 +439,124 @@
   background: #fff9e6 !important;
   outline: 2px solid #4472c4;
   outline-offset: -2px;
-  z-index: 4;
+  z-index: 210;
+}
+/* Bande verticale colonne active — overlay pleine hauteur (Synthesis) */
+.synthesis-grid .syn-axis-col-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 205;
+  background: rgba(0, 0, 0, 0.13);
+}
+.synthesis-grid .syn-axis-col-band.syn-axis-col-band-cell {
+  background: rgba(0, 0, 0, 0.17);
+}
+.synthesis-grid .bd-table thead th.col-letter.grid-axis-hdr-focus,
+.synthesis-grid .bd-table thead th.col-sticky-label.grid-axis-hdr-focus {
+  position: relative;
+  z-index: 320;
+}
+.synthesis-grid .bd-table tbody td.col-sticky-label.syn-label-col.grid-axis-col-focus::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.14);
+  pointer-events: none;
+  z-index: 1;
 }
 .synthesis-grid .bd-table tbody td.data-cell .grid-cell-display,
 .synthesis-grid .bd-table tbody td.data-cell.readonly span {
   position: relative;
   z-index: 3;
+}
+
+/* Insert row/column — "+" on header hover */
+.bd-table th.grid-axis-hdr,
+.bd-table td.row-num.grid-axis-hdr {
+  position: relative;
+}
+.grid-insert-btn {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #666;
+  border-radius: 2px;
+  background: #fff;
+  color: #333;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 400;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+.grid-insert-row {
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+}
+.grid-insert-col {
+  top: 50%;
+  right: -7px;
+  transform: translateY(-50%);
+}
+.bd-table th.grid-axis-hdr:hover .grid-insert-btn,
+.bd-table td.row-num.grid-axis-hdr:hover .grid-insert-btn,
+.grid-insert-btn:focus {
+  opacity: 1;
+  pointer-events: auto;
+}
+.grid-insert-btn:hover {
+  background: #4472c4;
+  border-color: #2f5597;
+  color: #fff;
+}
+
+/* Copied row/column — rose highlight (Ctrl+C) */
+.bd-table th.grid-axis-copied,
+.bd-table td.row-num.grid-axis-copied {
+  background: #f4b8c8 !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+}
+.synthesis-grid .bd-table tbody tr.grid-axis-row-copied > td.syn-row-num,
+.synthesis-grid .bd-table tbody tr.grid-axis-row-copied.syn-row-section > td.syn-row-num,
+.synthesis-grid .bd-table tbody tr.grid-axis-row-copied.syn-row-subsection > td.syn-row-num {
+  background: #f4b8c8 !important;
+  color: #000 !important;
+}
+.bd-table tbody tr.grid-axis-row-copied td.data-cell::before,
+.bd-table tbody td.data-cell.grid-axis-col-copied::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(244, 143, 177, 0.45);
+  pointer-events: none;
+  z-index: 2;
+}
+.bd-table tbody tr.grid-axis-row-copied td.data-cell.grid-axis-col-copied::before {
+  background: rgba(233, 84, 133, 0.55);
+}
+
+/* User-inserted blank rows/columns — display only (Database), same size as neighbors */
+.bd-table tbody tr.row-user-gap td.data-cell,
+.bd-table tbody tr.row-user-gap td.data-cell.readonly,
+.bd-table tbody tr.row-user-gap td.row-num,
+.bd-table tbody td.grid-user-gap-col {
+  background: #fff !important;
+  background-color: #fff !important;
+  height: 21px;
+  min-height: 21px;
+  box-sizing: border-box;
 }
 
 .bd-table tbody td.data-cell.readonly span {

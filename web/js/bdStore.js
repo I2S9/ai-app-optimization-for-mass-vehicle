@@ -613,9 +613,23 @@ export function computeBodyDisplayRows(sheet) {
       : buildCellMap(sheet.cells, sheet.headerRows);
   const rows = [];
   let displayRow = BD_BODY_DISPLAY_ROW_START;
+  const userGaps = Array.isArray(sheet.userRowGaps) ? sheet.userRowGaps : [];
+  const gapsAfter = (excelRow) =>
+    userGaps.filter(
+      (g) => g && Number(g.afterExcelRow) === Number(excelRow) && g.id
+    );
   for (let r = 2; r <= sheet.lastRow; r++) {
     if (!shouldDisplayBodyRow(map, r, sheet)) continue;
     rows.push({ excelRow: r, displayRow: displayRow++ });
+    for (const gap of gapsAfter(r)) {
+      rows.push({
+        userGap: true,
+        gapKey: gap.id,
+        afterExcelRow: r,
+        excelRow: null,
+        displayRow: displayRow++,
+      });
+    }
   }
   return rows;
 }
