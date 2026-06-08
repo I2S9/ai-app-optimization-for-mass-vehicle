@@ -3431,9 +3431,13 @@
 }
 
 /* Display-row green blocks (M…AA only) */
-.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa,
-.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa input,
-.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa span {
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-section td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-subsection td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-data td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody tr.syn-row-separator td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col),
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-displayrow-green-maa:not(.syn-pillar-col):not(.syn-spacer-col-l):not(.syn-force-white-col) span {
   background: #92d050 !important;
   background-color: #92d050 !important;
   color: #000 !important;

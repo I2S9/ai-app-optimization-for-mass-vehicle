@@ -102,11 +102,15 @@ import {
   SYN_DISPLAY_GREEN_BG,
   isSynDisplayRowGreyMaaCol,
   synDisplayRowGreyMaaStyle,
-  isSynDisplayRowGreenSummaryCol,
+  isSynDisplayRowGreenMaaCol,
   synDisplayRowGreenMaaStyle,
+  isSynDisplayRowGreenAcanCol,
+  synDisplayRowGreenAcanStyle,
+  isSynDisplayRowGreenApbbCol,
+  synDisplayRowGreenApbbStyle,
+  isSynApbbRow16SummaryCol,
   isSynDisplayRowBlueCol,
   isSynRow16CurbTotalSummaryCol,
-  synGreenTotalExcelCols,
   synDisplayRowBlueStyle,
   isSynYellowFluoGreenFromMCol,
   synYellowFluoGreenFromMStyle,
@@ -183,7 +187,7 @@ import {
   isSynSp2RestartDisplayExcelCol,
   synLabel,
   getSynAdaptBandNumeric,
-} from './synStore.js?v=syn-form2';
+} from './synStore.js?v=syn-form3';
 import {
   SYN_STICKY_COL,
   excelToDisplayCol,
@@ -226,8 +230,21 @@ function isSynMirrorLfromMCell(row, col) {
   return col === SYN_MIRROR_DST_EXCEL_COL && Number(row) >= SYN_MIRROR_FIRST_ROW;
 }
 
-/** Excel columns that carry an automatic green total (all summary tables). */
-const SYN_GREEN_TOTAL_EXCEL_COLS = synGreenTotalExcelCols();
+/** Excel columns that carry an automatic green total (display M…AA and AC…AN). */
+const SYN_GREEN_TOTAL_EXCEL_COLS = (() => {
+  const out = [];
+  const addRange = (startDisp, endDisp) => {
+    for (let n = colToNum(startDisp); n <= colToNum(endDisp); n++) {
+      out.push(displayToExcelCol(numToCol(n)));
+    }
+  };
+  addRange('M', 'AA');
+  addRange('AC', 'AN');
+  for (const d of ['AP', 'AU', 'AX', 'AY', 'BA']) {
+    out.push(displayToExcelCol(d));
+  }
+  return out;
+})();
 
 /**
  * Row-1 (column-letter header) collapse groups. Clicking the "−" button on the
@@ -1047,7 +1064,11 @@ export default {
     function isSynGreenSumCell(row, col) {
       if (row == null) return false;
       const displayRow = displayRowByExcel.value.get(row);
-      return isSynDisplayRowGreenSummaryCol(displayRow, col);
+      return (
+        isSynDisplayRowGreenMaaCol(displayRow, col) ||
+        isSynDisplayRowGreenAcanCol(displayRow, col) ||
+        isSynDisplayRowGreenApbbCol(displayRow, col)
+      );
     }
 
     /**
@@ -1111,8 +1132,6 @@ export default {
       let sum = 0;
       let any = false;
       for (const r of sources) {
-        const sourceDisplayRow = displayRowByExcel.value.get(r);
-        if (!isSynDisplayRowBlueCol(sourceDisplayRow, col)) continue;
         const raw = cellRawValue(r, col);
         if (raw == null || String(raw).trim() === '') continue;
         const n = parseFloat(String(raw).replace(/\s/g, '').replace(',', '.'));
@@ -1835,8 +1854,12 @@ export default {
         const out = { ...base, ...cellInlineStyle(row, col) };
         if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreyMaaStyle());
-        } else if (isSynDisplayRowGreenSummaryCol(entry.displayRow, col)) {
+        } else if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowGreenMaaStyle());
+        } else if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowGreenAcanStyle());
+        } else if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
+          Object.assign(out, synDisplayRowGreenApbbStyle());
         } else if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowBlueStyle());
         }
@@ -1942,8 +1965,14 @@ export default {
       if (isSynDisplayRowGreyMaaCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreyMaaStyle() };
       }
-      if (isSynDisplayRowGreenSummaryCol(entry.displayRow, col)) {
+      if (isSynDisplayRowGreenMaaCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowGreenMaaStyle() };
+      }
+      if (isSynDisplayRowGreenAcanCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowGreenAcanStyle() };
+      }
+      if (isSynDisplayRowGreenApbbCol(entry.displayRow, col)) {
+        return { ...base, ...synDisplayRowGreenApbbStyle() };
       }
       if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
         return { ...base, ...synDisplayRowBlueStyle() };
@@ -2001,8 +2030,14 @@ export default {
       if (isSynDisplayRowGreyMaaCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-grey-maa', display);
       }
-      if (isSynDisplayRowGreenSummaryCol(displayRow, col)) {
+      if (isSynDisplayRowGreenMaaCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-green-maa', display);
+      }
+      if (isSynDisplayRowGreenAcanCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-green-acan', display);
+      }
+      if (isSynDisplayRowGreenApbbCol(displayRow, col)) {
+        return withHdrPanelBold(row, col, 'syn-displayrow-green-apbb', display);
       }
       if (isSynDisplayRowBlueCol(displayRow, col)) {
         return withHdrPanelBold(row, col, 'syn-displayrow-blue', display);

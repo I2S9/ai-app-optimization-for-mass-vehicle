@@ -2678,38 +2678,48 @@ export function synDisplayRowGreyMaaStyle() {
   };
 }
 
-/**
- * Green total row — every summary-table column on the Synthesis page (M…AA, AC…AN,
- * AP…BB, BD…BO, BS…CE, BQ, CI…CY, …). Excludes white gutters and spacers.
- */
-export function isSynDisplayRowGreenSummaryCol(displayRow, col) {
-  if (!SYN_DISPLAY_GREEN_ROWS.has(Number(displayRow))) return false;
-  if (isSynForceWhiteExcelCol(col)) return false;
-  if (isSynSpacerDisplayExcelCol(col)) return false;
-  return isSynHdrSummaryTableCol(col);
-}
-
-/** @deprecated Use isSynDisplayRowGreenSummaryCol */
+/** Display-row green totals — M…AA summary columns. */
 export function isSynDisplayRowGreenMaaCol(displayRow, col) {
-  return isSynDisplayRowGreenSummaryCol(displayRow, col);
+  if (!SYN_DISPLAY_GREEN_ROWS.has(Number(displayRow))) return false;
+  const n = colToNum(col);
+  const start = colToNum(displayToExcelCol('M'));
+  const end = colToNum(displayToExcelCol('AA'));
+  return n >= start && n <= end;
 }
 
-/** @deprecated Use isSynDisplayRowGreenSummaryCol */
+/** Display row 26+ — AC…AN green bands (same rows & colour as M…AA). */
 export function isSynDisplayRowGreenAcanCol(displayRow, col) {
-  return isSynDisplayRowGreenSummaryCol(displayRow, col);
+  const dr = Number(displayRow);
+  if (!Number.isFinite(dr) || dr < 26) return false;
+  if (!SYN_DISPLAY_GREEN_ROWS.has(dr)) return false;
+  return isSynAcAnTableCol(col);
 }
 
-/** @deprecated Use isSynDisplayRowGreenSummaryCol */
+/** Display row 26+ — AP…BB summary columns (AP, AU, AX, AY, BA) green totals. */
 export function isSynDisplayRowGreenApbbCol(displayRow, col) {
-  return isSynDisplayRowGreenSummaryCol(displayRow, col);
+  const dr = Number(displayRow);
+  if (!Number.isFinite(dr) || dr < 26) return false;
+  if (!SYN_DISPLAY_GREEN_ROWS.has(dr)) return false;
+  return isSynApbbRow16SummaryCol(col);
 }
 
-/** Row 16 (CURB MASS) — live Σ of green-row totals in each summary column. */
+/** Union of every green-total column (M…AA, AC…AN, AP/AU/AX/AY/BA). */
+export function isSynDisplayRowGreenSummaryCol(displayRow, col) {
+  return (
+    isSynDisplayRowGreenMaaCol(displayRow, col) ||
+    isSynDisplayRowGreenAcanCol(displayRow, col) ||
+    isSynDisplayRowGreenApbbCol(displayRow, col)
+  );
+}
+
+/** Row 16 (CURB MASS) — live Σ of green-row totals in green-total columns. */
 export function isSynRow16CurbTotalSummaryCol(col) {
-  if (isSynForceWhiteExcelCol(col)) return false;
-  if (isSynSpacerDisplayExcelCol(col)) return false;
-  if (isSynBqGutterExcelCol(col)) return false;
-  return isSynHdrSummaryTableCol(col);
+  const SYN_ROW16_GREEN_REF_DR = 26;
+  return (
+    isSynDisplayRowGreenMaaCol(SYN_ROW16_GREEN_REF_DR, col) ||
+    isSynDisplayRowGreenAcanCol(SYN_ROW16_GREEN_REF_DR, col) ||
+    isSynApbbRow16SummaryCol(col)
+  );
 }
 
 /** Excel columns that carry an automatic green-row total (all summary tables). */

@@ -11,7 +11,7 @@ import {
   provide,
 } from 'vue';
 import BdGrid from './BdGrid.js?v=bd-fold2';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-form2';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-form3';
 import { createEditHistory } from './editHistory.js?v=undo2';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
