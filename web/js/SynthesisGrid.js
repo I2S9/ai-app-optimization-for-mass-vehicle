@@ -72,17 +72,18 @@ import {
   synProjHeaderGreyStyle,
   isSynProjHeaderRedCol,
   synProjHeaderRedStyle,
+  isSynRow17BlueTextCol,
+  synRow17BlueTextStyle,
   isSynRow17BlueEvery3Col,
   synRow17MaaBlueStyle,
-  isSynRow18GreyCol,
-  synRow18MaaGreyStyle,
+  isSynRow18GreyTextCol,
+  synRow18GreyTextStyle,
   isSynRow25MaGreenCol,
   synRow25MaGreenStyle,
   isSynRow16FluoEvery3Col,
   isSynRow16MaaFluoFirstCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
-  isSynApbbRow18GreyCol,
   isSynApbbP3sBlackCol,
   synApbbP3sBlackStyle,
   isSynAcanO3wOrangeCol,
@@ -1825,6 +1826,12 @@ export default {
         } else if (isSynDisplayRowBlueCol(entry.displayRow, col)) {
           Object.assign(out, synDisplayRowBlueStyle());
         }
+        if (isSynRow17BlueTextCol(row, col)) {
+          Object.assign(out, synRow17BlueTextStyle());
+        }
+        if (isSynRow18GreyTextCol(row, col)) {
+          Object.assign(out, synRow18GreyTextStyle());
+        }
         scrollStyleCache.set(styleKey, out);
         return out;
       }
@@ -1888,18 +1895,6 @@ export default {
         // Keep the inline background neutral so a zero / empty cell stays blank.
         return base;
       }
-      if (isSynRow17BlueEvery3Col(row, col)) {
-        return { ...base, ...synRow17MaaBlueStyle() };
-      }
-      if (isSynApbbRow17BlueCol(row, col)) {
-        return { ...base, ...synRow17MaaBlueStyle() };
-      }
-      if (isSynRow18GreyCol(row, col)) {
-        return { ...base, ...synRow18MaaGreyStyle() };
-      }
-      if (isSynApbbRow18GreyCol(row, col)) {
-        return { ...base, ...synRow18MaaGreyStyle() };
-      }
       if (isSynRow25MaGreenCol(row, col)) {
         return { ...base, ...synRow25MaGreenStyle() };
       }
@@ -1934,12 +1929,20 @@ export default {
         return { ...base, ...synDisplayRowBlueStyle() };
       }
       const out = { ...base, ...cellInlineStyle(row, col) };
+      if (isSynRow17BlueTextCol(row, col)) {
+        Object.assign(out, synRow17BlueTextStyle());
+      }
+      if (isSynRow18GreyTextCol(row, col)) {
+        Object.assign(out, synRow18GreyTextStyle());
+      }
       scrollStyleCache.set(styleKey, out);
       return out;
     }
 
     function withHdrPanelBold(row, col, cls, display = '') {
       const parts = [cls];
+      if (isSynRow17BlueTextCol(row, col)) parts.push('syn-row17-blue-text');
+      if (isSynRow18GreyTextCol(row, col)) parts.push('syn-row18-grey-text');
       if (isSynHeaderPanelBoldCol(row, col)) parts.push('syn-hdr-panel-bold');
       if (isSynAdaptCjValueBold(row, col, display, props.sheet)) {
         parts.push('syn-adapt-cj-bold');
@@ -1953,11 +1956,18 @@ export default {
         (row >= SYN_GRID_FIRST_ROW && isSynSp2RestartDisplayExcelCol(col)) ||
         (row >= SYN_GRID_FIRST_ROW && isSynSpcDisplayExcelCol(col))
       ) {
-        return display ? 'syn-pillar-has-char' : '';
+        return withHdrPanelBold(
+          row,
+          col,
+          display ? 'syn-pillar-has-char' : '',
+          display
+        );
       }
-      if (isSynForceWhiteExcelCol(col)) return 'syn-force-white-col';
+      if (isSynForceWhiteExcelCol(col)) {
+        return withHdrPanelBold(row, col, 'syn-force-white-col', display);
+      }
       const spacerCol = synSpacerColClass(col);
-      if (spacerCol) return spacerCol;
+      if (spacerCol) return withHdrPanelBold(row, col, spacerCol, display);
       const bevCls = synHdrBevTextClass(row, display);
       if (bevCls) return withHdrPanelBold(row, col, bevCls, display);
       const energyCls = synHdrEnergyValueClass(row, col, display);
@@ -2036,18 +2046,6 @@ export default {
         if (hdrCls) {
           return withHdrPanelBold(row, col, hdrCls, display);
         }
-      }
-      if (isSynRow17BlueEvery3Col(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
-      }
-      if (isSynApbbRow17BlueCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row17-maa-blue', display);
-      }
-      if (isSynRow18GreyCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row18-maa-grey', display);
-      }
-      if (isSynApbbRow18GreyCol(row, col)) {
-        return withHdrPanelBold(row, col, 'syn-row18-maa-grey', display);
       }
       if (isSynRow25MaGreenCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row25-ma-green', display);

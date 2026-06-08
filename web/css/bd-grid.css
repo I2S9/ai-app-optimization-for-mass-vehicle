@@ -1088,9 +1088,42 @@
   font-weight: 700 !important;
 }
 .synthesis-grid .bd-table tbody td.syn-metric-pretarget {
-  color: #0563c1 !important;
+  color: #0070c0 !important;
   font-weight: 600;
 }
+
+/* Row 17 — PM pre-target blue text (#0070C0), all columns except display A */
+.synthesis-grid .bd-table tbody td.syn-row17-blue-text,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row17-blue-text,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row17-blue-text:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-row17-blue-text:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-row17-blue-text:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.syn-row17-blue-text input,
+.synthesis-grid .bd-table tbody td.syn-row17-blue-text span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row17-blue-text input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row17-blue-text span,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row17-blue-text:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row17-blue-text:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody td.syn-row-num.syn-row17-blue-text {
+  color: #0070c0 !important;
+}
+
+/* Row 18 — Curb mass last update grey text (#808080), all columns except display A */
+.synthesis-grid .bd-table tbody td.syn-row18-grey-text,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row18-grey-text,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row18-grey-text:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-header-block td.data-cell.syn-row18-grey-text:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody tr.syn-filter-band td.data-cell.syn-row18-grey-text:not(.syn-pillar-col),
+.synthesis-grid .bd-table tbody td.syn-row18-grey-text input,
+.synthesis-grid .bd-table tbody td.syn-row18-grey-text span,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row18-grey-text input,
+.synthesis-grid .bd-table tbody td.data-cell.syn-row18-grey-text span,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row18-grey-text:not(.syn-pillar-col) input,
+.synthesis-grid .bd-table tbody tr.syn-metric-band td.data-cell.syn-row18-grey-text:not(.syn-pillar-col) span,
+.synthesis-grid .bd-table tbody td.syn-row-num.syn-row18-grey-text {
+  color: #808080 !important;
+}
+
 .synthesis-grid .bd-table tbody tr.syn-row-metric td.syn-metric-stale,
 .synthesis-grid .bd-table tbody td.syn-metric-stale {
   color: #808080 !important;

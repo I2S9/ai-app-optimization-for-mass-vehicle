@@ -1778,22 +1778,22 @@ function synSignMetricClass(display) {
 
 /** Metric data cells — Control green/red, Portfolio red, etc. */
 export function synMetricCellClass(row, col, display) {
+  if (isSynRow17BlueTextCol(row, col)) return 'syn-row17-blue-text';
+  if (isSynRow18GreyTextCol(row, col)) return 'syn-row18-grey-text';
   if (colToNum(col) < colToNum(SYN_VEHICLE_COL_START)) return '';
   const s = String(display != null ? display : '').trim();
   if (!s) return '';
   if (isSynApBbTableCol(col)) {
     if (row === 19 || row === 20) return synSignMetricClass(s);
-    if (row === 18) return 'syn-metric-stale syn-metric-mass';
     if (row === 16) return 'syn-metric-mass';
-    if (row === 17) return 'syn-metric-pretarget';
+    if (row === 17) return 'syn-row17-blue-text';
     return '';
   }
   if (row === 19 || row === 20) return synSignMetricClass(s);
   if (row === 21) return 'syn-metric-forecast';
   if (row === 22) return 'syn-row22-hev-red';
-  if (row === 18) return 'syn-metric-stale syn-metric-mass';
   if (row === 16) return 'syn-metric-mass';
-  if (row === 17) return 'syn-metric-pretarget';
+  if (row === 17) return 'syn-row17-blue-text';
   return '';
 }
 
@@ -2088,7 +2088,7 @@ function isSynEvery3FromDisplayStartCol(col, displayStart, displayEnd) {
 }
 
 export function synRow18MaaGreyStyle() {
-  return { color: '#808080' };
+  return synRow18GreyTextStyle();
 }
 
 /** @deprecated Use isSynRow20PortfolioRedCol */
@@ -2239,17 +2239,27 @@ export function isSynRow16FluoEvery3FromAcanCol(row, col) {
   return isSynRow16FluoEvery3Col(row, col);
 }
 
-/** Row 17: first col of each triplet — blue PM pre-target text. */
-export function isSynRow17BlueEvery3Col(row, col) {
+/** Row 17 — PM pre-target text colour (#0070C0), all columns except display A. */
+export const SYN_ROW17_BLUE_TEXT = '#0070C0';
+
+/** Excel row 17: blue text on every cell except display column A (Excel F). */
+export function isSynRow17BlueTextCol(row, col) {
   if (Number(row) !== 17) return false;
-  if (isSynApBbTableCol(col)) return false;
-  return isSynHdrSummaryEvery3Col(col);
+  return col !== SYN_LABEL_COL;
 }
 
-/** Row 17 — AP…BB PM pre-target (blue text on populated cells). */
+export function synRow17BlueTextStyle() {
+  return { color: SYN_ROW17_BLUE_TEXT };
+}
+
+/** @deprecated use isSynRow17BlueTextCol */
+export function isSynRow17BlueEvery3Col(row, col) {
+  return isSynRow17BlueTextCol(row, col);
+}
+
+/** @deprecated use isSynRow17BlueTextCol */
 export function isSynApbbRow17BlueCol(row, col) {
-  if (Number(row) !== 17) return false;
-  return isSynApBbTableCol(col);
+  return isSynRow17BlueTextCol(row, col);
 }
 
 /** @deprecated use isSynApbbRow17BlueCol */
@@ -2267,17 +2277,27 @@ export function isSynRow17AcanBlueCol(row, col) {
   return isSynRow17BlueEvery3Col(row, col);
 }
 
-/** Row 18: all summary-table columns — grey reference mass text. */
-export function isSynRow18GreyCol(row, col) {
+/** Row 18 — Curb mass last update text colour (#808080), all columns except display A. */
+export const SYN_ROW18_GREY_TEXT = '#808080';
+
+/** Excel row 18: grey text on every cell except display column A (Excel F). */
+export function isSynRow18GreyTextCol(row, col) {
   if (Number(row) !== 18) return false;
-  if (isSynApBbTableCol(col)) return false;
-  return isSynHdrSummaryTableCol(col);
+  return col !== SYN_LABEL_COL;
 }
 
-/** Row 18 — AP…BB reference mass (grey text). */
+export function synRow18GreyTextStyle() {
+  return { color: SYN_ROW18_GREY_TEXT };
+}
+
+/** @deprecated use isSynRow18GreyTextCol */
+export function isSynRow18GreyCol(row, col) {
+  return isSynRow18GreyTextCol(row, col);
+}
+
+/** @deprecated use isSynRow18GreyTextCol */
 export function isSynApbbRow18GreyCol(row, col) {
-  if (Number(row) !== 18) return false;
-  return isSynApBbTableCol(col);
+  return isSynRow18GreyTextCol(row, col);
 }
 
 /** @deprecated use isSynApbbRow18GreyCol */
@@ -2296,7 +2316,7 @@ export function isSynRow18AcanGreyCol(row, col) {
 }
 
 export function synRow17MaaBlueStyle() {
-  return { color: '#0070c0' };
+  return synRow17BlueTextStyle();
 }
 
 /** Row 17: display M, P, S, V, Y — blue PM pre-target text (not fluo). */
