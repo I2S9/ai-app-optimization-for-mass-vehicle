@@ -87,6 +87,7 @@ import {
   isSynRow16MaaFluoFirstCol,
   isSynRow16AcanFluoCol,
   isSynRow16BdboFluoCol,
+  isSynRow16BsCeFluoCol,
   isSynApbbRow16FluoCol,
   isSynApbbRow17BlueCol,
   isSynApbbP3sBlackCol,
@@ -2013,6 +2014,9 @@ export default {
       if (isSynRow16BdboFluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
+      if (isSynRow16BsCeFluoCol(row, col)) {
+        return { ...base, ...synRow16FluoStyle() };
+      }
       if (isSynApbbRow16FluoCol(row, col)) {
         return { ...base, ...synRow16FluoStyle() };
       }
@@ -2159,6 +2163,9 @@ export default {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynRow16BdboFluoCol(row, col)) {
+        return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
+      }
+      if (isSynRow16BsCeFluoCol(row, col)) {
         return withHdrPanelBold(row, col, 'syn-row16-fluo-every3', display);
       }
       if (isSynApbbRow16FluoCol(row, col)) {

@@ -46,6 +46,7 @@ import {
   synRowAcanPresetRaw,
   synRowApbbPresetRaw,
   synRowBdboPresetRaw,
+  synRowBscePresetRaw,
   isSynBodyEmptyFromRow27Cell,
   synFilterStaleProjectDisplay,
 } from './synStore.js?v=syn-form4';
@@ -458,6 +459,10 @@ export function createWorkbookSession() {
       if (preset !== undefined) {
         return parseSynNum(preset);
       }
+      const bscePreset = synRowBscePresetRaw(row, col);
+      if (bscePreset !== undefined) {
+        return parseSynNum(bscePreset);
+      }
     }
     const synLabel = getSynLabel(row);
     const rowClass = getSynRowClass(row);
@@ -559,6 +564,8 @@ export function createWorkbookSession() {
     if (apbb !== undefined && apbb != null && apbb !== '') return String(apbb);
     const bdbo = synRowBdboPresetRaw(row, excelCol);
     if (bdbo !== undefined && bdbo != null && bdbo !== '') return String(bdbo);
+    const bsce = synRowBscePresetRaw(row, excelCol);
+    if (bsce !== undefined && bsce != null && bsce !== '') return String(bsce);
     return undefined;
   }
 
@@ -773,6 +780,11 @@ export function createWorkbookSession() {
       if (preset !== undefined) {
         if (preset == null || preset === '') return '';
         return String(preset);
+      }
+      const bscePreset = synRowBscePresetRaw(row, col);
+      if (bscePreset !== undefined) {
+        if (bscePreset == null || bscePreset === '') return '';
+        return String(bscePreset);
       }
     }
     const synLabel = getSynLabel(row);

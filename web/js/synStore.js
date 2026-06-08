@@ -1497,6 +1497,118 @@ export function applySynRowsApbbPresetHeaderRows(headerRows = {}) {
   return headerRows;
 }
 
+/** Header panel rows 3–22 — display BS…CE presets (mirrors the BS–CE summary table). */
+const SYN_BSCE_PRESET_DISPLAY_COLS = [
+  'BS', 'BT', 'BU', 'BV', 'BW', 'BX', 'BY', 'BZ', 'CA', 'CB', 'CC', 'CD', 'CE',
+];
+
+function synBscePresetRowMap(values) {
+  const m = new Map();
+  SYN_BSCE_PRESET_DISPLAY_COLS.forEach((d, i) => m.set(d, values[i]));
+  return m;
+}
+
+const SYN_BSCE_PRESET_NULL_ROW = synBscePresetRowMap(
+  SYN_BSCE_PRESET_DISPLAY_COLS.map(() => null)
+);
+
+function synBscePresetSparse(pairs) {
+  const m = new Map(SYN_BSCE_PRESET_NULL_ROW);
+  for (const [display, value] of pairs) m.set(display, value);
+  return m;
+}
+
+function isSynBscePresetExcelCol(col) {
+  return isSynBsCeTableCol(col);
+}
+
+function synBscePresetEntries3To22() {
+  return [
+    [
+      17,
+      synBscePresetSparse([
+        ['BS', 1823],
+        ['BX', 1845],
+        ['CA', 1986],
+        ['CB', 1415],
+        ['CD', 1425],
+      ]),
+    ],
+  ];
+}
+
+const SYN_ROWS_BSCE_PRESETS = new Map([...synBscePresetEntries3To22()]);
+
+export function synRowBscePresetRaw(row, col) {
+  const r = Number(row);
+  if (!Number.isFinite(r)) return undefined;
+  const rowMap = SYN_ROWS_BSCE_PRESETS.get(r);
+  if (!rowMap || !isSynBscePresetExcelCol(col)) return undefined;
+  const d = excelToDisplayCol(col);
+  if (!rowMap.has(d)) return undefined;
+  const v = rowMap.get(d);
+  if (v === undefined) return undefined;
+  return v;
+}
+
+/** Rows 3–22 — seed BS…CE presets (overrides legacy export unless userEdited). */
+export function applySynRowsBscePresetCells(cells = []) {
+  const index = synPresetCellIndex(cells);
+  for (const [row, rowMap] of SYN_ROWS_BSCE_PRESETS) {
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const key = `${row}:${col}`;
+      let cell = index.get(key);
+      if (cell && cell.userEdited) continue;
+      if (value == null) {
+        if (cell) {
+          cell.v = '';
+          delete cell.f;
+          delete cell.bg;
+        } else {
+          cell = { r: row, c: col, v: '' };
+          cells.push(cell);
+          index.set(key, cell);
+        }
+        continue;
+      }
+      if (!cell) {
+        cell = { r: row, c: col, v: String(value) };
+        cells.push(cell);
+        index.set(key, cell);
+      } else {
+        cell.v = String(value);
+        delete cell.f;
+        delete cell.bg;
+      }
+    }
+  }
+  return cells;
+}
+
+/** Header panel rows 3–22 — seed headerRows with BS…CE presets (keeps userEdited). */
+export function applySynRowsBscePresetHeaderRows(headerRows = {}) {
+  for (const [row, rowMap] of SYN_ROWS_BSCE_PRESETS) {
+    if (!isSynHeaderMaaPresetRow(row)) continue;
+    const rowKey = String(row);
+    if (!headerRows[rowKey]) headerRows[rowKey] = {};
+    for (const [display, value] of rowMap) {
+      const col = displayToExcelCol(display);
+      const existing = headerRows[rowKey][col];
+      if (existing && existing.userEdited) continue;
+      headerRows[rowKey][col] = {
+        ...(existing || {}),
+        v: value == null ? '' : String(value),
+        f: undefined,
+      };
+      if (headerRows[rowKey][col].f === undefined) {
+        delete headerRows[rowKey][col].f;
+      }
+    }
+  }
+  return headerRows;
+}
+
 /** Header panel rows 3–22 — display BD…BO presets (mirrors the BD–BO summary table). */
 const SYN_BDBO_PRESET_DISPLAY_COLS = [
   'BD', 'BE', 'BF', 'BG', 'BH', 'BI', 'BJ', 'BK', 'BL', 'BM', 'BN', 'BO',
@@ -2549,6 +2661,7 @@ function isSynMaaEvery3FromMCol(col) {
 export function isSynRow16FluoEvery3Col(row, col) {
   if (Number(row) !== 16) return false;
   if (isSynApBbTableCol(col)) return false;
+  if (isSynBsCeTableCol(col)) return false;
   return isSynHdrSummaryTableCol(col);
 }
 
@@ -2582,6 +2695,15 @@ export function isSynRow16BdboFluoCol(row, col) {
   if (Number(row) !== 16) return false;
   if (!isSynBdBoTableCol(col)) return false;
   return SYN_ROW16_BDBO_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
+}
+
+/** Row 16 — BS…CE curb mass (fluo yellow on BS, BX, CA, CB, CD). */
+export const SYN_ROW16_BSCE_FLUO_DISPLAY_COLS = new Set(['BS', 'BX', 'CA', 'CB', 'CD']);
+
+export function isSynRow16BsCeFluoCol(row, col) {
+  if (Number(row) !== 16) return false;
+  if (!isSynBsCeTableCol(col)) return false;
+  return SYN_ROW16_BSCE_FLUO_DISPLAY_COLS.has(excelToDisplayCol(col));
 }
 
 /** Row 5 — AP…BB P3S silhouette band (black fill, white text). */
@@ -2836,6 +2958,7 @@ export function isSynYellowFluoGreenFromMCol(row, col, map, sheet) {
   if (isSynForceWhiteExcelCol(col)) return false;
   if (synRowStyleClass(map, row, sheet) === 'syn-row-section') return true;
   if (isSynRow16FluoEvery3Col(row, col)) return true;
+  if (isSynRow16BsCeFluoCol(row, col)) return true;
   return false;
 }
 
@@ -4080,6 +4203,26 @@ function synDisplayValueImpl(cell, map, row, col, sheet, pillarColumns) {
         );
       }
       return synTranslateText(String(hdrBdboPreset), col);
+    }
+  }
+  if (isSynHeaderPanelRow(row) && isSynBscePresetExcelCol(col)) {
+    if (cell && cell.userEdited) {
+      const rawEdited = displayValue(cell);
+      if (isSynNumericRaw(rawEdited)) {
+        return synTranslateText(formatSynHdrMaaMetricDisplay(row, rawEdited, col), col);
+      }
+      return synTranslateText(rawEdited, col);
+    }
+    const hdrBscePreset = synRowBscePresetRaw(row, col);
+    if (hdrBscePreset !== undefined) {
+      if (hdrBscePreset == null || hdrBscePreset === '') return '';
+      if (typeof hdrBscePreset === 'number' || isSynNumericRaw(String(hdrBscePreset))) {
+        return synTranslateText(
+          formatSynHdrMaaMetricDisplay(row, String(hdrBscePreset), col),
+          col
+        );
+      }
+      return synTranslateText(String(hdrBscePreset), col);
     }
   }
   if (isSynHeaderPanelRow(row) && isSynBqTableCol(col)) {

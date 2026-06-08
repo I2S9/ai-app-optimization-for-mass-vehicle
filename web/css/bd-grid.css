@@ -473,9 +473,17 @@
 }
 
 /* Insert row/column — "+" on header hover */
-.bd-table th.grid-axis-hdr,
+.bd-table th.grid-axis-hdr:not(.col-sticky-date),
 .bd-table td.row-num.grid-axis-hdr {
   position: relative;
+}
+/* Keep frozen Date (A) + row numbers sticky — grid-axis-hdr would otherwise break column layout */
+.bd-table th.grid-axis-hdr.col-sticky-date,
+.bd-table td.row-num.grid-axis-hdr {
+  position: sticky;
+}
+.bd-table tbody td.data-cell.col-sticky-date {
+  position: sticky;
 }
 .grid-insert-btn {
   position: absolute;
