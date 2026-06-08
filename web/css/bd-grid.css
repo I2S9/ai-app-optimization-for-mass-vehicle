@@ -4450,18 +4450,39 @@
 }
 
 /* Options SP2 — copied Synthesis table: bold text + Synthesis column widths */
+.bd-grid-root.options-sp2-grid {
+  --sp2-syn-bold-border: 3px;
+}
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell,
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell .grid-cell-input,
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-curb-linked {
   font-weight: 700;
 }
 
-/* Options SP2 — black gridlines around the copied Synthesis table (like Synthesis) */
+/* Options SP2 — copied Synthesis table (F–T, rows 1–12 + row 14 Curb mass):
+   bold black grid on every cell and matching column headers — like Synthesis. */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell {
-  border: 1px solid #000;
+  border: var(--sp2-syn-bold-border) solid #000 !important;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='F'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='G'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='H'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='I'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='J'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='K'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='L'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='M'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='N'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='O'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='P'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='Q'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='R'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='S'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='T'] {
+  border: var(--sp2-syn-bold-border) solid #000 !important;
 }
 
-/* Options SP2 — always show the horizontal scrollbar (wide A–T grid) */
+/* Options SP2 — always show the horizontal scrollbar (wide A–Z grid) */
 .bd-grid-root.options-sp2-grid .bd-grid-scroll {
   overflow-x: scroll;
   overflow-y: auto;

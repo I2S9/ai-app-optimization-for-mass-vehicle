@@ -12,6 +12,8 @@ import { ref, computed, inject, onMounted, watch } from 'vue';
 import { formatSynNumericDisplay } from './synStore.js';
 
 const MNS_COLUMN_COUNT = 26;
+/** Options SP2 grid width — A…Z (26), same Excel letter sequence as MNS. */
+const OPTIONS_SP2_COLUMN_COUNT = MNS_COLUMN_COUNT;
 const MNS_MIN_ROWS = 60;
 
 /**
@@ -366,9 +368,9 @@ export default {
       String(props.storageKey || '').includes('options-sp2')
     );
 
-    // Options SP2 needs columns out to T (20) for the copied synthesis table.
+    // Options SP2: A…Z via numToCol (F–T = copied synthesis table; U–Z = extra workspace).
     const columns = computed(() => {
-      const count = isOptionsSp2.value ? 20 : MNS_COLUMN_COUNT;
+      const count = isOptionsSp2.value ? OPTIONS_SP2_COLUMN_COUNT : MNS_COLUMN_COUNT;
       return Array.from({ length: count }, (_, i) => numToCol(i + 1));
     });
 
