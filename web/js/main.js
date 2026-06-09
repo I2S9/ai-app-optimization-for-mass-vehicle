@@ -10,13 +10,13 @@ import {
   nextTick,
   provide,
 } from 'vue';
-import BdGrid from './BdGrid.js?v=bd-ctx1';
+import BdGrid from './BdGrid.js?v=bd-ugap-edit1';
 import { computeBodyDisplayRows } from './bdStore.js';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-scroll-values1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-ugap-edit1';
 import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=mns22-sp2cols';
+import MnsGrid from './MnsGrid.js?v=sp2-ft-options1';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
@@ -26,7 +26,7 @@ import {
   pasteRowCells,
   pasteColCells,
 } from './sheetRowColOps.js?v=axis2';
-import { addUserRowGap, addUserColGap, isUserGapCol, cloneUserGapsSnapshot, clearUserGaps } from './gridUserGaps.js?v=ugap2';
+import { addUserRowGap, addUserColGap, isUserGapCol, cloneUserGapsSnapshot, clearUserGaps } from './gridUserGaps.js?v=ugap3';
 import {
   synGridLooksHealthy,
   isSynStaleProjectExportText,
@@ -266,6 +266,9 @@ const App = {
         : [];
       sheet.userColGaps = Array.isArray(raw.userColGaps)
         ? raw.userColGaps.map((g) => ({ ...g }))
+        : [];
+      sheet.userGapCells = Array.isArray(raw.userGapCells)
+        ? raw.userGapCells.map((c) => ({ ...c }))
         : [];
     }
 
@@ -1266,6 +1269,9 @@ const App = {
       grid.userColGaps = Array.isArray(raw.userColGaps)
         ? raw.userColGaps.map((g) => ({ ...g }))
         : [];
+      grid.userGapCells = Array.isArray(raw.userGapCells)
+        ? raw.userGapCells.map((c) => ({ ...c }))
+        : [];
     }
 
     function applyUserGapsSnapshot(sheetName, snapshot) {
@@ -1273,6 +1279,7 @@ const App = {
       if (!raw || !snapshot) return;
       raw.userRowGaps = (snapshot.rowGaps || []).map((g) => ({ ...g }));
       raw.userColGaps = (snapshot.colGaps || []).map((g) => ({ ...g }));
+      raw.userGapCells = (snapshot.gapCells || []).map((c) => ({ ...c }));
       if (grid) {
         applyUserGapsToGrid(raw, grid);
         if (sheetName === 'BD') {
@@ -1533,8 +1540,8 @@ const App = {
       externalEditTick.value += 1;
     }
 
-    function onCellChange({ row, col, value, sheet, previousValue }) {
-      if (!applyingHistory) {
+    function onCellChange({ row, col, value, sheet, previousValue, live }) {
+      if (!applyingHistory && !live) {
         editHistory.push({
           sheet,
           row,
@@ -2472,7 +2479,7 @@ const App = {
             <MnsGrid v-if="isMns" key="mns-grid" storage-key="mns-grid-cells-v3" />
           </div>
           <div v-show="isOptionsSp2" class="grid-route-pane">
-            <MnsGrid v-if="isOptionsSp2" key="options-sp2-grid" storage-key="options-sp2-grid-cells-v1" />
+            <MnsGrid v-if="isOptionsSp2" key="options-sp2-grid" storage-key="options-sp2-grid-cells-v2" />
           </div>
           <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>

@@ -47,11 +47,19 @@ import {
   BD_POSITION_COLS,
   isBdNumericEntryCell,
 } from './bdColumnConfig.js?v=input-fix1';
-import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
+import { createGridCellEditor } from './gridCellEdit.js?v=grid-live1';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
 import { createGridAxisContextMenu } from './gridAxisContextMenu.js?v=ctx1';
-import { expandColumnsWithUserGaps, isUserGapCol, userGapColAnchor } from './gridUserGaps.js?v=ugap2';
+import {
+  expandColumnsWithUserGaps,
+  isUserGapCol,
+  isUserGapCellAddress,
+  getUserGapCellValue,
+  setUserGapCell,
+  userGapColAverageWidth,
+  gridRowKeyFromEntry,
+} from './gridUserGaps.js?v=ugap3';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -114,6 +122,7 @@ export default {
 
     const widthMap = computed(() => {
       void props.externalEditTick;
+      void (props.sheet && props.sheet.userGapCells);
       const m = buildWidthMap(
         props.sheet.colWidths,
         props.sheet.columns,
@@ -123,9 +132,10 @@ export default {
       );
       for (const col of columns.value) {
         if (!isUserGapCol(col)) continue;
-        const anchor = userGapColAnchor(props.sheet, col);
-        const anchorW = anchor ? m.get(anchor) : null;
-        if (anchorW != null) m.set(col, anchorW);
+        m.set(
+          col,
+          userGapColAverageWidth(props.sheet, col, (c) => m.get(c), 72)
+        );
       }
       return m;
     });
@@ -254,9 +264,17 @@ export default {
       return out;
     });
 
+    function gridRowKey(entry) {
+      return gridRowKeyFromEntry(entry);
+    }
+
     const rowCount = computed(() => bodyRows.value.length);
-    /** Stable excel-row list — memoized so cell-nav/search keep a constant reference. */
-    const bodyExcelRows = computed(() => bodyRows.value.map((e) => e.excelRow));
+    /** Stable row list for navigation — includes user-gap virtual row keys. */
+    const bodyExcelRows = computed(() =>
+      bodyRows.value
+        .map((e) => gridRowKey(e))
+        .filter((r) => r != null)
+    );
     const virtualizeRows = computed(() =>
       shouldVirtualizeRows(rowCount.value, viewportH.value)
     );
@@ -350,11 +368,12 @@ export default {
 
     /** Merged width + inline style for a data cell — cached (stable ref) per generation. */
     function cellStyleFor(row, col) {
+      const w = widthMap.value.get(col) || 72;
+      const base = { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
+      if (isUserGapCellAddress(row, col)) return base;
       const key = `${cellModelGen}:${row}:${col}`;
       const cached = cellStyleCache.get(key);
       if (cached !== undefined) return cached;
-      const w = widthMap.value.get(col) || 72;
-      const base = { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px` };
       const inline = cellInlineStyle(
         getCell(cellMap.value, row, col),
         cellMap.value,
@@ -373,6 +392,7 @@ export default {
 
     /** Static (non-search) class string for a data cell — cached per generation. */
     function cellStaticClass(row, col) {
+      if (isUserGapCellAddress(row, col)) return '';
       const key = `${cellModelGen}:${row}:${col}`;
       const cached = cellClassCache.get(key);
       if (cached !== undefined) return cached;
@@ -430,7 +450,23 @@ export default {
       }
     );
 
-    function commitCellInput(row, col, value, previousValue) {
+    function commitCellInput(row, col, value, previousValue, meta) {
+      const live = Boolean(meta && meta.live);
+      if (isUserGapCellAddress(row, col)) {
+        setUserGapCell(props.sheet, row, col, value);
+        if (props.rawBd) setUserGapCell(props.rawBd, row, col, value);
+        editEpoch.value += 1;
+        invalidateDisplayCache();
+        emit('cell-change', {
+          row,
+          col,
+          value,
+          sheet: props.sheetName || 'BD',
+          previousValue: previousValue != null ? previousValue : '',
+          live,
+        });
+        return;
+      }
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
       const hadFormula = Boolean(cell && cell.f);
@@ -452,6 +488,7 @@ export default {
         value,
         sheet: props.sheetName || 'BD',
         previousValue: previousValue != null ? previousValue : '',
+        live,
       });
       if (props.session && typeof props.session.setCellValue === 'function') {
         void props.session
@@ -637,7 +674,7 @@ export default {
     const cellNavigation = createGridCellNavigation({
       getColumns: () => columns.value,
       getRows: () => bodyExcelRows.value,
-      isNavigable: (row, col) => !cellReadonly(row, col) && !isUserGapCol(col),
+      isNavigable: (row, col) => !cellReadonly(row, col),
       getScrollEl: () => scrollEl.value,
       flushScroll: () => scrollSync.flush(),
       getRowTop: (rowIndex) => BD_HEADER_H + rowIndex * ROW_H,
@@ -720,10 +757,11 @@ export default {
       }
     );
 
-    /** Row 1 = Excel headers only; all body rows editable. */
+    /** Row 1 = Excel headers only; user-gap rows/cols always editable. */
     function cellReadonly(row, col) {
-      if (isUserGapCol(col)) return true;
-      return row < 2;
+      if (isUserGapCellAddress(row, col)) return false;
+      if (row == null || row < 2) return true;
+      return false;
     }
 
     watch(
@@ -784,6 +822,9 @@ export default {
     }
 
     function cellDisplay(row, col) {
+      if (isUserGapCellAddress(row, col)) {
+        return getUserGapCellValue(props.sheet, row, col) ?? '';
+      }
       if (row == null) return '';
       const cacheKey = `${calcRevision.value}:${editEpoch.value}:${engineReady.value}:${props.outlineOnly}:${props.sheet === null ? 0 : 1}`;
       if (cacheKey !== displayCacheKey) {
@@ -926,6 +967,7 @@ export default {
       leftPad,
       rightPad,
       rowEntryKey,
+      gridRowKey,
       visibleRows,
       topSpacer,
       bottomSpacer,
@@ -1100,44 +1142,44 @@ export default {
                   class="data-cell"
                   :class="[
                     {
-                      readonly: cellReadonly(entry.excelRow, col),
+                      readonly: cellReadonly(gridRowKey(entry), col),
                       'col-sticky-date': isStickyDateCol(col) && !isUserGapCol(col),
                       'col-free-field': col === BD_FREE_FIELD_COL,
                       'grid-user-gap-col': isUserGapCol(col),
-                      'grid-search-hit': isSearchHit(entry.excelRow, col),
-                      'grid-search-focus': isSearchFocus(entry.excelRow, col),
+                      'grid-search-hit': isSearchHit(gridRowKey(entry), col),
+                      'grid-search-focus': isSearchFocus(gridRowKey(entry), col),
                       'grid-axis-col-focus': isAxisCol(col),
                       'grid-axis-col-copied': isCopiedCol(col),
                     },
-                    cellStaticClass(entry.excelRow, col),
+                    cellStaticClass(gridRowKey(entry), col),
                   ]"
-                  :style="cellStyleFor(entry.excelRow, col)"
+                  :style="cellStyleFor(gridRowKey(entry), col)"
                 >
-                  <template v-if="cellReadonly(entry.excelRow, col)">
+                  <template v-if="cellReadonly(gridRowKey(entry), col)">
                     <span
-                      :title="cellTitle(entry.excelRow, col)"
-                      @mousedown="onAxisCellPointer(entry.excelRow, col, $event)"
-                    >{{ cellDisplay(entry.excelRow, col) }}</span>
+                      :title="cellTitle(gridRowKey(entry), col)"
+                      @mousedown="onAxisCellPointer(gridRowKey(entry), col, $event)"
+                    >{{ cellDisplay(gridRowKey(entry), col) }}</span>
                   </template>
                   <input
-                    v-else-if="isCellActive(entry.excelRow, col)"
+                    v-else-if="isCellActive(gridRowKey(entry), col)"
                     type="text"
                     class="grid-cell-input"
                     autocomplete="off"
                     spellcheck="false"
-                    :data-grid-row="entry.excelRow"
+                    :data-grid-row="gridRowKey(entry)"
                     :data-grid-col="col"
-                    @mousedown="onCellMouseDown(entry.excelRow, col, $event)"
-                    @focus="onCellFocus(entry.excelRow, col, $event)"
-                    @input="onCellInput(entry.excelRow, col, $event)"
-                    @blur="onCellBlur(entry.excelRow, col, $event)"
-                    @keydown="onCellKeydown(entry.excelRow, col, $event)"
+                    @mousedown="onCellMouseDown(gridRowKey(entry), col, $event)"
+                    @focus="onCellFocus(gridRowKey(entry), col, $event)"
+                    @input="onCellInput(gridRowKey(entry), col, $event)"
+                    @blur="onCellBlur(gridRowKey(entry), col, $event)"
+                    @keydown="onCellKeydown(gridRowKey(entry), col, $event)"
                   />
                   <span
                     v-else
                     class="grid-cell-display"
-                    @mousedown="onCellSpanMouseDown(entry.excelRow, col, $event)"
-                  >{{ cellShowValue(entry.excelRow, col, cellDisplay(entry.excelRow, col)) }}</span>
+                    @mousedown="onCellSpanMouseDown(gridRowKey(entry), col, $event)"
+                  >{{ cellShowValue(gridRowKey(entry), col, cellDisplay(gridRowKey(entry), col)) }}</span>
                 </td>
               </template>
               <td v-if="rightPad > 0" class="col-spacer" :style="{ width: rightPad + 'px', minWidth: rightPad + 'px', maxWidth: rightPad + 'px', padding: 0, border: 'none' }"></td>

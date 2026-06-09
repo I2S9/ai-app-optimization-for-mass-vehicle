@@ -555,7 +555,7 @@
   background: rgba(233, 84, 133, 0.55);
 }
 
-/* User-inserted blank rows/columns — display only (Database), same size as neighbors */
+/* User-inserted blank rows/columns — editable, white background, standard row height */
 .bd-table tbody tr.row-user-gap td.data-cell,
 .bd-table tbody tr.row-user-gap td.data-cell.readonly,
 .bd-table tbody tr.row-user-gap td.row-num,
@@ -4449,6 +4449,24 @@
   white-space: nowrap;
 }
 
+/* Options SP2 — row 15 = sum(row 16, row 53), read-only */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-row15-sum {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-row15-sum.sp2-ft-row15-magenta {
+  color: #ff00ff;
+}
+
 /* Options SP2 — copied Synthesis table: bold text + Synthesis column widths */
 .bd-grid-root.options-sp2-grid {
   --sp2-syn-bold-border: 3px;
@@ -4459,7 +4477,7 @@
   font-weight: 700;
 }
 
-/* Options SP2 — copied Synthesis table (F–T, rows 1–12 + row 14 Curb mass):
+/* Options SP2 — copied Synthesis table (F–T, rows 1–12 + rows 14–18):
    bold black grid on every cell and matching column headers — like Synthesis. */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell {
   border: var(--sp2-syn-bold-border) solid #000 !important;
@@ -4481,11 +4499,38 @@
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='T'] {
   border: var(--sp2-syn-bold-border) solid #000 !important;
 }
+/* AC…AN copy — columns V–AG (rows 1–12 + row 14 Curb mass) */
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='V'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='W'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='X'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='Y'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='Z'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AA'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AB'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AC'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AD'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AE'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AF'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AG'] {
+  border: var(--sp2-syn-bold-border) solid #000 !important;
+}
+/* Blank spacer column U between F–T and V–AG */
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='U'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-blank-col {
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  background: #fff !important;
+  border-color: #d0d0d0 !important;
+  border-width: 1px !important;
+  padding: 0;
+}
 
 /* Options SP2 — always show the horizontal scrollbar (wide A–Z grid) */
 .bd-grid-root.options-sp2-grid .bd-grid-scroll {
   overflow-x: scroll;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar {
   height: 14px;
@@ -4552,8 +4597,36 @@
   min-width: 83px;
   max-width: 83px;
 }
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='V'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='V'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='W'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='W'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='X'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='X'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='Y'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='Y'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='Z'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='Z'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AA'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AA'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AB'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AB'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AC'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AC'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AD'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AD'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AE'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AE'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AF'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AF'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AG'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AG'] {
+  width: 77px;
+  min-width: 77px;
+  max-width: 77px;
+}
 
-/* Options SP2 — copied Synthesis table colours (F–T, rows 1–12) */
+/* Options SP2 — copied Synthesis table colours (F–T + V–AG, rows 1–12) */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-bev .grid-cell-input {
   color: #00b050;
 }
@@ -4575,10 +4648,81 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-grey {
   background: #d9d9d9;
 }
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-o3w {
+  background: #ffc000;
+}
 
 /* Options SP2 — highlighted data cells */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-green-cell {
   background: #92d050;
+}
+/* Options SP2 — options block rows 19–39 & 41–47 (F–T + AH–HC); row 40 = white */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band {
+  background: #92d050;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-white-band {
+  background: #fff;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-white-band .sp2-option-btn {
+  background: transparent;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter.sp2-option-col-letter,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-white-band {
+  width: 77px;
+  min-width: 77px;
+  max-width: 77px;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band .grid-cell-input,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band .sp2-option-btn {
+  background: transparent;
+}
+/* Lightweight O / NO / REF picker — one shared native select, not 450 in the DOM */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band .sp2-option-btn {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  border: none;
+  margin: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  color: #000;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band .sp2-option-btn.sp2-option-choice-no {
+  color: #ff0000;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band .sp2-option-btn:focus {
+  outline: 2px solid #4472c4;
+  outline-offset: -2px;
+}
+.sp2-option-select-floating {
+  position: fixed;
+  z-index: 10000;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px solid #4472c4;
+  background: #92d050;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  color: #000;
+  box-sizing: border-box;
+}
+/* Scroll perf — row contain for paint isolation */
+.bd-grid-root.options-sp2-grid .bd-table tbody tr.grid-row-cv {
+  contain: layout style;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-ft-row15-magenta,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-ft-row15-magenta .grid-cell-input,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-ft-row15-magenta .sp2-row15-sum {
+  color: #ff00ff;
+  font-weight: 700;
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-blue-cell {
   background: #00b0f0;

@@ -22,7 +22,7 @@ import {
   isSynVehicleMassCol,
   isSynTrustMaterializedLiveCell,
 } from './synthesisCalc.js?v=grid-perf2';
-import { createGridCellEditor } from './gridCellEdit.js?v=grid-nav4';
+import { createGridCellEditor } from './gridCellEdit.js?v=grid-live1';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
 import { createGridAxisContextMenu } from './gridAxisContextMenu.js?v=ctx1';
@@ -31,7 +31,13 @@ import {
   injectUserRowGaps,
   isSynUserGapEntry,
   isUserGapCol,
-} from './gridUserGaps.js?v=ugap2';
+  isUserGapCellAddress,
+  getUserGapCellValue,
+  setUserGapCell,
+  userGapColAverageWidth,
+  userGapRowNavKey,
+  gridRowKeyFromEntry,
+} from './gridUserGaps.js?v=ugap3';
 import {
   buildSearchIndex,
   createGridSearchController,
@@ -413,6 +419,7 @@ export default {
 
     const displayColumns = computed(() => {
       void props.externalEditTick;
+      void (props.sheet && props.sheet.userGapCells);
       let cols = props.sheet.columns || [];
       if (hiddenExcelCols.value.size) {
         cols = cols.filter((c) => !hiddenExcelCols.value.has(c));
@@ -426,6 +433,7 @@ export default {
     const widthByCol = computed(() => {
       const m = new Map();
       const labelW = synStickyColWidth(props.sheet);
+      void (props.sheet && props.sheet.userGapCells);
       for (const w of props.sheet.colWidths || []) {
         if (w.col === SYN_STICKY_COL) continue;
         const pillarW = synPillarColWidth(w.col, props.sheet, pillarColumns.value);
@@ -438,10 +446,18 @@ export default {
           m.set(
             col,
             isUserGapCol(col)
-              ? 54
+              ? userGapColAverageWidth(props.sheet, col, (c) => m.get(c), 110)
               : synPillarColWidth(col, props.sheet, pillarColumns.value) != null
                 ? synPillarColWidth(col, props.sheet, pillarColumns.value)
                 : 110
+          );
+        }
+      }
+      for (const col of displayColumns.value) {
+        if (isUserGapCol(col)) {
+          m.set(
+            col,
+            userGapColAverageWidth(props.sheet, col, (c) => m.get(c), 110)
           );
         }
       }
@@ -663,11 +679,13 @@ export default {
 
     const rowCount = computed(() => dataBodyRows.value.length);
 
-    /** Stable navigable excel-row list — memoized for cell-nav/search reference checks. */
+    /** Stable navigable row list — includes user-gap virtual row keys. */
     const navExcelRows = computed(() =>
       bodyRows.value
         .filter((e) => !isSynPanelGapEntry(e))
-        .map((e) => e.excelRow)
+        .map((e) =>
+          isSynUserGapEntry(e) ? userGapRowNavKey(e.gapKey) : e.excelRow
+        )
         .filter((r) => r != null)
     );
 
@@ -996,22 +1014,24 @@ export default {
       return formatVal(String(n));
     }
 
-    function previewAdaptationBandInput(row, col, raw) {
-      const key = `${row}:${col}`;
-      let cell = cellMap.value.get(key);
-      if (!cell) {
-        cell = { r: row, c: col, v: raw, userEdited: true };
-        props.sheet.cells.push(cell);
-        cellMap.value.set(key, cell);
-      } else {
-        cell.v = raw;
-        cell.userEdited = true;
+    function commitCellInput(row, col, value, previousValue, meta) {
+      const live = Boolean(meta && meta.live);
+      if (isUserGapCellAddress(row, col)) {
+        setUserGapCell(props.sheet, row, col, value);
+        if (props.rawSyn) setUserGapCell(props.rawSyn, row, col, value);
+        editEpoch.value += 1;
+        invalidateDisplayCache();
+        bumpCellModelCache();
+        emit('cell-change', {
+          row,
+          col,
+          value,
+          sheet: 'SYNTHESIS',
+          previousValue: previousValue != null ? previousValue : '',
+          live,
+        });
+        return;
       }
-      invalidateAdaptationSumCol(col);
-      editEpoch.value += 1;
-    }
-
-    function commitCellInput(row, col, value, previousValue) {
       const key = `${row}:${col}`;
       let cell = cellMap.value.get(key);
       if (!cell) {
@@ -1040,6 +1060,7 @@ export default {
         value,
         sheet: 'SYNTHESIS',
         previousValue: previousValue != null ? previousValue : '',
+        live,
       });
       if (props.session && props.session.setCellValue) {
         void props.session
@@ -1116,7 +1137,7 @@ export default {
       onCellMouseDown: onCellMouseDownBase,
       onCellSpanMouseDown: onCellSpanMouseDownBase,
       onCellFocus: onCellFocusBase,
-      onCellInput: onCellInputBase,
+      onCellInput,
       onCellBlur,
       onCellKeydown: onCellKeydownBase,
       prepareNavigate,
@@ -1381,8 +1402,8 @@ export default {
     }
 
     function cellReadonly(row, col) {
+      if (isUserGapCellAddress(row, col)) return false;
       if (row == null) return true;
-      if (isUserGapCol(col)) return true;
       if (isSynForceWhiteExcelCol(col) && !isSynRow16FhFiPresetCell(row, col)) return true;
       // Column L mirrors column M — its value is derived, so it is not editable.
       if (isSynMirrorLfromMCell(row, col)) return true;
@@ -1402,7 +1423,7 @@ export default {
     const cellNavigation = createGridCellNavigation({
       getColumns: () => displayColumns.value,
       getRows: () => navExcelRows.value,
-      isNavigable: (row, col) => !cellReadonly(row, col) && !isUserGapCol(col),
+      isNavigable: (row, col) => !cellReadonly(row, col),
       getScrollEl: () => scrollEl.value,
       flushScroll: () => scrollSync.flush(),
       getRowTop: (_rowIndex, excelRow) => bodyTopForExcelRow(excelRow),
@@ -1420,14 +1441,6 @@ export default {
       activateCell,
       setNavigationLock
     );
-
-    function onCellInputLive(row, col, event) {
-      onCellInputBase(row, col, event);
-      if (!affectsAdaptationSum(row, col, props.sheet)) return;
-      const el = event.target;
-      if (!el) return;
-      previewAdaptationBandInput(row, col, el.value);
-    }
 
     /** Only real data rows below the header panel can be removed. */
     function isDeletableSynRow(entry) {
@@ -1551,6 +1564,9 @@ export default {
       if (cacheKey !== displayCacheKey) {
         invalidateDisplayCache();
         displayCacheKey = cacheKey;
+      }
+      if (isUserGapCellAddress(row, col)) {
+        return getUserGapCellValue(props.sheet, row, col) ?? '';
       }
       if (row == null) return '';
       // Column L (Excel Q) mirrors column M (Excel R) live. Delegate to M without
@@ -2012,6 +2028,7 @@ export default {
 
     function scrollDataCellStyle(entry, col, width) {
       const base = colStyle(col, width);
+      if (isSynUserGapEntry(entry) || isUserGapCol(col)) return base;
       if (isGapEntry(entry)) return base;
       const row = entry.excelRow;
       const styleKey = `${displayCacheKey}:${row}:${col}:${width}`;
@@ -2476,7 +2493,7 @@ export default {
     function buildPinnedCellModel(entry, colEntry) {
       const col = colEntry.col;
       const width = colEntry.width;
-      if (isGapEntry(entry) || isUserGapCol(col)) {
+      if (isSynPanelGapEntry(entry) && !isUserGapCol(col)) {
         return {
           col,
           width,
@@ -2484,6 +2501,21 @@ export default {
           readonly: true,
           display: '',
           html: '',
+          classes: '',
+          style: [colStyle(col, width), stickyStyle(col)],
+        };
+      }
+      const rowKey = gridRowKeyFromEntry(entry);
+      if (isSynUserGapEntry(entry) || isUserGapCol(col)) {
+        const display = getUserGapCellValue(props.sheet, rowKey, col) ?? '';
+        return {
+          col,
+          width,
+          row: rowKey,
+          gap: false,
+          display,
+          html: cellDisplayHtml(rowKey, col, display),
+          readonly: false,
           classes: isUserGapCol(col) ? 'syn-user-gap-col' : '',
           style: [colStyle(col, width), stickyStyle(col)],
         };
@@ -2519,8 +2551,8 @@ export default {
     function buildScrollCellModel(entry, colEntry, colIdx, colsLen) {
       const col = colEntry.col;
       const width = colEntry.width;
-      if (isGapEntry(entry) || isUserGapCol(col)) {
-        const gapCls = isUserGapCol(col) ? 'syn-user-gap-col' : '';
+      if (isSynPanelGapEntry(entry) && !isUserGapCol(col)) {
+        const gapCls = '';
         return {
           col,
           width,
@@ -2529,6 +2561,28 @@ export default {
           display: '',
           html: '',
           classes: cachedScrollCellClassNames(entry, col, colIdx, colsLen, gapCls),
+          style: scrollDataCellStyle(entry, col, width),
+        };
+      }
+      const rowKey = gridRowKeyFromEntry(entry);
+      if (isSynUserGapEntry(entry) || isUserGapCol(col)) {
+        const display = getUserGapCellValue(props.sheet, rowKey, col) ?? '';
+        const gapCls = isUserGapCol(col) ? 'syn-user-gap-col' : '';
+        return {
+          col,
+          width,
+          row: rowKey,
+          gap: false,
+          display,
+          html: cellDisplayHtml(rowKey, col, display),
+          readonly: false,
+          classes: cachedScrollCellClassNames(
+            entry,
+            col,
+            colIdx,
+            colsLen,
+            gapCls || display
+          ),
           style: scrollDataCellStyle(entry, col, width),
         };
       }
@@ -3091,8 +3145,7 @@ export default {
       onCellMouseDown,
       onCellSpanMouseDown,
       onCellFocus,
-      onCellInput: onCellInputLive,
-      onCellInputLive,
+      onCellInput,
       onCellBlur,
       onCellKeydown,
       ctxMenu,
@@ -3330,7 +3383,7 @@ export default {
                   :data-grid-col="cell.col"
                   @mousedown="onCellMouseDown(cell.row, cell.col, $event)"
                   @focus="onCellFocus(cell.row, cell.col, $event)"
-                  @input="onCellInputLive(cell.row, cell.col, $event)"
+                  @input="onCellInput(cell.row, cell.col, $event)"
                   @blur="onCellBlur(cell.row, cell.col, $event)"
                   @keydown="onCellKeydown(cell.row, cell.col, $event)"
                 />
@@ -3372,7 +3425,7 @@ export default {
                   :data-grid-col="cell.col"
                   @mousedown="onCellMouseDown(cell.row, cell.col, $event)"
                   @focus="onCellFocus(cell.row, cell.col, $event)"
-                  @input="onCellInputLive(cell.row, cell.col, $event)"
+                  @input="onCellInput(cell.row, cell.col, $event)"
                   @blur="onCellBlur(cell.row, cell.col, $event)"
                   @keydown="onCellKeydown(cell.row, cell.col, $event)"
                 />

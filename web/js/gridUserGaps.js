@@ -1,8 +1,9 @@
 /**
- * User-inserted blank rows/columns — display-only gaps (no cell/formula remapping).
+ * User-inserted blank rows/columns — editable overlay (no cell/formula remapping).
  */
 
 export const USER_COL_GAP_PREFIX = '__UGAP_';
+export const USER_ROW_GAP_NAV_PREFIX = '__UGR_';
 
 export function isUserGapCol(col) {
   return typeof col === 'string' && col.startsWith(USER_COL_GAP_PREFIX);
@@ -13,6 +14,23 @@ export function userGapColId(col) {
   return col.slice(USER_COL_GAP_PREFIX.length);
 }
 
+export function userGapRowNavKey(gapId) {
+  return `${USER_ROW_GAP_NAV_PREFIX}${gapId}`;
+}
+
+export function isUserGapNavRow(row) {
+  return typeof row === 'string' && row.startsWith(USER_ROW_GAP_NAV_PREFIX);
+}
+
+export function userGapRowIdFromNav(row) {
+  if (!isUserGapNavRow(row)) return null;
+  return row.slice(USER_ROW_GAP_NAV_PREFIX.length);
+}
+
+export function isUserGapCellAddress(row, col) {
+  return isUserGapNavRow(row) || isUserGapCol(col);
+}
+
 export function userGapColAnchor(sheet, gapCol) {
   const id = userGapColId(gapCol);
   if (!id) return null;
@@ -20,18 +38,101 @@ export function userGapColAnchor(sheet, gapCol) {
   return gap ? gap.afterCol : null;
 }
 
+function normalizeUserGapCells(raw) {
+  if (!raw || !Array.isArray(raw.userGapCells)) return [];
+  return raw.userGapCells
+    .map((c) => {
+      const out = { v: c.v != null ? String(c.v) : '' };
+      if (c.gapRowId) out.gapRowId = String(c.gapRowId);
+      if (c.gapColId) out.gapColId = String(c.gapColId);
+      if (c.col) out.col = String(c.col);
+      if (c.row != null && Number.isFinite(Number(c.row))) out.row = Number(c.row);
+      return out;
+    })
+    .filter((c) => c.v !== '' && (c.gapRowId || c.gapColId));
+}
+
+export function userGapCellsForSheet(sheet) {
+  return normalizeUserGapCells(sheet);
+}
+
+function gapCellMatches(cell, addr) {
+  if (addr.gapRowId && cell.gapRowId !== addr.gapRowId) return false;
+  if (addr.gapColId && cell.gapColId !== addr.gapColId) return false;
+  if (addr.col && cell.col !== addr.col) return false;
+  if (addr.row != null && cell.row !== addr.row) return false;
+  return true;
+}
+
+/** Resolve storage address for a user-gap row/col intersection. */
+export function resolveUserGapCellAddr(row, col) {
+  const gapRowId = isUserGapNavRow(row) ? userGapRowIdFromNav(row) : null;
+  const gapColId = isUserGapCol(col) ? userGapColId(col) : null;
+  if (!gapRowId && !gapColId) return null;
+  const addr = {};
+  if (gapRowId) addr.gapRowId = gapRowId;
+  if (gapColId) addr.gapColId = gapColId;
+  if (gapRowId && !gapColId) addr.col = String(col);
+  if (gapColId && !gapRowId) addr.row = Number(row);
+  return addr;
+}
+
+export function getUserGapCellValue(sheet, row, col) {
+  const addr = resolveUserGapCellAddr(row, col);
+  if (!addr) return undefined;
+  const hit = userGapCellsForSheet(sheet).find((c) => gapCellMatches(c, addr));
+  return hit ? hit.v : '';
+}
+
+export function setUserGapCell(sheet, row, col, value) {
+  const addr = resolveUserGapCellAddr(row, col);
+  if (!addr || !sheet) return false;
+  if (!sheet.userGapCells) sheet.userGapCells = [];
+  const v = value != null ? String(value) : '';
+  const idx = sheet.userGapCells.findIndex((c) => gapCellMatches(c, addr));
+  if (v === '') {
+    if (idx >= 0) sheet.userGapCells.splice(idx, 1);
+  } else if (idx >= 0) {
+    sheet.userGapCells[idx].v = v;
+  } else {
+    sheet.userGapCells.push({ ...addr, v });
+  }
+  return true;
+}
+
+/** Column width = average of the anchor column and its right neighbor. */
+export function userGapColAverageWidth(sheet, gapCol, getWidth, fallback = 72) {
+  const anchor = userGapColAnchor(sheet, gapCol);
+  if (!anchor) return fallback;
+  const leftW = getWidth(anchor) ?? fallback;
+  const cols = sheet.columns || [];
+  const anchorIdx = cols.indexOf(anchor);
+  const rightCol =
+    anchorIdx >= 0 && anchorIdx < cols.length - 1 ? cols[anchorIdx + 1] : null;
+  const rightW = rightCol ? (getWidth(rightCol) ?? leftW) : leftW;
+  return Math.round((leftW + rightW) / 2);
+}
+
+export function gridRowKeyFromEntry(entry) {
+  if (!entry) return null;
+  if (entry.userGap && entry.gapKey) return userGapRowNavKey(entry.gapKey);
+  return entry.excelRow != null ? entry.excelRow : null;
+}
+
 export function cloneUserGapsSnapshot(raw) {
   return {
     rowGaps: userRowGapsForSheet(raw).map((g) => ({ ...g })),
     colGaps: userColGapsForSheet(raw).map((g) => ({ ...g })),
+    gapCells: userGapCellsForSheet(raw).map((c) => ({ ...c })),
   };
 }
 
-/** Strip display-only gaps (e.g. legacy corrupted session snapshots). */
+/** Strip user gaps (e.g. legacy corrupted session snapshots). */
 export function clearUserGaps(raw) {
   if (!raw) return;
   raw.userRowGaps = [];
   raw.userColGaps = [];
+  raw.userGapCells = [];
 }
 
 function normalizeUserRowGaps(raw) {
@@ -89,7 +190,7 @@ export function addUserColGap(raw, afterCol) {
   });
 }
 
-/** Inject white display rows after anchored Excel rows. */
+/** Inject blank editable rows after anchored Excel rows. */
 export function injectUserRowGaps(rows, sheet, nextDisplayRow) {
   let displayRow = nextDisplayRow;
   const out = [];

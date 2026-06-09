@@ -55,7 +55,7 @@ function placeCaretAtEnd(el) {
  * @param {{
  *   isNumericAt: (row: number, col: string) => boolean,
  *   displayAt: (row: number, col: string) => string,
- *   commitAt: (row: number, col: string, value: string, previousValue: string) => void,
+ *   commitAt: (row: number, col: string, value: string, previousValue: string, meta?: { live?: boolean }) => void,
  * }} opts
  */
 export function createGridCellEditor(opts) {
@@ -64,6 +64,7 @@ export function createGridCellEditor(opts) {
   const lastGoodByEl = new WeakMap();
   const dirtyByEl = new WeakMap();
   const startSeedByEl = new WeakMap();
+  const lastLiveCommittedByEl = new WeakMap();
   const idleDisplayByKey = new Map();
 
   let navigationLock = false;
@@ -95,6 +96,7 @@ export function createGridCellEditor(opts) {
     lastGoodByEl.delete(el);
     dirtyByEl.delete(el);
     startSeedByEl.delete(el);
+    lastLiveCommittedByEl.delete(el);
   }
 
   function applyEditSeed(el, row, col) {
@@ -153,6 +155,7 @@ export function createGridCellEditor(opts) {
     const next = el.value;
     if (!isNumericAt(row, col)) {
       lastGoodByEl.set(el, next);
+      tryLiveCommit(row, col, el);
       return;
     }
     if (!isAllowedNumericTyping(next)) {
@@ -162,6 +165,7 @@ export function createGridCellEditor(opts) {
       return;
     }
     lastGoodByEl.set(el, next);
+    tryLiveCommit(row, col, el);
   }
 
   function normalizeCommit(row, col, raw) {
@@ -173,6 +177,34 @@ export function createGridCellEditor(opts) {
       return { ok: false };
     }
     return { ok: true, value: v };
+  }
+
+  /** Permissive normalize for keystroke commits (skip lone "-" / trailing separators). */
+  function normalizeLiveCommit(row, col, raw) {
+    if (!isNumericAt(row, col)) {
+      return { ok: true, value: raw };
+    }
+    const s = normalizeNumericTyping(raw).trim();
+    if (s === '') return { ok: true, value: '' };
+    if (s === '-') return { ok: false };
+    let v = s;
+    if (v.endsWith(',') || v.endsWith('.')) v = v.slice(0, -1);
+    v = v.replace(',', '.');
+    if (v === '' || v === '-') return { ok: false };
+    if (/^-?\d+(\.\d+)?$/.test(v)) {
+      return { ok: true, value: v };
+    }
+    return { ok: false };
+  }
+
+  function tryLiveCommit(row, col, el) {
+    const parsed = normalizeLiveCommit(row, col, el.value);
+    if (!parsed.ok) return;
+    const prev = lastLiveCommittedByEl.get(el);
+    if (prev === parsed.value) return;
+    lastLiveCommittedByEl.set(el, parsed.value);
+    const startSeed = startSeedByEl.has(el) ? startSeedByEl.get(el) : '';
+    commitAt(row, col, parsed.value, startSeed, { live: true });
   }
 
   function finishEdit(row, col, event, options = {}) {
