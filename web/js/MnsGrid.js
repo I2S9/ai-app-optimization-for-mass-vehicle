@@ -73,9 +73,11 @@ const OPTIONS_SP2_MAX_COL = 'HC';
 const OPTIONS_SP2_COLUMN_COUNT = colToNum(OPTIONS_SP2_MAX_COL);
 /** Blank spacer between the M…AA block (F–T) and the AC…AN block (V–AG). */
 const OPTIONS_SP2_BLANK_COL = 'U';
-/** Green options band — rows 19–39 & 41–47 (row 40 = white), cols V–AG + AH–HC. */
-const OPTIONS_SP2_EXTENDED_GREEN_COLS = sp2ColsFromTo('AH', OPTIONS_SP2_MAX_COL);
-/** Rows 44–47 pre-filled with NO on extended green cols (AH–HC). */
+/** Blank spacer before the AP…BB copy (AI…AU). */
+const OPTIONS_SP2_BLANK_COL_AH = 'AH';
+/** Green options band — rows 19–39 & 41–47 (row 40 = white), cols V–AG + AV–HC. */
+const OPTIONS_SP2_EXTENDED_GREEN_COLS = sp2ColsFromTo('AV', OPTIONS_SP2_MAX_COL);
+/** Rows 44–47 pre-filled with NO on extended green cols (AV–HC). */
 const OPTIONS_SP2_NO_SEED_ROWS = [44, 45, 46, 47];
 const OPTIONS_SP2_NO_SEED_VALUE = 'NO';
 const OPTIONS_SP2_OPTION_WHITE_ROW = 40;
@@ -440,6 +442,26 @@ const OPTIONS_SP2_VAG_16_18 = [
   sp2PickVagFromFtRow(OPTIONS_SP2_FT_16_18[2]),
 ];
 
+/**
+ * Synthesis AP…BB header table → Options SP2 columns AI…AU, rows 1–12.
+ * Source: Synthesis display AP…BB (Excel AU…BG), rows 3–14.
+ */
+const OPTIONS_SP2_AU_COLS = sp2ColsFromTo('AI', 'AU');
+const OPTIONS_SP2_AU = [
+  ['STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S', 'STLA/S'],
+  ['SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2', 'SP2'],
+  ['P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S', 'P3S'],
+  ['BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'BEV', 'MHEVP2', 'MHEVP2', 'HEV', 'HEV'],
+  ['EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA', 'EMEA'],
+  ['', '', '', 'SBW', '', 'SBW', '', 'SBW', 'SBW', 'SBW', '', '', ''],
+  ['FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'FWD', 'AWD', 'FWD', 'FWD', 'FWD', 'FWD'],
+  ['HR', 'HR', 'HR', 'HR', 'HR', 'XR', 'XR', 'XR', 'XR', 'TT', 'TT', 'TT', 'TT'],
+  ['HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'HIGH_Range', 'X_Range', 'X_Range', 'X_Range', 'X_Range', '', '', '', ''],
+  ['', '', '', '', '', '', '', '', '', '', '', '', ''],
+  ['TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET'],
+  ['L2', 'L3', 'L3', 'GT', 'GT', 'L3', 'L3', 'GT', 'GTI', 'L2', 'L3', 'L3', 'GT'],
+];
+
 const MNS_DEFAULT_STORAGE_KEY = 'mns-grid-cells-v3';
 
 /** Rows that make up the red bands on the Options SP2 page (columns A–E). */
@@ -487,10 +509,13 @@ const OPTIONS_SP2_OPTION_GREEN_COLS = [
 ];
 const SP2_FT_COL_SET = new Set(OPTIONS_SP2_FT_COLS);
 const SP2_VAG_COL_SET = new Set(OPTIONS_SP2_VAG_COLS);
+const SP2_AU_COL_SET = new Set(OPTIONS_SP2_AU_COLS);
 const SP2_OPTION_GREEN_COL_SET = new Set(OPTIONS_SP2_OPTION_GREEN_COLS);
+const SP2_BLANK_COL_SET = new Set([OPTIONS_SP2_BLANK_COL, OPTIONS_SP2_BLANK_COL_AH]);
 const SP2_COL_WIDTH_OVERRIDES = {
   B: 300,
   U: 24,
+  AH: 24,
   F: 100,
   G: 100,
   H: 100,
@@ -512,6 +537,7 @@ const SP2_COL_WIDTH_OVERRIDES = {
 function sp2ColWidth(col) {
   if (SP2_COL_WIDTH_OVERRIDES[col] != null) return SP2_COL_WIDTH_OVERRIDES[col];
   if (SP2_VAG_COL_SET.has(col) || SP2_FT_COL_SET.has(col)) return 77;
+  if (SP2_AU_COL_SET.has(col)) return 77;
   if (SP2_OPTION_GREEN_COL_SET.has(col)) return 77;
   return SP2_DEFAULT_COL_W;
 }
@@ -567,6 +593,28 @@ function acanTableClassStatic(row, col) {
   return '';
 }
 
+/** Synthesis AP…BB colour rules on Options SP2 AI…AU (rows 1–12 = Syn rows 3–14). */
+function auTableClassStatic(row, col) {
+  if (row < 1 || row > 12) return '';
+  const i = OPTIONS_SP2_AU_COLS.indexOf(col);
+  if (i < 0) return '';
+  if (row === 3) return 'sp2-syn-p3s';
+  if (row === 4) {
+    if (i <= 8) return 'sp2-syn-bev';
+    if (i <= 10) return 'sp2-syn-mhevp2';
+    return 'sp2-syn-hev';
+  }
+  if (row === 7 && i === 8) return 'sp2-syn-awd';
+  if ((row === 8 || row === 9) && i >= 9) return 'sp2-syn-grey';
+  if (row === 11) return 'sp2-syn-target';
+  return '';
+}
+
+/** Bold black grid (AI–AU): Synthesis AP…BB header rows 1–12 only. */
+function isSp2AuSynFramedRow(row) {
+  return row >= 1 && row <= 12;
+}
+
 /** Bold black grid (V–AG): header rows 1–12 + numeric body rows 14–18 (like F–T). */
 function isSp2VagSynFramedRow(row) {
   return (
@@ -620,7 +668,10 @@ function buildSp2StaticClassMap() {
       ) {
         classes.push('sp2-syn-cell', 'sp2-vag-syn-cell');
       }
-      if (col === OPTIONS_SP2_BLANK_COL) classes.push('sp2-blank-col');
+      if (SP2_AU_COL_SET.has(col) && isSp2AuSynFramedRow(row)) {
+        classes.push('sp2-syn-cell', 'sp2-au-syn-cell');
+      }
+      if (SP2_BLANK_COL_SET.has(col)) classes.push('sp2-blank-col');
       if (row === OPTIONS_SP2_CURB_ROW && isSp2CurbLinkedCol(col)) {
         classes.push('sp2-curb-cell');
       }
@@ -629,6 +680,8 @@ function buildSp2StaticClassMap() {
       if (syn) classes.push(syn);
       const acan = acanTableClassStatic(row, col);
       if (acan) classes.push(acan);
+      const au = auTableClassStatic(row, col);
+      if (au) classes.push(au);
       map.set(`${row}:${col}`, classes);
     }
   }
@@ -655,7 +708,7 @@ function buildSp2RenderMap() {
         kind = 'row16-sumif';
       } else if (row === OPTIONS_SP2_SUM_ROW && SP2_SUM_COL_SET.has(col)) {
         kind = 'sum';
-      } else if (col === OPTIONS_SP2_BLANK_COL) {
+      } else if (SP2_BLANK_COL_SET.has(col)) {
         kind = 'blank';
       } else if (
         classes.includes('sp2-option-green-band') ||
@@ -793,7 +846,14 @@ function buildSeedCells(storageKey) {
         cells[`${row}:${OPTIONS_SP2_FT_COLS[j]}`] = v;
       });
     });
-    // Extended green cols AH–HC — rows 44–47 pre-filled NO.
+    // Synthesis AP…BB header table → columns AI…AU, rows 1–12.
+    OPTIONS_SP2_AU.forEach((rowVals, i) => {
+      const row = i + 1;
+      rowVals.forEach((v, j) => {
+        if (v !== '') cells[`${row}:${OPTIONS_SP2_AU_COLS[j]}`] = v;
+      });
+    });
+    // Extended green cols AV–HC — rows 44–47 pre-filled NO.
     OPTIONS_SP2_NO_SEED_ROWS.forEach((row) => {
       OPTIONS_SP2_EXTENDED_GREEN_COLS.forEach((col) => {
         cells[`${row}:${col}`] = OPTIONS_SP2_NO_SEED_VALUE;
@@ -920,7 +980,8 @@ export default {
     function isSynTableCell(row, col) {
       if (!isOptionsSp2.value) return false;
       if (OPTIONS_SP2_FT_COLS.includes(col) && isSp2SynFramedRow(row)) return true;
-      return OPTIONS_SP2_VAG_COLS.includes(col) && isSp2VagSynFramedRow(row);
+      if (OPTIONS_SP2_VAG_COLS.includes(col) && isSp2VagSynFramedRow(row)) return true;
+      return OPTIONS_SP2_AU_COLS.includes(col) && isSp2AuSynFramedRow(row);
     }
 
     // Colours for the copied Synthesis table (Options F–T, rows 1–12), matching
@@ -973,7 +1034,7 @@ export default {
     }
 
     function isSp2BlankCol(col) {
-      return col === OPTIONS_SP2_BLANK_COL;
+      return SP2_BLANK_COL_SET.has(col);
     }
 
     function bindSp2Input(el, row, col) {
@@ -1128,7 +1189,7 @@ export default {
       return isOptionsSp2.value && col === 'B' && row === 49;
     }
 
-    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + V–AG + AH–HC. */
+    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + V–AG + AV–HC. */
     function isOptionGreenBandCell(row, col) {
       if (!isOptionsSp2.value || !SP2_OPTION_GREEN_COL_SET.has(col)) return false;
       return isSp2OptionGreenRow(row);
@@ -1539,7 +1600,7 @@ export default {
                   :class="[
                     sp2Render(row, col).classes,
                     {
-                      'sp2-sticky-col-b': col === 'B',
+                      'sp2-sticky-col-b': col === 'B' && !isRedCell(row, col),
                       'grid-axis-col-focus': isAxisCol(col),
                     },
                   ]"

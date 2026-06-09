@@ -4402,6 +4402,18 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .grid-cell-input {
   background: transparent !important;
 }
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell::before {
+  display: none !important;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .grid-cell-input:focus {
+  background: transparent !important;
+  outline-color: #fff;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell[data-col='B'] {
+  background: #ff0000 !important;
+  border: 1px solid #ff0000 !important;
+  box-shadow: none !important;
+}
 /* White labels inside the red band */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .sp2-red-title {
   display: block;
@@ -4577,8 +4589,9 @@
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AG'] {
   border: var(--sp2-syn-bold-border) solid #000 !important;
 }
-/* Blank spacer column U between F–T and V–AG */
+/* Blank spacer columns U (F–T | V–AG) and AH (before AI…AU) */
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='U'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AH'],
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-blank-col {
   width: 24px;
   min-width: 24px;
@@ -4587,6 +4600,52 @@
   border-color: #d0d0d0 !important;
   border-width: 1px !important;
   padding: 0;
+}
+/* AP…BB copy — columns AI…AU (rows 1–12, like Synthesis AP…BB rows 3–14) */
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AI'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AJ'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AK'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AL'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AM'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AN'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AO'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AP'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AQ'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AR'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AS'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AT'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AU'] {
+  border: var(--sp2-syn-bold-border) solid #000 !important;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AI'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AI'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AJ'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AJ'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AK'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AK'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AL'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AL'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AM'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AM'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AN'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AN'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AO'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AO'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AP'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AP'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AQ'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AQ'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AR'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AR'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AS'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AS'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AT'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AT'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AU'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='AU'] {
+  width: 77px;
+  min-width: 77px;
+  max-width: 77px;
 }
 
 /* Options SP2 — smooth scroll container (virtualized wide grid) */
@@ -4611,10 +4670,6 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-sticky-col-b:not(.sp2-red-cell):not(.sp2-blue-cell) {
   background: #fff;
   background-clip: padding-box;
-}
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell.sp2-sticky-col-b {
-  background: #ff0000 !important;
-  border-color: #ff0000 !important;
 }
 .bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar {
   height: 14px;
@@ -4735,12 +4790,18 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-o3w {
   background: #ffc000;
 }
+/* Row 3 — AI…AU P3S band (black fill, white text — like Synthesis AP…BB row 5) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-p3s,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-p3s .grid-cell-input {
+  background: #000 !important;
+  color: #fff !important;
+}
 
 /* Options SP2 — highlighted data cells */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-green-cell {
   background: #92d050;
 }
-/* Options SP2 — options block rows 19–39 & 41–47 (F–T + V–AG + AH–HC); row 40 = white */
+/* Options SP2 — options block rows 19–39 & 41–47 (F–T + V–AG + AV–HC); row 40 = white */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band {
   background: #92d050;
 }
