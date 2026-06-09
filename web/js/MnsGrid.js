@@ -83,14 +83,14 @@ const OPTIONS_SP2_COLUMN_COUNT = colToNum(OPTIONS_SP2_MAX_COL);
 const OPTIONS_SP2_BLANK_COL = 'U';
 /** Blank spacer before the AP…BB copy (AI…AU). */
 const OPTIONS_SP2_BLANK_COL_AH = 'AH';
-/** Green options band — rows 19–39 & 41–47 (row 40 = white), cols AI…AU + AV–HC. */
+/** Green options band — rows 19–39 & 41–49 (row 40 = white), cols AI…AU + AV–HC. */
 const OPTIONS_SP2_EXTENDED_GREEN_COLS = sp2ColsFromTo('AV', OPTIONS_SP2_MAX_COL);
-/** Rows 44–47 pre-filled with NO on extended green cols (AV–HC). */
-const OPTIONS_SP2_NO_SEED_ROWS = [44, 45, 46, 47];
+/** Rows 44–49 pre-filled with NO on extended green cols (AV–HC). */
+const OPTIONS_SP2_NO_SEED_ROWS = [44, 45, 46, 47, 48, 49];
 const OPTIONS_SP2_NO_SEED_VALUE = 'NO';
 const OPTIONS_SP2_OPTION_WHITE_ROW = 40;
 const OPTIONS_SP2_FT_OPTION_START_ROW = 19;
-const OPTIONS_SP2_FT_OPTION_END_ROW = 47;
+const OPTIONS_SP2_FT_OPTION_END_ROW = 49;
 
 /**
  * Column B is intentionally left blank on the MNS page (the field labels now
@@ -460,7 +460,7 @@ const OPTIONS_SP2_CDE = [
  * Each inner array holds the 15 values for columns F…T of one row (Excel 3–14).
  */
 const OPTIONS_SP2_FT_COLS = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
-/** Dropdown values on the green/white options band (rows 19–47, cols F–T + V–AG + AI–AU + AV–HC). */
+/** Dropdown values on the green/white options band (rows 19–49, cols F–T + V–AG + AI–AU + AV–HC). */
 const SP2_OPTION_CHOICES = ['O', 'NO', 'REF'];
 const SP2_OPTION_CYCLE = ['', 'O', 'NO', 'REF'];
 /** Equipment red band (rows 53–55): columns F–T seeded with 0.00. */
@@ -499,7 +499,7 @@ const OPTIONS_SP2_FT_16_18 = [
 const OPTIONS_SP2_FT_16_18_START_ROW = 16;
 
 /**
- * Rows 16–18 (F…T + V…AG) — per column, SOMME.SI on the option band (l.19–47):
+ * Rows 16–18 (F…T + V…AG) — per column, SOMME.SI on the option band (l.19–49):
  * row 16 ← sum C, row 17 ← sum D, row 18 ← sum E, when that column = "O".
  * Row 40 (white band) is skipped.
  */
@@ -517,8 +517,8 @@ const OPTIONS_SP2_ROW16_SUMIF_CRITERIA = 'O';
 const OPTIONS_SP2_FT_SUMIF_SUM_COLS = new Set(['C', 'D', 'E']);
 
 /**
- * Options picker values — columns F–T, rows 19–47 (source spreadsheet).
- * Row 40 = white band; rows 19–39 & 41–47 = green band.
+ * Options picker values — columns F–T, rows 19–49 (source spreadsheet).
+ * Row 40 = white band; rows 19–39 & 41–49 = green band.
  */
 const OPTIONS_SP2_FT_OPTIONS = [
   ['O', 'REF', 'REF', 'O', 'REF', 'REF', 'REF', 'REF', 'REF', 'NO', 'NO', 'NO', 'NO', 'NO', 'NO'],
@@ -583,7 +583,7 @@ function sp2PickVagFromFtRow(ftRow) {
   return ftRow.slice(3, 15);
 }
 
-/** Options picker — columns V–AG, rows 19–47 (same pattern as F–T, AC…AN vehicles). */
+/** Options picker — columns V–AG, rows 19–49 (same pattern as F–T, AC…AN vehicles). */
 const OPTIONS_SP2_VAG_OPTIONS = OPTIONS_SP2_FT_OPTIONS.map(sp2PickVagFromFtRow);
 
 /** Map 15-col F…T seed row → 13-col AI…AU (AP…BB vehicle block). */
@@ -591,7 +591,7 @@ function sp2PickAuFromFtRow(ftRow) {
   return ftRow.slice(2, 15);
 }
 
-/** Options picker — columns AI…AU, rows 19–47 (AP…BB vehicles). */
+/** Options picker — columns AI…AU, rows 19–49 (AP…BB vehicles). */
 const OPTIONS_SP2_AU_OPTIONS = OPTIONS_SP2_FT_OPTIONS.map(sp2PickAuFromFtRow);
 
 /**
@@ -622,38 +622,52 @@ const MNS_SP2_ROW15_LINKED_ROW = 15;
 /** Rows that make up the red bands on the Options SP2 page (columns A–E). */
 const SP2_RED_ROWS = new Set([16, 17, 18, 53, 54, 55, 57, 58, 59]);
 const SP2_RED_COLS = ['A', 'B', 'C', 'D', 'E'];
-/** Options descriptor table — bold black grid on B–E, rows 19–49 (like F–T). */
+/** Options descriptor table — bold black grid on B–E, rows 1–12 + 19–49 (like F–T). */
 const OPTIONS_SP2_BDE_COLS = ['B', 'C', 'D', 'E'];
+const OPTIONS_SP2_BDE_HEADER_START_ROW = 1;
+const OPTIONS_SP2_BDE_HEADER_END_ROW = 12;
 const OPTIONS_SP2_BDE_TABLE_START_ROW = 19;
 const OPTIONS_SP2_BDE_TABLE_END_ROW = 49;
 const SP2_BDE_COL_SET = new Set(OPTIONS_SP2_BDE_COLS);
+/**
+ * Synthesis filter band (Excel rows 3–14, cols H/I/J) → Options SP2 C/D/E rows 1–12.
+ * Live values refresh from synthesis-sheet.json via synthesisCellLink.
+ */
+const OPTIONS_SP2_SYN_META_SP2_COLS = ['C', 'D', 'E'];
+const OPTIONS_SP2_SYN_META_SRC_COLS = ['H', 'I', 'J'];
+const OPTIONS_SP2_SYN_META_CDE = [
+  ['STLA/S', 'STLA/S', 'STLA/S'],
+  ['SP1', 'SP1', 'SP1'],
+  ['P1H', 'P1H', 'P1H'],
+  ['XS', 'MHEVP2', 'HEV'],
+  ['EMEA', 'EMEA', 'EMEA'],
+  ['', '', ''],
+  ['FWD', 'FWD', 'FWD'],
+  ['SR', '', ''],
+  ['STD_Range', '', ''],
+  ['', '', ''],
+  ['TARGET', 'TARGET', 'TARGET'],
+  ['N1', 'N1', 'N1'],
+];
 
 /** Fixed labels keyed by "row:col". Red bands + the "Montée en gamme" header. */
 const SP2_STATIC_LABELS = {
-  // Options band (16–18)
-  '17:A': { text: 'Options', cls: 'sp2-red-title' },
+  // Options band (16–18) — column A intentionally blank
   '16:C': { text: 'Optional Equipment', cls: 'sp2-red-text' },
   '17:C': { text: 'FRONT', cls: 'sp2-red-text' },
   '18:C': { text: 'BACK', cls: 'sp2-red-text' },
   // Standalone red header straddling D–E
   '52:D': { text: 'Montée en gamme', cls: 'sp2-upgrade-text' },
   // Equipment band (53–55)
-  '54:A': { text: 'Equipment', cls: 'sp2-red-title' },
   '53:C': { text: 'Optional Equipment', cls: 'sp2-red-text' },
   '54:C': { text: 'FRONT', cls: 'sp2-red-text' },
   '55:C': { text: 'BACK', cls: 'sp2-red-text' },
   // Options EXPORT band (57–59)
-  '58:A': { text: 'Options EXPORT', cls: 'sp2-red-title' },
   '57:C': { text: 'Optional Equipment', cls: 'sp2-red-text' },
   '58:C': { text: 'FRONT', cls: 'sp2-red-text' },
   '59:C': { text: 'BACK', cls: 'sp2-red-text' },
   // Column B — lower block
   '62:B': { text: 'Maximum mass transfer', cls: 'sp2-b-bold-title' },
-  // Column A — rows 44–47 (derived from D41)
-  '44:A': { text: 'issu D41', cls: 'sp2-a-note' },
-  '45:A': { text: 'issu D41', cls: 'sp2-a-note' },
-  '46:A': { text: 'issu D41', cls: 'sp2-a-note' },
-  '47:A': { text: 'issu D41', cls: 'sp2-a-note' },
 };
 
 const SP2_GREEN_C_ROWS = new Set([22, 28, 32, 33, 40, 41, 42, 43]);
@@ -669,7 +683,7 @@ const SP2_AU_COL_SET = new Set(OPTIONS_SP2_AU_COLS);
 const SP2_OPTION_GREEN_COL_SET = new Set(OPTIONS_SP2_OPTION_GREEN_COLS);
 const SP2_BLANK_COL_SET = new Set([OPTIONS_SP2_BLANK_COL, OPTIONS_SP2_BLANK_COL_AH]);
 const SP2_COL_WIDTH_OVERRIDES = {
-  A: 200,
+  A: 24,
   B: 300,
   U: 24,
   AH: 24,
@@ -849,11 +863,21 @@ function isSp2SynFramedRow(row) {
   );
 }
 
-/** Bold black grid (B–E): options labels + C/D/E masses, rows 19–49. */
-function isSp2BdeOptionsTableRow(row) {
+/** Bold black grid (B–E): Synthesis metadata rows 1–12 + options rows 19–49. */
+function isSp2BdeTableRow(row) {
   return (
-    row >= OPTIONS_SP2_BDE_TABLE_START_ROW &&
-    row <= OPTIONS_SP2_BDE_TABLE_END_ROW
+    (row >= OPTIONS_SP2_BDE_HEADER_START_ROW &&
+      row <= OPTIONS_SP2_BDE_HEADER_END_ROW) ||
+    (row >= OPTIONS_SP2_BDE_TABLE_START_ROW &&
+      row <= OPTIONS_SP2_BDE_TABLE_END_ROW)
+  );
+}
+
+function isSp2SynMetaCell(row, col) {
+  return (
+    row >= OPTIONS_SP2_BDE_HEADER_START_ROW &&
+    row <= OPTIONS_SP2_BDE_HEADER_END_ROW &&
+    OPTIONS_SP2_SYN_META_SP2_COLS.includes(col)
   );
 }
 
@@ -862,7 +886,7 @@ function buildSp2StaticClassMap() {
   for (let row = 1; row <= OPTIONS_SP2_MIN_ROWS; row++) {
     for (const col of OPTIONS_SP2_ALL_COLS) {
       const classes = [];
-      if (col === 'A' && row >= 1 && row <= 15) classes.push('sp2-brand-cell');
+      if (col === 'A') classes.push('sp2-col-a-blank');
       if (SP2_RED_ROWS.has(row) && SP2_RED_COLS.includes(col)) classes.push('sp2-red-cell');
       if (row === 52 && col === 'D') classes.push('sp2-upgrade-cell');
       if (col === 'C' && SP2_GREEN_C_ROWS.has(row)) classes.push('sp2-green-cell');
@@ -871,9 +895,10 @@ function buildSp2StaticClassMap() {
         if (isSp2OptionGreenRow(row)) classes.push('sp2-option-green-band');
         else if (row === OPTIONS_SP2_OPTION_WHITE_ROW) classes.push('sp2-option-white-band');
       }
-      if (SP2_BDE_COL_SET.has(col) && isSp2BdeOptionsTableRow(row)) {
+      if (SP2_BDE_COL_SET.has(col) && isSp2BdeTableRow(row)) {
         classes.push('sp2-bde-cell');
       }
+      if (isSp2SynMetaCell(row, col)) classes.push('sp2-syn-meta-cell');
       if (
         SP2_FT_COL_SET.has(col) &&
         isSp2SynFramedRow(row)
@@ -916,8 +941,10 @@ function buildSp2RenderMap() {
       const classes = SP2_STATIC_CLASS_MAP.get(`${row}:${col}`) || [];
       const label = SP2_STATIC_LABELS[`${row}:${col}`] || null;
       let kind = 'input';
-      if (col === 'A' && row >= 1 && row <= 15) {
-        kind = row === 6 ? 'brand-title' : row === 7 ? 'brand-sub' : 'brand-empty';
+      if (col === 'A') {
+        kind = 'blank';
+      } else if (isSp2SynMetaCell(row, col)) {
+        kind = 'syn-meta';
       } else if (label) {
         kind = 'red-label';
       } else if (row === OPTIONS_SP2_CURB_ROW && isSp2CurbLinkedCol(col)) {
@@ -956,7 +983,7 @@ function isSp2SumifDataRow(row) {
   return row >= OPTIONS_SP2_SUMIF_START_ROW && row <= OPTIONS_SP2_SUMIF_END_ROW;
 }
 
-/** One SUMIF output row: SOMME.SI(col19:col47,"O",sumCol19:sumCol47). */
+/** One SUMIF output row: SOMME.SI(col19:col49,"O",sumCol19:sumCol49). */
 function computeSp2FtSumifRow(cellsObj, sumCol) {
   const out = {};
   for (const col of SP2_SUMIF_COLS) {
@@ -1034,6 +1061,12 @@ function buildSeedCells(storageKey) {
     if (label) cells[`${idx + 1}:B`] = label;
   });
   if (String(storageKey || '').includes('options-sp2')) {
+    OPTIONS_SP2_SYN_META_CDE.forEach(([c, d, e], i) => {
+      const row = OPTIONS_SP2_BDE_HEADER_START_ROW + i;
+      if (c !== '') cells[`${row}:C`] = c;
+      if (d !== '') cells[`${row}:D`] = d;
+      if (e !== '') cells[`${row}:E`] = e;
+    });
     OPTIONS_SP2_CDE.forEach(([c, d, e], i) => {
       const row = OPTIONS_SP2_CDE_START_ROW + i;
       if (c !== '') cells[`${row}:C`] = c;
@@ -1066,14 +1099,14 @@ function buildSeedCells(storageKey) {
       });
     });
     // Rows 16–18 V…AG = live SUMIF (FRONT D + BACK E → row 16); no static seed.
-    // Options picker — columns V–AG, rows 19–47 (green / white bands).
+    // Options picker — columns V–AG, rows 19–49 (green / white bands).
     OPTIONS_SP2_VAG_OPTIONS.forEach((rowVals, i) => {
       const row = OPTIONS_SP2_FT_OPTION_START_ROW + i;
       rowVals.forEach((v, j) => {
         cells[`${row}:${OPTIONS_SP2_VAG_COLS[j]}`] = v;
       });
     });
-    // Options picker — columns F–T, rows 19–47 (O / NO / REF from source sheet).
+    // Options picker — columns F–T, rows 19–49 (O / NO / REF from source sheet).
     OPTIONS_SP2_FT_OPTIONS.forEach((rowVals, i) => {
       const row = OPTIONS_SP2_FT_OPTION_START_ROW + i;
       rowVals.forEach((v, j) => {
@@ -1088,14 +1121,14 @@ function buildSeedCells(storageKey) {
       });
     });
     // Rows 16–18 AI…AU = live SUMIF (C / D / E); no static seed.
-    // Options picker — columns AI…AU, rows 19–47 (green / white bands).
+    // Options picker — columns AI…AU, rows 19–49 (green / white bands).
     OPTIONS_SP2_AU_OPTIONS.forEach((rowVals, i) => {
       const row = OPTIONS_SP2_FT_OPTION_START_ROW + i;
       rowVals.forEach((v, j) => {
         cells[`${row}:${OPTIONS_SP2_AU_COLS[j]}`] = v;
       });
     });
-    // Extended green cols AV–HC — rows 44–47 pre-filled NO.
+    // Extended green cols AV–HC — rows 44–49 pre-filled NO.
     OPTIONS_SP2_NO_SEED_ROWS.forEach((row) => {
       OPTIONS_SP2_EXTENDED_GREEN_COLS.forEach((col) => {
         cells[`${row}:${col}`] = OPTIONS_SP2_NO_SEED_VALUE;
@@ -1209,8 +1242,6 @@ export default {
     const sp2LinkTick = ref(0);
     let sp2LinkCleanup = null;
 
-    // The Options SP2 page reuses this grid but brands column A (rows 1–12)
-    // with a white "STLA S / SP2" header block instead of editable cells.
     const isOptionsSp2 = computed(() =>
       String(props.storageKey || '').includes('options-sp2')
     );
@@ -1261,6 +1292,38 @@ export default {
         return out;
       } catch (e) {
         console.warn('Options SP2 curb-mass link:', e);
+        return {};
+      }
+    });
+
+    /** Synthesis filter band H/I/J → Options SP2 C/D/E rows 1–12 (live). */
+    const sp2SynMetaDisplay = computed(() => {
+      try {
+        if (!isOptionsSp2.value || !synLink) return {};
+        if (synLink.synRevision) void synLink.synRevision.value;
+        if (synLink.synEditTick) void synLink.synEditTick.value;
+        const raw = synLink.synRaw?.value;
+        const list = raw && Array.isArray(raw.cells) ? raw.cells : null;
+        if (!list) return {};
+
+        const out = {};
+        for (let sp2Row = OPTIONS_SP2_BDE_HEADER_START_ROW;
+          sp2Row <= OPTIONS_SP2_BDE_HEADER_END_ROW;
+          sp2Row++) {
+          const synRow = sp2Row + 2;
+          OPTIONS_SP2_SYN_META_SP2_COLS.forEach((sp2Col, i) => {
+            const synCol = OPTIONS_SP2_SYN_META_SRC_COLS[i];
+            const cell = list.find(
+              (x) => Number(x.r) === synRow && String(x.c) === synCol
+            );
+            if (cell?.v != null && String(cell.v).trim() !== '') {
+              out[`${sp2Row}:${sp2Col}`] = String(cell.v);
+            }
+          });
+        }
+        return out;
+      } catch (e) {
+        console.warn('Options SP2 metadata link:', e);
         return {};
       }
     });
@@ -1361,6 +1424,12 @@ export default {
     function curbLinkedValue(col) {
       const map = curbMassRow.value;
       return (map && map[col]) || '';
+    }
+
+    function sp2SynMetaValue(row, col) {
+      const live = sp2SynMetaDisplay.value[`${row}:${col}`];
+      if (live != null && String(live).trim() !== '') return String(live);
+      return cells.value[`${row}:${col}`] || '';
     }
 
     function mnsSynRow16LinkedValue(col) {
@@ -1521,8 +1590,8 @@ export default {
       }
     }
 
-    function isBrandCell(row, col) {
-      return isOptionsSp2.value && col === 'A' && row >= 1 && row <= 15;
+    function isBrandCell() {
+      return false;
     }
 
     // MNS page: peach paint block over columns A–E, rows 1–11. Seamless fill
@@ -1799,7 +1868,7 @@ export default {
       return isOptionsSp2.value && col === 'B' && row === 49;
     }
 
-    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + V–AG + AI–AU + AV–HC. */
+    /** Options band rows 19–49 — green (#92d050) + white row 40, cols F–T + V–AG + AI–AU + AV–HC. */
     function isOptionGreenBandCell(row, col) {
       if (!isOptionsSp2.value || !SP2_OPTION_GREEN_COL_SET.has(col)) return false;
       return isSp2OptionGreenRow(row);
@@ -2147,6 +2216,8 @@ export default {
       sp2ColRangeEnd,
       editTick,
       curbMassRow,
+      sp2SynMetaDisplay,
+      sp2SynMetaValue,
       scrollEl,
       onScroll: scrollSync.onScroll,
       cellValue,
@@ -2285,7 +2356,7 @@ export default {
             <tr
               v-for="row in sp2VisibleRows"
               :key="'sp2-row-' + row"
-              v-memo="[row, sp2ColRangeStart, sp2ColRangeEnd, editTick, curbMassRow]"
+              v-memo="[row, sp2ColRangeStart, sp2ColRangeEnd, editTick, curbMassRow, sp2SynMetaDisplay]"
               class="grid-row-cv"
               :class="{ 'grid-axis-row-focus': isAxisRow(row) }"
             >
@@ -2313,15 +2384,11 @@ export default {
                   ]"
                 >
                 <span
-                  v-if="sp2Render(row, col).kind === 'brand-title'"
-                  class="sp2-brand-title"
+                  v-if="sp2Render(row, col).kind === 'syn-meta'"
+                  class="sp2-syn-meta-linked"
+                  title="Lié à Synthesis (bande filtre) — mis à jour automatiquement"
                   @mousedown="onCellAxisSelect(row, col, $event)"
-                >STLA S</span>
-                <span
-                  v-else-if="sp2Render(row, col).kind === 'brand-sub'"
-                  class="sp2-brand-sub"
-                  @mousedown="onCellAxisSelect(row, col, $event)"
-                >SP2</span>
+                >{{ sp2SynMetaValue(row, col) }}</span>
                 <span
                   v-else-if="sp2Render(row, col).kind === 'red-label'"
                   :class="sp2Render(row, col).label.cls"

@@ -5286,32 +5286,18 @@
   text-align: center;
 }
 
-/* ── Options SP2 — column A "STLA S / SP2" branding block ──────────────────
-   Rows 1–12 of column A become one continuous white panel: white fill and
-   transparent borders so the row gridlines disappear, with the title centred. */
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-brand-cell {
-  background: #fff;
-  border-color: transparent;
-  text-align: center;
+/* Options SP2 — column A: narrow blank spacer (24px, like U / AH) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-col-a-blank {
+  background: #fff !important;
   padding: 0;
-  overflow: visible;
-  position: relative;
-  z-index: 1;
 }
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-brand-cell .sp2-brand-title {
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-meta-cell .sp2-syn-meta-linked {
   display: block;
-  font-size: 30px;
   font-weight: 700;
-  color: #000;
-  line-height: 1;
-  letter-spacing: 0.5px;
-}
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-brand-cell .sp2-brand-sub {
-  display: block;
-  font-size: 24px;
-  font-weight: 700;
-  color: #000;
-  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Options SP2 — red bands (rows 16–18, 53–55, 57–59), columns A–E.
@@ -5369,15 +5355,6 @@
   color: #ff0000;
   font-weight: 700;
   line-height: 21px;
-  white-space: nowrap;
-}
-
-/* Options SP2 — column A note (e.g. rows 44–47 "issu D41") */
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='A'] .sp2-a-note {
-  display: block;
-  text-align: left;
-  font-size: 11px;
-  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -5462,12 +5439,12 @@
   min-width: 72px;
   max-width: 72px;
 }
-/* Column A — wide branding panel (STLA S / SP2), not frozen on horizontal scroll */
+/* Column A — narrow blank spacer (must match MnsGrid sp2ColWidth A: 24) */
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='A'],
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='A'] {
-  width: 200px;
-  min-width: 200px;
-  max-width: 200px;
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell,
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell .grid-cell-input,
@@ -5592,11 +5569,11 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-/* Frozen column B (labels) while scrolling horizontally — column A stays in normal flow */
+/* Frozen column B (labels) while scrolling horizontally */
 .bd-grid-root.options-sp2-grid .bd-table th.sp2-sticky-col-b,
 .bd-grid-root.options-sp2-grid .bd-table td.data-cell.sp2-sticky-col-b {
   position: sticky;
-  left: calc(42px + 72px);
+  left: calc(42px + 24px);
   z-index: 199;
   isolation: isolate;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
@@ -5739,7 +5716,7 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-green-cell {
   background: #92d050;
 }
-/* Options SP2 — options block rows 19–39 & 41–47 (F–T + V–AG + AV–HC); row 40 = white */
+/* Options SP2 — options block rows 19–39 & 41–49 (F–T + V–AG + AI–AU + AV–HC); row 40 = white */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band {
   background: #92d050;
 }
