@@ -16,11 +16,33 @@ import {
   onMounted,
   onUnmounted,
   watch,
+  watchEffect,
+  nextTick,
 } from 'vue';
-import { formatSynNumericDisplay } from './synStore.js';
+import {
+  isSp2CurbLinkedCol,
+  sp2ColToSynExcelCol,
+} from './sp2CurbLink.js?v=2';
+import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
+import {
+  ROW_H,
+  rowOverscan,
+  colOverscanPx,
+  createRangeScrollCache,
+  createScrollRafSync,
+  shouldVirtualizeRows,
+  shouldVirtualizeCols,
+} from './gridScroll.js?v=scroll-perf1';
 
 const MNS_COLUMN_COUNT = 26;
 const MNS_MIN_ROWS = 60;
+const OPTIONS_SP2_MIN_ROWS = 69;
+/** Frozen label columns while horizontally scrolling the wide SP2 sheet. */
+const SP2_STICKY_COLS = ['A', 'B'];
+const SP2_ROW_NUM_W = 42;
+const SP2_DEFAULT_COL_W = 72;
+const SP2_MAX_RENDERED_COLS = 52;
+const SP2_MAX_RENDERED_ROWS = 64;
 
 /** Excel-style column letter for a 1-based column index (1 → A, 27 → AA). */
 function numToCol(n) {
@@ -51,7 +73,7 @@ const OPTIONS_SP2_MAX_COL = 'HC';
 const OPTIONS_SP2_COLUMN_COUNT = colToNum(OPTIONS_SP2_MAX_COL);
 /** Blank spacer between the M…AA block (F–T) and the AC…AN block (V–AG). */
 const OPTIONS_SP2_BLANK_COL = 'U';
-/** Green options band — rows 19–39 & 41–47 (row 40 = white), from AH onward. */
+/** Green options band — rows 19–39 & 41–47 (row 40 = white), cols V–AG + AH–HC. */
 const OPTIONS_SP2_EXTENDED_GREEN_COLS = sp2ColsFromTo('AH', OPTIONS_SP2_MAX_COL);
 /** Rows 44–47 pre-filled with NO on extended green cols (AH–HC). */
 const OPTIONS_SP2_NO_SEED_ROWS = [44, 45, 46, 47];
@@ -227,6 +249,27 @@ const OPTIONS_SP2_FIELDS_COL_B = [
   'Projecteurs MATRIX LED',
   'MECHANICAL, REMOTE, APPROACHING HANDS FREE',
   'ecran sous caisse (prise en compte export)',
+  // Rows 50–59 — blank
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
+  'Engine protection shield BEV',
+  'Half spare wheel (after market)',
+  '', // row 62 — bold title via SP2_STATIC_LABELS
+  '',
+  '',
+  '',
+  'Jeep 235/50 R19 AWD upgrade',
+  '',
+  '',
+  'Weight master file Avanger',
 ];
 
 /**
@@ -276,7 +319,7 @@ const OPTIONS_SP2_CDE = [
  * Each inner array holds the 15 values for columns F…T of one row (Excel 3–14).
  */
 const OPTIONS_SP2_FT_COLS = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
-/** Dropdown values on the green/white options band (rows 19–47, cols F–T + AH–HC). */
+/** Dropdown values on the green/white options band (rows 19–47, cols F–T + V–AG + AH–HC). */
 const SP2_OPTION_CHOICES = ['O', 'NO', 'REF'];
 const SP2_OPTION_CYCLE = ['', 'O', 'NO', 'REF'];
 /** Equipment red band (rows 53–55): columns F–T seeded with 0.00. */
@@ -313,6 +356,13 @@ const OPTIONS_SP2_FT_16_18 = [
   ['23.82', '60.46', '52.77', '22.82', '59.46', '51.77', '59.27', '51.77', '51.77', '21.82', '59.46', '51.77', '21.82', '59.46', '51.77'],
 ];
 const OPTIONS_SP2_FT_16_18_START_ROW = 16;
+
+/** Row 16 F…T = SUMIF(col19:col49,"O",C19:C49) — Excel SOMME.SI. */
+const OPTIONS_SP2_ROW16_SUMIF_ROW = 16;
+const OPTIONS_SP2_ROW16_SUMIF_START_ROW = 19;
+const OPTIONS_SP2_ROW16_SUMIF_END_ROW = 49;
+const OPTIONS_SP2_ROW16_SUMIF_CRITERIA = 'O';
+const OPTIONS_SP2_ROW16_SUMIF_SUM_COL = 'C';
 
 /**
  * Options picker values — columns F–T, rows 19–47 (source spreadsheet).
@@ -375,16 +425,31 @@ const OPTIONS_SP2_VAG = [
   ['TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET', 'TARGET'],
   ['S', 'M', 'L', 'S', 'M', 'L', 'S', 'M', 'L', 'S', 'M', 'L'],
 ];
-/** AC…AN copy on SP2: header rows 1–12 + Curb mass row 14 only (Synthesis rows 3–14). */
-const OPTIONS_SP2_VAG_FRAMED_ROWS = new Set([
-  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, OPTIONS_SP2_CURB_ROW,
-]);
+
+/** Map 15-col F…T seed row → 12-col V…AG (AC…AN vehicle block). */
+function sp2PickVagFromFtRow(ftRow) {
+  return ftRow.slice(3, 15);
+}
+
+/** Options picker — columns V–AG, rows 19–47 (same pattern as F–T, AC…AN vehicles). */
+const OPTIONS_SP2_VAG_OPTIONS = OPTIONS_SP2_FT_OPTIONS.map(sp2PickVagFromFtRow);
+
+/** Numeric block columns V–AG, rows 17–18 (row 16 = live SUMIF, row 15 = row16+53). */
+const OPTIONS_SP2_VAG_16_18 = [
+  sp2PickVagFromFtRow(OPTIONS_SP2_FT_16_18[1]),
+  sp2PickVagFromFtRow(OPTIONS_SP2_FT_16_18[2]),
+];
 
 const MNS_DEFAULT_STORAGE_KEY = 'mns-grid-cells-v3';
 
 /** Rows that make up the red bands on the Options SP2 page (columns A–E). */
 const SP2_RED_ROWS = new Set([16, 17, 18, 53, 54, 55, 57, 58, 59]);
 const SP2_RED_COLS = ['A', 'B', 'C', 'D', 'E'];
+/** Options descriptor table — bold black grid on B–E, rows 19–49 (like F–T). */
+const OPTIONS_SP2_BDE_COLS = ['B', 'C', 'D', 'E'];
+const OPTIONS_SP2_BDE_TABLE_START_ROW = 19;
+const OPTIONS_SP2_BDE_TABLE_END_ROW = 49;
+const SP2_BDE_COL_SET = new Set(OPTIONS_SP2_BDE_COLS);
 
 /** Fixed labels keyed by "row:col". Red bands + the "Montée en gamme" header. */
 const SP2_STATIC_LABELS = {
@@ -405,17 +470,57 @@ const SP2_STATIC_LABELS = {
   '57:C': { text: 'Optional Equipment', cls: 'sp2-red-text' },
   '58:C': { text: 'FRONT', cls: 'sp2-red-text' },
   '59:C': { text: 'BACK', cls: 'sp2-red-text' },
+  // Column B — lower block
+  '62:B': { text: 'Maximum mass transfer', cls: 'sp2-b-bold-title' },
+  // Column A — rows 44–47 (derived from D41)
+  '44:A': { text: 'issu D41', cls: 'sp2-a-note' },
+  '45:A': { text: 'issu D41', cls: 'sp2-a-note' },
+  '46:A': { text: 'issu D41', cls: 'sp2-a-note' },
+  '47:A': { text: 'issu D41', cls: 'sp2-a-note' },
 };
 
 const SP2_GREEN_C_ROWS = new Set([22, 28, 32, 33, 40, 41, 42, 43]);
 const OPTIONS_SP2_OPTION_GREEN_COLS = [
   ...OPTIONS_SP2_FT_COLS,
+  ...OPTIONS_SP2_VAG_COLS,
   ...OPTIONS_SP2_EXTENDED_GREEN_COLS,
 ];
 const SP2_FT_COL_SET = new Set(OPTIONS_SP2_FT_COLS);
 const SP2_VAG_COL_SET = new Set(OPTIONS_SP2_VAG_COLS);
 const SP2_OPTION_GREEN_COL_SET = new Set(OPTIONS_SP2_OPTION_GREEN_COLS);
-const SP2_SUM_COL_SET = SP2_FT_COL_SET;
+const SP2_COL_WIDTH_OVERRIDES = {
+  B: 300,
+  U: 24,
+  F: 100,
+  G: 100,
+  H: 100,
+  I: 74,
+  J: 65,
+  K: 77,
+  L: 77,
+  M: 77,
+  N: 77,
+  O: 77,
+  P: 77,
+  Q: 83,
+  R: 83,
+  S: 83,
+  T: 77,
+};
+
+/** Mirrors Options SP2 column widths from bd-grid.css for virtual-scroll layout. */
+function sp2ColWidth(col) {
+  if (SP2_COL_WIDTH_OVERRIDES[col] != null) return SP2_COL_WIDTH_OVERRIDES[col];
+  if (SP2_VAG_COL_SET.has(col) || SP2_FT_COL_SET.has(col)) return 77;
+  if (SP2_OPTION_GREEN_COL_SET.has(col)) return 77;
+  return SP2_DEFAULT_COL_W;
+}
+
+const SP2_ROW16_SUMIF_COL_SET = new Set([
+  ...OPTIONS_SP2_FT_COLS,
+  ...OPTIONS_SP2_VAG_COLS,
+]);
+const SP2_SUM_COL_SET = SP2_ROW16_SUMIF_COL_SET;
 const OPTIONS_SP2_ALL_COLS = Array.from(
   { length: OPTIONS_SP2_COLUMN_COUNT },
   (_, i) => numToCol(i + 1)
@@ -462,8 +567,12 @@ function acanTableClassStatic(row, col) {
   return '';
 }
 
+/** Bold black grid (V–AG): header rows 1–12 + numeric body rows 14–18 (like F–T). */
 function isSp2VagSynFramedRow(row) {
-  return OPTIONS_SP2_VAG_FRAMED_ROWS.has(row);
+  return (
+    (row >= 1 && row <= 12) ||
+    (row >= OPTIONS_SP2_CURB_ROW && row <= OPTIONS_SP2_SYN_TABLE_END_ROW)
+  );
 }
 
 /** Bold black grid (F–T): header rows 1–12 + numeric body rows 14–18. */
@@ -474,9 +583,17 @@ function isSp2SynFramedRow(row) {
   );
 }
 
+/** Bold black grid (B–E): options labels + C/D/E masses, rows 19–49. */
+function isSp2BdeOptionsTableRow(row) {
+  return (
+    row >= OPTIONS_SP2_BDE_TABLE_START_ROW &&
+    row <= OPTIONS_SP2_BDE_TABLE_END_ROW
+  );
+}
+
 function buildSp2StaticClassMap() {
   const map = new Map();
-  for (let row = 1; row <= 60; row++) {
+  for (let row = 1; row <= OPTIONS_SP2_MIN_ROWS; row++) {
     for (const col of OPTIONS_SP2_ALL_COLS) {
       const classes = [];
       if (col === 'A' && row >= 1 && row <= 15) classes.push('sp2-brand-cell');
@@ -487,6 +604,9 @@ function buildSp2StaticClassMap() {
       if (SP2_OPTION_GREEN_COL_SET.has(col) && isSp2OptionBandRow(row)) {
         if (isSp2OptionGreenRow(row)) classes.push('sp2-option-green-band');
         else if (row === OPTIONS_SP2_OPTION_WHITE_ROW) classes.push('sp2-option-white-band');
+      }
+      if (SP2_BDE_COL_SET.has(col) && isSp2BdeOptionsTableRow(row)) {
+        classes.push('sp2-bde-cell');
       }
       if (
         SP2_FT_COL_SET.has(col) &&
@@ -501,6 +621,9 @@ function buildSp2StaticClassMap() {
         classes.push('sp2-syn-cell', 'sp2-vag-syn-cell');
       }
       if (col === OPTIONS_SP2_BLANK_COL) classes.push('sp2-blank-col');
+      if (row === OPTIONS_SP2_CURB_ROW && isSp2CurbLinkedCol(col)) {
+        classes.push('sp2-curb-cell');
+      }
       if (row === 15 && SP2_SUM_COL_SET.has(col)) classes.push('sp2-ft-row15-magenta');
       const syn = synTableClassStatic(row, col);
       if (syn) classes.push(syn);
@@ -517,7 +640,7 @@ const SP2_RENDER_FALLBACK = { kind: 'input', classes: [], label: null };
 
 function buildSp2RenderMap() {
   const map = new Map();
-  for (let row = 1; row <= 60; row++) {
+  for (let row = 1; row <= OPTIONS_SP2_MIN_ROWS; row++) {
     for (const col of OPTIONS_SP2_ALL_COLS) {
       const classes = SP2_STATIC_CLASS_MAP.get(`${row}:${col}`) || [];
       const label = SP2_STATIC_LABELS[`${row}:${col}`] || null;
@@ -526,11 +649,10 @@ function buildSp2RenderMap() {
         kind = row === 6 ? 'brand-title' : row === 7 ? 'brand-sub' : 'brand-empty';
       } else if (label) {
         kind = 'red-label';
-      } else if (
-        row === OPTIONS_SP2_CURB_ROW &&
-        (SP2_FT_COL_SET.has(col) || SP2_VAG_COL_SET.has(col))
-      ) {
+      } else if (row === OPTIONS_SP2_CURB_ROW && isSp2CurbLinkedCol(col)) {
         kind = 'curb';
+      } else if (isSp2Row16SumifCell(row, col)) {
+        kind = 'row16-sumif';
       } else if (row === OPTIONS_SP2_SUM_ROW && SP2_SUM_COL_SET.has(col)) {
         kind = 'sum';
       } else if (col === OPTIONS_SP2_BLANK_COL) {
@@ -558,15 +680,50 @@ function parseSp2Num(raw) {
   return Number.isFinite(n) ? n : null;
 }
 
-function computeSp2Row15Sums(cellsObj) {
+/**
+ * SOMME.SI(F19:F49,"O",$C$19:$C$49) per column — criteria col varies, sum col C fixed.
+ */
+function computeSp2Row16Sumifs(cellsObj) {
+  const out = {};
+  for (const col of SP2_ROW16_SUMIF_COL_SET) {
+    let sum = 0;
+    let any = false;
+    for (let row = OPTIONS_SP2_ROW16_SUMIF_START_ROW; row <= OPTIONS_SP2_ROW16_SUMIF_END_ROW; row++) {
+      const choice = String(cellsObj[`${row}:${col}`] ?? '').trim().toUpperCase();
+      if (choice !== OPTIONS_SP2_ROW16_SUMIF_CRITERIA) continue;
+      const n = parseSp2Num(cellsObj[`${row}:${OPTIONS_SP2_ROW16_SUMIF_SUM_COL}`]);
+      if (n == null) continue;
+      sum += n;
+      any = true;
+    }
+    out[col] = any ? sum.toFixed(2) : '';
+  }
+  return out;
+}
+
+function computeSp2Row15Sums(cellsObj, row16Sumifs) {
+  const r16 = row16Sumifs || computeSp2Row16Sumifs(cellsObj);
   const out = {};
   for (const col of SP2_SUM_COL_SET) {
-    const a = parseSp2Num(cellsObj[`${OPTIONS_SP2_SUM_SRC_ROWS[0]}:${col}`]);
+    const a = parseSp2Num(r16[col]);
     const b = parseSp2Num(cellsObj[`${OPTIONS_SP2_SUM_SRC_ROWS[1]}:${col}`]);
     if (a == null && b == null) out[col] = '';
     else out[col] = ((a ?? 0) + (b ?? 0)).toFixed(2);
   }
   return out;
+}
+
+function affectsSp2Row16Sumif(row, col) {
+  if (row < OPTIONS_SP2_ROW16_SUMIF_START_ROW || row > OPTIONS_SP2_ROW16_SUMIF_END_ROW) {
+    return false;
+  }
+  return (
+    col === OPTIONS_SP2_ROW16_SUMIF_SUM_COL || SP2_ROW16_SUMIF_COL_SET.has(col)
+  );
+}
+
+function isSp2Row16SumifCell(row, col) {
+  return row === OPTIONS_SP2_ROW16_SUMIF_ROW && SP2_ROW16_SUMIF_COL_SET.has(col);
 }
 
 function fieldsForKey(storageKey) {
@@ -594,15 +751,16 @@ function buildSeedCells(storageKey) {
         if (v !== '') cells[`${row}:${OPTIONS_SP2_FT_COLS[j]}`] = v;
       });
     });
-    // Equipment band → columns F–T, rows 53–55.
+    // Equipment band → columns F–T & V–AG, rows 53–55.
     OPTIONS_SP2_EQUIPMENT_ROWS.forEach((row) => {
-      OPTIONS_SP2_FT_COLS.forEach((col) => {
+      for (const col of [...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS]) {
         cells[`${row}:${col}`] = OPTIONS_SP2_EQUIPMENT_FT_VALUE;
-      });
+      }
     });
-    // Numeric block → columns F–T, rows 16–18 (row 15 is computed live).
+    // Numeric block → columns F–T, rows 17–18 (row 16 = live SUMIF, row 15 = row16+53).
     OPTIONS_SP2_FT_16_18.forEach((rowVals, i) => {
       const row = OPTIONS_SP2_FT_16_18_START_ROW + i;
+      if (row === OPTIONS_SP2_ROW16_SUMIF_ROW) return;
       rowVals.forEach((v, j) => {
         if (v !== '') cells[`${row}:${OPTIONS_SP2_FT_COLS[j]}`] = v;
       });
@@ -612,6 +770,20 @@ function buildSeedCells(storageKey) {
       const row = i + 1;
       rowVals.forEach((v, j) => {
         if (v !== '') cells[`${row}:${OPTIONS_SP2_VAG_COLS[j]}`] = v;
+      });
+    });
+    // Numeric block → columns V–AG, rows 17–18 (row 16 = live SUMIF).
+    OPTIONS_SP2_VAG_16_18.forEach((rowVals, i) => {
+      const row = OPTIONS_SP2_FT_16_18_START_ROW + 1 + i;
+      rowVals.forEach((v, j) => {
+        if (v !== '') cells[`${row}:${OPTIONS_SP2_VAG_COLS[j]}`] = v;
+      });
+    });
+    // Options picker — columns V–AG, rows 19–47 (green / white bands).
+    OPTIONS_SP2_VAG_OPTIONS.forEach((rowVals, i) => {
+      const row = OPTIONS_SP2_FT_OPTION_START_ROW + i;
+      rowVals.forEach((v, j) => {
+        cells[`${row}:${OPTIONS_SP2_VAG_COLS[j]}`] = v;
       });
     });
     // Options picker — columns F–T, rows 19–47 (O / NO / REF from source sheet).
@@ -675,6 +847,20 @@ export default {
     const editTick = ref(0);
     let persistTimer = 0;
 
+    const {
+      syncFromCell: syncAxisFromCell,
+      onRowNumClick: onAxisRowNumClick,
+      onColHeaderClick: onAxisColHeaderClick,
+      isAxisRow,
+      isAxisCol,
+    } = createGridAxisHighlight();
+
+    function onCellAxisSelect(row, col, event) {
+      if (event && event.button != null && event.button !== 0) return;
+      syncAxisFromCell(row, col);
+    }
+
+    const row16Sumifs = ref({});
     const row15Sums = ref({});
 
     // The Options SP2 page reuses this grid but brands column A (rows 1–12)
@@ -693,41 +879,28 @@ export default {
     // the Curb mass row (Synthesis 16 → Options SP2 row 14) in real time.
     const synLink = inject('synthesisCellLink', null);
 
-    // Map of Options SP2 column (F–T) → formatted Curb mass value, recomputed
-    // whenever the synthesis revision bumps (edit / recalc / Supabase reload).
+    // Options SP2 row 14 ← Synthesis row 16 display M…AA (SP2 F…T) + AC…AN (SP2 V…AG).
     const curbMassRow = computed(() => {
       try {
-      if (!isOptionsSp2.value || !synLink || !synLink.synRaw) return {};
-      // Touch both signals so this recomputes on any synthesis change. synRaw is a
-      // shallowRef mutated in place on edits, so the edit tick is what actually fires.
-      if (synLink.synRevision) void synLink.synRevision.value;
-      if (synLink.synEditTick) void synLink.synEditTick.value;
-      const raw = synLink.synRaw.value;
-        if (!raw || !Array.isArray(raw.cells)) return {};
-        // One pass to gather the Curb mass row (Synthesis row 16) source columns.
-        const srcVals = {};
-        const wanted = new Set([
-          ...OPTIONS_SP2_FT_SRC_COLS,
-          ...OPTIONS_SP2_VAG_SRC_COLS,
-        ]);
-        for (const cell of raw.cells) {
-          if (Number(cell.r) === SYN_CURB_MASS_ROW && wanted.has(cell.c)) {
-            srcVals[cell.c] = cell.v;
+        if (!isOptionsSp2.value || !synLink) return {};
+        if (synLink.synRevision) void synLink.synRevision.value;
+        if (synLink.synEditTick) void synLink.synEditTick.value;
+        if (synLink.session?.synCalcTick) void synLink.session.synCalcTick.value;
+        if (synLink.session?.displayTick) void synLink.session.displayTick.value;
+        if (synLink.session?.liveBdEdited) void synLink.session.liveBdEdited.value;
+        const getRow16 = synLink.getSynRow16Display;
+        if (typeof getRow16 !== 'function') return {};
+
+        const out = {};
+        for (const sp2Col of [...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS]) {
+          if (!isSp2CurbLinkedCol(sp2Col)) continue;
+          const synExcelCol = sp2ColToSynExcelCol(sp2Col);
+          if (!synExcelCol) continue;
+          const shown = getRow16(synExcelCol);
+          if (shown != null && String(shown).trim() !== '') {
+            out[sp2Col] = String(shown);
           }
         }
-        const out = {};
-        OPTIONS_SP2_FT_COLS.forEach((destCol, i) => {
-          const v = srcVals[OPTIONS_SP2_FT_SRC_COLS[i]];
-          if (v === undefined || v === null || String(v).trim() === '') return;
-          const formatted = formatSynNumericDisplay(String(v));
-          out[destCol] = formatted ? `${formatted} kg` : '';
-        });
-        OPTIONS_SP2_VAG_COLS.forEach((destCol, i) => {
-          const v = srcVals[OPTIONS_SP2_VAG_SRC_COLS[i]];
-          if (v === undefined || v === null || String(v).trim() === '') return;
-          const formatted = formatSynNumericDisplay(String(v));
-          out[destCol] = formatted ? `${formatted} kg` : '';
-        });
         return out;
       } catch (e) {
         console.warn('Options SP2 curb-mass link:', e);
@@ -739,11 +912,11 @@ export default {
       return (
         isOptionsSp2.value &&
         row === OPTIONS_SP2_CURB_ROW &&
-        (OPTIONS_SP2_FT_COLS.includes(col) || OPTIONS_SP2_VAG_COLS.includes(col))
+        isSp2CurbLinkedCol(col)
       );
     }
 
-    // Copied Synthesis table blocks: F–T (rows 1–12 & 14–18) and V–AG (rows 1–12 & 14).
+    // Copied Synthesis table blocks: F–T & V–AG (rows 1–12 & 14–18).
     function isSynTableCell(row, col) {
       if (!isOptionsSp2.value) return false;
       if (OPTIONS_SP2_FT_COLS.includes(col) && isSp2SynFramedRow(row)) return true;
@@ -777,9 +950,17 @@ export default {
       return SP2_RENDER_MAP.get(`${row}:${col}`) || SP2_RENDER_FALLBACK;
     }
 
-    function recomputeRow15Sums() {
+    function recomputeSp2DerivedSums() {
       if (!isOptionsSp2.value) return;
-      row15Sums.value = computeSp2Row15Sums(cells.value);
+      const r16 = computeSp2Row16Sumifs(cells.value);
+      row16Sumifs.value = r16;
+      row15Sums.value = computeSp2Row15Sums(cells.value, r16);
+      touchCells();
+    }
+
+    function row16SumifValue(col) {
+      const map = row16Sumifs.value;
+      return (map && map[col]) || '';
     }
 
     /** Row 15 = row 16 + row 53 (F–T columns only), read-only. */
@@ -807,20 +988,25 @@ export default {
       const value = event && event.target ? event.target.value : '';
       const key = cellKey(row, col);
       const cur = cells.value[key];
+      let changed = false;
       if (value === '') {
         if (cur !== undefined) {
           delete cells.value[key];
-          schedulePersist();
-          if (row === OPTIONS_SP2_SUM_SRC_ROWS[0] || row === OPTIONS_SP2_SUM_SRC_ROWS[1]) {
-            recomputeRow15Sums();
-          }
+          changed = true;
         }
       } else if (cur !== value) {
         cells.value[key] = value;
-        schedulePersist();
-        if (row === OPTIONS_SP2_SUM_SRC_ROWS[0] || row === OPTIONS_SP2_SUM_SRC_ROWS[1]) {
-          recomputeRow15Sums();
-        }
+        changed = true;
+      }
+      if (!changed) return;
+      schedulePersist();
+      if (
+        affectsSp2Row16Sumif(row, col) ||
+        (row === OPTIONS_SP2_SUM_SRC_ROWS[1] && SP2_SUM_COL_SET.has(col))
+      ) {
+        recomputeSp2DerivedSums();
+      } else {
+        touchCells();
       }
     }
 
@@ -837,6 +1023,7 @@ export default {
     }
 
     function cycleSp2Option(row, col, event) {
+      syncAxisFromCell(row, col);
       const key = cellKey(row, col);
       const cur = cells.value[key] || '';
       const idx = SP2_OPTION_CYCLE.indexOf(cur);
@@ -845,6 +1032,9 @@ export default {
       else cells.value[key] = next;
       syncSp2OptionButton(event.currentTarget, row, col);
       schedulePersist();
+      if (affectsSp2Row16Sumif(row, col)) {
+        recomputeSp2DerivedSums();
+      }
     }
 
     function isBrandCell(row, col) {
@@ -938,7 +1128,7 @@ export default {
       return isOptionsSp2.value && col === 'B' && row === 49;
     }
 
-    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + AH–HC. */
+    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + V–AG + AH–HC. */
     function isOptionGreenBandCell(row, col) {
       if (!isOptionsSp2.value || !SP2_OPTION_GREEN_COL_SET.has(col)) return false;
       return isSp2OptionGreenRow(row);
@@ -955,8 +1145,8 @@ export default {
     }
 
     const rowCount = computed(() => {
-      // Options SP2 needs room for the red bands / labels down to row 59.
-      let maxRow = isOptionsSp2.value ? 60 : MNS_MIN_ROWS;
+      // Options SP2 needs room for the red bands / labels down to row 69.
+      let maxRow = isOptionsSp2.value ? OPTIONS_SP2_MIN_ROWS : MNS_MIN_ROWS;
       for (const key of Object.keys(cells.value)) {
         const r = Number(key.split(':')[0]);
         if (Number.isFinite(r) && r > maxRow) maxRow = r;
@@ -967,6 +1157,167 @@ export default {
     const rows = computed(() =>
       Array.from({ length: rowCount.value }, (_, i) => i + 1)
     );
+
+    // ── Options SP2 virtual scroll (211 cols × ~70 rows — render only the viewport)
+    const scrollEl = ref(null);
+    const scrollTop = ref(0);
+    const scrollLeft = ref(0);
+    const viewportH = ref(600);
+    const viewportW = ref(1200);
+    let sp2ResizeObs = null;
+
+    const scrollSync = createScrollRafSync({
+      scrollTop,
+      scrollLeft,
+      getScrollEl: () => scrollEl.value,
+    });
+
+    function updateSp2Viewport() {
+      if (!scrollEl.value) return;
+      viewportH.value = scrollEl.value.clientHeight;
+      viewportW.value = scrollEl.value.clientWidth;
+    }
+
+    const sp2ScrollColumns = computed(() =>
+      columns.value.filter((c) => !SP2_STICKY_COLS.includes(c))
+    );
+
+    const sp2ColLayout = computed(() => {
+      let left = 0;
+      const out = [];
+      for (const col of sp2ScrollColumns.value) {
+        const width = sp2ColWidth(col);
+        out.push({ col, left, width });
+        left += width;
+      }
+      return out;
+    });
+
+    const sp2ScrollableWidth = computed(() => {
+      const layout = sp2ColLayout.value;
+      return layout.length
+        ? layout[layout.length - 1].left + layout[layout.length - 1].width
+        : 0;
+    });
+
+    const sp2StickyWidth = computed(
+      () => SP2_ROW_NUM_W + sp2ColWidth('A') + sp2ColWidth('B')
+    );
+
+    const sp2VirtualizeCols = computed(
+      () =>
+        isOptionsSp2.value &&
+        shouldVirtualizeCols(sp2StickyWidth.value + sp2ScrollableWidth.value, viewportW.value)
+    );
+
+    const sp2ColScrollCache = createRangeScrollCache(SP2_MAX_RENDERED_COLS, {
+      monotonic: false,
+    });
+    const sp2ColRangeStart = ref(0);
+    const sp2ColRangeEnd = ref(0);
+
+    watchEffect(() => {
+      if (!isOptionsSp2.value) return;
+      const layout = sp2ColLayout.value;
+      if (!sp2VirtualizeCols.value) {
+        sp2ColRangeStart.value = 0;
+        sp2ColRangeEnd.value = layout.length;
+        return;
+      }
+      const vpScrollW = Math.max(100, viewportW.value - sp2StickyWidth.value);
+      const range = sp2ColScrollCache.resolveCols(
+        layout,
+        scrollLeft.value,
+        vpScrollW,
+        colOverscanPx(viewportW.value, 480)
+      );
+      sp2ColRangeStart.value = range.start;
+      sp2ColRangeEnd.value = range.end;
+    });
+
+    const sp2RenderColumns = computed(() => {
+      if (!isOptionsSp2.value) return columns.value;
+      if (!sp2VirtualizeCols.value) return columns.value;
+      const out = [...SP2_STICKY_COLS];
+      const layout = sp2ColLayout.value;
+      for (let i = sp2ColRangeStart.value; i < sp2ColRangeEnd.value; i++) {
+        if (layout[i]) out.push(layout[i].col);
+      }
+      return out;
+    });
+
+    const headerColumns = computed(() =>
+      isOptionsSp2.value ? sp2RenderColumns.value : columns.value
+    );
+
+    const sp2LeftPad = computed(() => {
+      if (!isOptionsSp2.value || !sp2VirtualizeCols.value) return 0;
+      const first = sp2ColLayout.value[sp2ColRangeStart.value];
+      return first ? first.left : 0;
+    });
+
+    const sp2RightPad = computed(() => {
+      if (!isOptionsSp2.value || !sp2VirtualizeCols.value) return 0;
+      const last = sp2ColLayout.value[sp2ColRangeEnd.value - 1];
+      if (!last) return 0;
+      return Math.max(0, sp2ScrollableWidth.value - (last.left + last.width));
+    });
+
+    const sp2TableColSpan = computed(() => {
+      if (!isOptionsSp2.value) return columns.value.length + 1;
+      let n = 1 + headerColumns.value.length;
+      if (sp2VirtualizeCols.value && sp2LeftPad.value > 0) n += 1;
+      if (sp2VirtualizeCols.value && sp2RightPad.value > 0) n += 1;
+      return n;
+    });
+
+    const sp2VirtualizeRows = computed(
+      () =>
+        isOptionsSp2.value &&
+        shouldVirtualizeRows(rowCount.value, viewportH.value)
+    );
+
+    const sp2RowScrollCache = createRangeScrollCache(SP2_MAX_RENDERED_ROWS, {
+      monotonic: true,
+    });
+    const sp2VisibleStart = ref(0);
+    const sp2VisibleEnd = ref(0);
+
+    watchEffect(() => {
+      if (!isOptionsSp2.value) return;
+      const count = rowCount.value;
+      if (!sp2VirtualizeRows.value) {
+        sp2VisibleStart.value = 0;
+        sp2VisibleEnd.value = count;
+        return;
+      }
+      const range = sp2RowScrollCache.resolveRows(
+        scrollTop.value,
+        viewportH.value,
+        count,
+        rowOverscan(viewportH.value, 20, 40)
+      );
+      sp2VisibleStart.value = range.start;
+      sp2VisibleEnd.value = range.end;
+    });
+
+    const sp2VisibleRows = computed(() => {
+      if (!isOptionsSp2.value || !sp2VirtualizeRows.value) return rows.value;
+      return rows.value.slice(sp2VisibleStart.value, sp2VisibleEnd.value);
+    });
+
+    const sp2TopSpacer = computed(() =>
+      isOptionsSp2.value && sp2VirtualizeRows.value
+        ? sp2VisibleStart.value * ROW_H
+        : 0
+    );
+
+    const sp2BottomSpacer = computed(() => {
+      if (!isOptionsSp2.value || !sp2VirtualizeRows.value) return 0;
+      const shown = sp2VisibleEnd.value - sp2VisibleStart.value;
+      const remaining = rowCount.value - sp2VisibleStart.value - shown;
+      return Math.max(0, remaining * ROW_H);
+    });
 
     function cellKey(row, col) {
       return `${row}:${col}`;
@@ -1004,11 +1355,15 @@ export default {
       if (String(storageKey || '').includes('options-sp2')) {
         for (const key of Object.keys(merged)) {
           if (key.startsWith(`${OPTIONS_SP2_SUM_ROW}:`)) delete merged[key];
+          if (key.startsWith(`${OPTIONS_SP2_ROW16_SUMIF_ROW}:`)) {
+            const col = key.split(':')[1];
+            if (SP2_ROW16_SUMIF_COL_SET.has(col)) delete merged[key];
+          }
         }
       }
       cells.value = merged;
       if (String(storageKey || '').includes('options-sp2')) {
-        recomputeRow15Sums();
+        recomputeSp2DerivedSums();
       } else {
         touchCells();
       }
@@ -1033,13 +1388,31 @@ export default {
 
     onMounted(() => {
       loadForKey(props.storageKey);
-      if (isOptionsSp2.value && synLink && typeof synLink.ensureSyn === 'function') {
-        Promise.resolve(synLink.ensureSyn()).catch(() => {});
+      updateSp2Viewport();
+      window.addEventListener('resize', updateSp2Viewport);
+      if (scrollEl.value && typeof ResizeObserver !== 'undefined') {
+        sp2ResizeObs = new ResizeObserver(updateSp2Viewport);
+        sp2ResizeObs.observe(scrollEl.value);
       }
+      nextTick(() => scrollSync.flush());
+      if (!isOptionsSp2.value || !synLink) return;
+      const boot =
+        typeof synLink.ensureSynGrid === 'function'
+          ? synLink.ensureSynGrid()
+          : typeof synLink.ensureSyn === 'function'
+            ? synLink.ensureSyn()
+            : null;
+      if (boot) Promise.resolve(boot).catch(() => {});
     });
 
     onUnmounted(() => {
       clearTimeout(persistTimer);
+      window.removeEventListener('resize', updateSp2Viewport);
+      if (sp2ResizeObs) {
+        sp2ResizeObs.disconnect();
+        sp2ResizeObs = null;
+      }
+      scrollSync.dispose();
     });
 
     // Reload the right dataset if the same component instance is reused for
@@ -1049,17 +1422,39 @@ export default {
       (key) => loadForKey(key)
     );
 
+    watch(rowCount, () => {
+      sp2RowScrollCache.reset();
+      nextTick(() => scrollSync.flush());
+    });
+
     return {
       columns,
+      headerColumns,
       rows,
+      sp2VisibleRows,
+      sp2VirtualizeCols,
+      sp2LeftPad,
+      sp2RightPad,
+      sp2TopSpacer,
+      sp2BottomSpacer,
+      sp2TableColSpan,
+      scrollEl,
+      onScroll: scrollSync.onScroll,
       cellValue,
       onCellInput,
+      onCellAxisSelect,
+      onAxisRowNumClick,
+      onAxisColHeaderClick,
+      isAxisRow,
+      isAxisCol,
       isOptionsSp2,
       sp2Render,
       bindSp2Input,
       onSp2CellInput,
       bindSp2Option,
       cycleSp2Option,
+      row16Sumifs,
+      row16SumifValue,
       row15Sums,
       isBrandCell,
       isMnsPaintCell,
@@ -1088,56 +1483,110 @@ export default {
   },
   template: `
     <div class="bd-grid-root mns-grid" :class="{ 'options-sp2-grid': isOptionsSp2 }">
-      <div class="bd-grid-scroll">
+      <div class="bd-grid-scroll" ref="scrollEl" @scroll.passive="onScroll">
         <table class="bd-table mns-table" role="grid">
           <thead>
             <tr class="hdr-row-letters">
               <th class="corner"></th>
+              <template v-for="(col, idx) in headerColumns" :key="'mns-letter-' + col">
+                <th
+                  v-if="isOptionsSp2 && sp2VirtualizeCols && idx === 2 && sp2LeftPad > 0"
+                  class="col-spacer"
+                  :style="{ width: sp2LeftPad + 'px', minWidth: sp2LeftPad + 'px', maxWidth: sp2LeftPad + 'px', padding: 0, border: 'none' }"
+                ></th>
+                <th
+                  class="col-letter grid-axis-hdr"
+                  :class="{
+                    'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col),
+                    'sp2-sticky-col-b': isOptionsSp2 && col === 'B',
+                    'grid-axis-hdr-focus': isAxisCol(col),
+                  }"
+                  :data-col="col"
+                  @mousedown="onAxisColHeaderClick(col, $event)"
+                >{{ col }}</th>
+              </template>
               <th
-                v-for="col in columns"
-                :key="'mns-letter-' + col"
-                class="col-letter"
-                :class="{ 'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col) }"
-                :data-col="col"
-              >{{ col }}</th>
+                v-if="isOptionsSp2 && sp2VirtualizeCols && sp2RightPad > 0"
+                class="col-spacer"
+                :style="{ width: sp2RightPad + 'px', minWidth: sp2RightPad + 'px', maxWidth: sp2RightPad + 'px', padding: 0, border: 'none' }"
+              ></th>
             </tr>
           </thead>
           <tbody v-if="isOptionsSp2">
+            <tr v-if="sp2TopSpacer > 0" class="bd-spacer-top">
+              <td :colspan="sp2TableColSpan" :style="{ height: sp2TopSpacer + 'px', padding: 0, border: 'none' }"></td>
+            </tr>
             <tr
-              v-for="row in rows"
+              v-for="row in sp2VisibleRows"
               :key="'sp2-row-' + row"
               class="grid-row-cv"
+              :class="{ 'grid-axis-row-focus': isAxisRow(row) }"
             >
-              <td class="row-num">{{ row }}</td>
               <td
-                v-for="col in columns"
-                :key="'sp2-' + row + '-' + col"
-                class="data-cell"
-                :data-col="col"
-                :class="sp2Render(row, col).classes"
-              >
-                <span v-if="sp2Render(row, col).kind === 'brand-title'" class="sp2-brand-title">STLA S</span>
-                <span v-else-if="sp2Render(row, col).kind === 'brand-sub'" class="sp2-brand-sub">SP2</span>
+                class="row-num grid-axis-hdr"
+                :class="{ 'grid-axis-hdr-focus': isAxisRow(row) }"
+                @mousedown="onAxisRowNumClick(row, $event)"
+              >{{ row }}</td>
+              <template v-for="(col, idx) in headerColumns" :key="'sp2-' + row + '-' + col">
+                <td
+                  v-if="sp2VirtualizeCols && idx === 2 && sp2LeftPad > 0"
+                  class="col-spacer"
+                  :style="{ width: sp2LeftPad + 'px', minWidth: sp2LeftPad + 'px', maxWidth: sp2LeftPad + 'px', padding: 0, border: 'none' }"
+                ></td>
+                <td
+                  class="data-cell"
+                  :data-col="col"
+                  :class="[
+                    sp2Render(row, col).classes,
+                    {
+                      'sp2-sticky-col-b': col === 'B',
+                      'grid-axis-col-focus': isAxisCol(col),
+                    },
+                  ]"
+                >
+                <span
+                  v-if="sp2Render(row, col).kind === 'brand-title'"
+                  class="sp2-brand-title"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >STLA S</span>
+                <span
+                  v-else-if="sp2Render(row, col).kind === 'brand-sub'"
+                  class="sp2-brand-sub"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >SP2</span>
                 <span
                   v-else-if="sp2Render(row, col).kind === 'red-label'"
                   :class="sp2Render(row, col).label.cls"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ sp2Render(row, col).label.text }}</span>
                 <span
                   v-else-if="sp2Render(row, col).kind === 'curb'"
                   class="sp2-curb-linked"
                   title="Lié à Synthesis (Curb mass) — mis à jour automatiquement"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ curbLinkedValue(col) }}</span>
+                <span
+                  v-else-if="sp2Render(row, col).kind === 'row16-sumif'"
+                  class="sp2-row16-sumif"
+                  title="SOMME.SI : somme colonne C (l.19–49) si cette colonne = O"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ row16SumifValue(col) }}</span>
                 <span
                   v-else-if="sp2Render(row, col).kind === 'sum'"
                   class="sp2-row15-sum"
                   title="Somme ligne 16 + ligne 53 (même colonne)"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ row15Sums[col] }}</span>
-                <span v-else-if="sp2Render(row, col).kind === 'blank'"></span>
+                <span
+                  v-else-if="sp2Render(row, col).kind === 'blank'"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                ></span>
                 <button
                   v-else-if="sp2Render(row, col).kind === 'option'"
                   type="button"
                   class="grid-cell-input sp2-option-btn sp2-option-choice-default"
                   :ref="el => bindSp2Option(el, row, col)"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                   @click="cycleSp2Option(row, col, $event)"
                 ></button>
                 <input
@@ -1147,9 +1596,20 @@ export default {
                   class="grid-cell-input mns-cell-input"
                   autocomplete="off"
                   spellcheck="false"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                  @focus="onCellAxisSelect(row, col, $event)"
                   @input="onSp2CellInput(row, col, $event)"
                 />
               </td>
+              </template>
+              <td
+                v-if="sp2VirtualizeCols && sp2RightPad > 0"
+                class="col-spacer"
+                :style="{ width: sp2RightPad + 'px', minWidth: sp2RightPad + 'px', maxWidth: sp2RightPad + 'px', padding: 0, border: 'none' }"
+              ></td>
+            </tr>
+            <tr v-if="sp2BottomSpacer > 0" class="bd-spacer-bottom">
+              <td :colspan="sp2TableColSpan" :style="{ height: sp2BottomSpacer + 'px', padding: 0, border: 'none' }"></td>
             </tr>
           </tbody>
           <tbody v-else>
@@ -1157,8 +1617,13 @@ export default {
               v-for="row in rows"
               :key="'mns-row-' + row"
               class="grid-row-cv"
+              :class="{ 'grid-axis-row-focus': isAxisRow(row) }"
             >
-              <td class="row-num">{{ row }}</td>
+              <td
+                class="row-num grid-axis-hdr"
+                :class="{ 'grid-axis-hdr-focus': isAxisRow(row) }"
+                @mousedown="onAxisRowNumClick(row, $event)"
+              >{{ row }}</td>
               <td
                 v-for="col in columns"
                 :key="'mns-' + row + '-' + col"
@@ -1179,29 +1644,42 @@ export default {
                   'mns-beige-cell': isMnsBeigeCell(row, col),
                   'mns-red-value': isMnsRedValue(row, col),
                   'sp2-syn-cell': isSynTableCell(row, col),
+                  'grid-axis-col-focus': isAxisCol(col),
                 }, synTableClass(row, col)]"
               >
                 <template v-if="isBrandCell(row, col)">
-                  <span v-if="row === 6" class="sp2-brand-title">STLA S</span>
-                  <span v-else-if="row === 7" class="sp2-brand-sub">SP2</span>
+                  <span
+                    v-if="row === 6"
+                    class="sp2-brand-title"
+                    @mousedown="onCellAxisSelect(row, col, $event)"
+                  >STLA S</span>
+                  <span
+                    v-else-if="row === 7"
+                    class="sp2-brand-sub"
+                    @mousedown="onCellAxisSelect(row, col, $event)"
+                  >SP2</span>
                 </template>
                 <span
                   v-else-if="redLabel(row, col)"
                   :class="redLabel(row, col).cls"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ redLabel(row, col).text }}</span>
                 <span
                   v-else-if="mnsRedLabel(row, col)"
                   class="mns-red-label"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ mnsRedLabel(row, col) }}</span>
                 <span
                   v-else-if="mnsGreenLabel(row, col)"
                   class="mns-green-label"
                   :class="'mns-green-' + mnsGreenLabel(row, col).align"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ mnsGreenLabel(row, col).text }}</span>
                 <span
                   v-else-if="isCurbLinkedCell(row, col)"
                   class="sp2-curb-linked"
                   title="Lié à Synthesis (Curb mass) — mis à jour automatiquement"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ curbLinkedValue(col) }}</span>
                 <input
                   v-else
@@ -1210,6 +1688,8 @@ export default {
                   autocomplete="off"
                   spellcheck="false"
                   :value="cellValue(row, col)"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                  @focus="onCellAxisSelect(row, col, $event)"
                   @input="onCellInput(row, col, $event)"
                 />
               </td>

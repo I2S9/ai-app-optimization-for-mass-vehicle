@@ -4163,6 +4163,20 @@
 .bd-grid-root.mns-grid .bd-table td.row-num {
   left: 0;
 }
+/* MNS / Options SP2 — axis highlight on cell click (row + column headers) */
+.bd-grid-root.mns-grid .bd-table thead th.col-letter.grid-axis-hdr-focus,
+.bd-grid-root.mns-grid .bd-table td.row-num.grid-axis-hdr-focus {
+  background: #a8a8a8 !important;
+  color: #000 !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid .bd-table tbody td.data-cell {
+  position: relative;
+}
+.bd-grid-root.mns-grid .bd-table tbody td.data-cell .grid-cell-input {
+  position: relative;
+  z-index: 2;
+}
 .bd-grid-root.mns-grid .bd-table td.data-cell,
 .bd-grid-root.mns-grid .bd-table thead th.col-letter {
   width: 200px;
@@ -4376,18 +4390,17 @@
   line-height: 1;
 }
 
-/* Options SP2 — red band on rows 16–18, columns A–E.
-   Borders are coloured red (not transparent) so no thin background line shows
-   between the cells — a single seamless red zone, like the white STLA S block. */
+/* Options SP2 — red bands (rows 16–18, 53–55, 57–59), columns A–E.
+   Borders are coloured red so no grey line shows between cells — one seamless zone. */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell {
-  background: #ff0000;
-  border-color: #ff0000;
+  background: #ff0000 !important;
+  border: 1px solid #ff0000 !important;
   overflow: visible;
   position: relative;
   z-index: 1;
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .grid-cell-input {
-  background: transparent;
+  background: transparent !important;
 }
 /* White labels inside the red band */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell .sp2-red-title {
@@ -4423,6 +4436,24 @@
   white-space: nowrap;
 }
 
+/* Options SP2 — column A note (e.g. rows 44–47 "issu D41") */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='A'] .sp2-a-note {
+  display: block;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Options SP2 — column B bold section title (e.g. row 62) */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'] .sp2-b-bold-title {
+  display: block;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+}
+
 /* Options SP2 — widen column B and left-align all its content */
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='B'],
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'] {
@@ -4433,6 +4464,10 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'],
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='B'] .grid-cell-input {
   text-align: left;
+}
+
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-curb-cell {
+  text-align: center;
 }
 
 /* Options SP2 — Curb mass row linked live to Synthesis (read-only display) */
@@ -4450,6 +4485,19 @@
 }
 
 /* Options SP2 — row 15 = sum(row 16, row 53), read-only */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-row16-sumif {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  user-select: none;
+  cursor: default;
+}
+
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell .sp2-row15-sum {
   display: block;
   width: 100%;
@@ -4482,6 +4530,21 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell {
   border: var(--sp2-syn-bold-border) solid #000 !important;
 }
+
+/* Options SP2 — B–E options table (rows 19–49): labels + C/D/E, same bold grid as F–T */
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-bde-cell,
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-bde-cell .grid-cell-input {
+  font-weight: 700;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-bde-cell {
+  border: var(--sp2-syn-bold-border) solid #000 !important;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='B'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='C'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='D'],
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='E'] {
+  border: var(--sp2-syn-bold-border) solid #000 !important;
+}
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='F'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='G'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='H'],
@@ -4499,7 +4562,7 @@
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='T'] {
   border: var(--sp2-syn-bold-border) solid #000 !important;
 }
-/* AC…AN copy — columns V–AG (rows 1–12 + row 14 Curb mass) */
+/* AC…AN copy — columns V–AG (rows 1–12 + rows 14–18, like F–T) */
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='V'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='W'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='X'],
@@ -4526,11 +4589,32 @@
   padding: 0;
 }
 
-/* Options SP2 — always show the horizontal scrollbar (wide A–Z grid) */
+/* Options SP2 — smooth scroll container (virtualized wide grid) */
 .bd-grid-root.options-sp2-grid .bd-grid-scroll {
-  overflow-x: scroll;
-  overflow-y: auto;
+  overflow: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+/* Frozen column B (labels) while scrolling horizontally — column A stays in normal flow */
+.bd-grid-root.options-sp2-grid .bd-table th.sp2-sticky-col-b,
+.bd-grid-root.options-sp2-grid .bd-table td.data-cell.sp2-sticky-col-b {
+  position: sticky;
+  left: calc(42px + 72px);
+  z-index: 199;
+  isolation: isolate;
+  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.sp2-sticky-col-b {
+  z-index: 349;
+  background: #d9d9d9;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-sticky-col-b:not(.sp2-red-cell):not(.sp2-blue-cell) {
+  background: #fff;
+  background-clip: padding-box;
+}
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-red-cell.sp2-sticky-col-b {
+  background: #ff0000 !important;
+  border-color: #ff0000 !important;
 }
 .bd-grid-root.options-sp2-grid .bd-grid-scroll::-webkit-scrollbar {
   height: 14px;
@@ -4656,7 +4740,7 @@
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-green-cell {
   background: #92d050;
 }
-/* Options SP2 — options block rows 19–39 & 41–47 (F–T + AH–HC); row 40 = white */
+/* Options SP2 — options block rows 19–39 & 41–47 (F–T + V–AG + AH–HC); row 40 = white */
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band {
   background: #92d050;
 }

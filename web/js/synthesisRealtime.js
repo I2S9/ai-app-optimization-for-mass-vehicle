@@ -11,7 +11,17 @@
  * ou si la config manque, on log un avertissement et on ne fait rien — l'app continue
  * de fonctionner avec la synchro intra-session deja en place.
  *
- * Prerequis Supabase (SQL Editor) : voir startSynthesisRealtime() plus bas.
+ * Prerequis Supabase (SQL Editor, une seule fois) :
+ *
+ *   -- Realtime sur les cellules Synthesis (ligne 16 M…AA → Options SP2 ligne 14)
+ *   alter publication supabase_realtime add table public.sheet_cells;
+ *
+ *   -- RLS : lecture/écriture anon selon votre politique existante
+ *   -- (les PATCH single-cell utilisent déjà sheet=eq.SYNTHESIS, excel_row, col, v)
+ *
+ * Aucune table ni colonne supplémentaire : la ligne 16 est écrite dans sheet_cells
+ * (sheet='SYNTHESIS', excel_row=16, col='R'…'AF', v='1234,56 kg') dès qu'une
+ * valeur source change.
  */
 
 const SUPABASE_ESM = 'https://esm.sh/@supabase/supabase-js@2';

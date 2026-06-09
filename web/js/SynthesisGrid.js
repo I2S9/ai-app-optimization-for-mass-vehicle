@@ -5,6 +5,7 @@ import {
   ref,
   computed,
   shallowRef,
+  inject,
   onMounted,
   onUnmounted,
   watch,
@@ -22,6 +23,7 @@ import {
   isSynVehicleMassCol,
   isSynTrustMaterializedLiveCell,
 } from './synthesisCalc.js?v=grid-perf2';
+import { synRow16CurbSourceExcelCols } from './sp2CurbLink.js?v=2';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-live1';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
@@ -347,6 +349,7 @@ export default {
     'column-delete',
   ],
   setup(props, { emit }) {
+    const synLink = inject('synthesisCellLink', null);
     const scrollEl = ref(null);
     const scrollTop = ref(0);
     const scrollLeft = ref(0);
@@ -1732,6 +1735,16 @@ export default {
           computePortfolioDiffDisplay(col)
         );
       }
+      // Row 16 (Curb mass) M…AA + AC…AN — exact on-screen values for Options SP2 row 14.
+      for (const col of synRow16CurbSourceExcelCols()) {
+        const key = `16:${col}`;
+        const c = cellMap.value.get(key);
+        if (c && c.userEdited && c.v != null) {
+          lastPersistedGreen.set(key, String(c.v));
+        } else {
+          lastPersistedGreen.set(key, cellDisplay(16, col) || '');
+        }
+      }
       greenBaselineLoaded = true;
     }
 
@@ -1806,6 +1819,25 @@ export default {
           delete cell.f;
         }
         changes.push({ row: SYN_PTF_DIFF_ROW, col, value });
+      }
+      // Row 16 — mirror live display (Σ green totals, etc.) to Supabase for Options SP2.
+      for (const col of synRow16CurbSourceExcelCols()) {
+        const value = cellDisplay(16, col) || '';
+        const key = `16:${col}`;
+        if (lastPersistedGreen.get(key) === value) continue;
+        lastPersistedGreen.set(key, value);
+        let cell = cellMap.value.get(key);
+        if (value === '' && !(cell && cell.userEdited)) continue;
+        if (!cell) {
+          cell = { r: 16, c: col, v: value, userEdited: true };
+          props.sheet.cells.push(cell);
+          cellMap.value.set(key, cell);
+        } else {
+          cell.v = value;
+          cell.userEdited = true;
+          delete cell.f;
+        }
+        changes.push({ row: 16, col, value });
       }
       if (changes.length) {
         emit('derived-change', changes);
@@ -2862,15 +2894,23 @@ export default {
       { immediate: true }
     );
 
+    const synRow16DisplayBridge = (excelCol) => cellDisplay(16, excelCol);
+
     onMounted(() => {
       updateViewport();
       scrollSync.flush();
       window.addEventListener('resize', updateViewport);
+      if (synLink?.registerSynRow16Display) {
+        synLink.registerSynRow16Display(synRow16DisplayBridge);
+      }
     });
     onUnmounted(() => {
       if (greenPersistTimer) clearTimeout(greenPersistTimer);
       window.removeEventListener('resize', updateViewport);
       scrollSync.dispose();
+      if (synLink?.unregisterSynRow16Display) {
+        synLink.unregisterSynRow16Display(synRow16DisplayBridge);
+      }
     });
 
     // Vue template only sees setup() return values — keep all template helpers here.

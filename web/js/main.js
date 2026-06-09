@@ -12,11 +12,12 @@ import {
 } from 'vue';
 import BdGrid from './BdGrid.js?v=bd-ugap-edit1';
 import { computeBodyDisplayRows } from './bdStore.js';
-import SynthesisGrid from './SynthesisGrid.js?v=syn-ugap-edit1';
+import SynthesisGrid from './SynthesisGrid.js?v=syn-row16-link1';
 import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=sp2-ft-options1';
+import MnsGrid from './MnsGrid.js?v=sp2-red-col-a-fix1';
+import { resolveSynRow16DisplayFromRaw } from './sp2CurbLink.js?v=2';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
@@ -433,6 +434,26 @@ const App = {
     // (e.g. the Curb mass row 16) reactively. synSheetRevision bumps on every
     // synthesis change (edits, server recalc, Supabase session load), so any cell
     // bound through this link updates in real time.
+    /** SynthesisGrid registers cellDisplay(16, col) — exact on-screen Curb mass row. */
+    const synRow16DisplayFn = shallowRef(null);
+
+    function getSynRow16Display(excelCol) {
+      const fn = synRow16DisplayFn.value;
+      if (typeof fn === 'function') {
+        try {
+          const live = fn(String(excelCol));
+          if (live != null && String(live).trim() !== '') return String(live);
+        } catch (e) {
+          console.warn('[syn-row16]', e);
+        }
+      }
+      const raw = synRaw.value;
+      if (raw && Array.isArray(raw.cells)) {
+        return resolveSynRow16DisplayFromRaw(raw.cells, excelCol);
+      }
+      return '';
+    }
+
     provide('synthesisCellLink', {
       synRaw,
       synRevision: synSheetRevision,
@@ -440,7 +461,16 @@ const App = {
       // and synRaw is a shallowRef mutated in place — so consumers must watch this
       // tick to react to live edits.
       synEditTick: externalEditTick,
+      session,
       ensureSyn: ensureSynRaw,
+      getSynRow16Display,
+      registerSynRow16Display(fn) {
+        synRow16DisplayFn.value = fn;
+      },
+      unregisterSynRow16Display(fn) {
+        if (synRow16DisplayFn.value === fn) synRow16DisplayFn.value = null;
+      },
+      ensureSynGrid: startSynBackgroundPrepare,
     });
 
     // ── Supabase Realtime ──────────────────────────────────────────────────
@@ -465,6 +495,9 @@ const App = {
         raw.cells.push({ r: Number(row), c: String(col), v, userEdited: true });
       } else {
         return;
+      }
+      if (synthesisSheet.value) {
+        syncSheetCell(synthesisSheet.value, Number(row), String(col), v);
       }
       // synRaw is a shallowRef mutated in place — bump the tick so consumers
       // (Options SP2 Curb mass link) recompute.
@@ -1557,6 +1590,7 @@ const App = {
             if (!raw) return;
             upsertRawCell(raw, row, col, value);
             if (synthesisSheet.value) syncSheetCell(synthesisSheet.value, row, col, value);
+            externalEditTick.value += 1;
             dirty.value += 1;
             autoSave.schedule();
           })
@@ -1623,6 +1657,9 @@ const App = {
       }
       if (!patch.length) return;
       dirty.value += 1;
+      if (patch.some((p) => Number(p.r) === 16)) {
+        externalEditTick.value += 1;
+      }
       if (chunkedApi.value) {
         void patchSheetCells('synthesis', patch).catch((e) =>
           console.warn('Derived Synthesis PATCH:', e)
@@ -2191,6 +2228,23 @@ const App = {
       matrixOpen.value = false;
       matrixState.value = null;
     }
+
+    // Options SP2 row 14 mirrors Synthesis row 16 — preload Syn + react to BD recalc.
+    watch(isOptionsSp2, (on) => {
+      if (on) void startSynBackgroundPrepare();
+    });
+    watch(
+      () => session.synCalcTick?.value,
+      () => {
+        externalEditTick.value += 1;
+      }
+    );
+    watch(
+      () => session.displayTick?.value,
+      () => {
+        if (isOptionsSp2.value) externalEditTick.value += 1;
+      }
+    );
 
     return {
       bdLoading,
