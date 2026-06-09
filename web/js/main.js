@@ -16,8 +16,8 @@ import SynthesisGrid from './SynthesisGrid.js?v=syn-row16-link1';
 import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=sp2-sumif-19-47-vag';
-import { resolveSynRow16DisplayFromRaw } from './sp2CurbLink.js?v=2';
+import MnsGrid from './MnsGrid.js?v=sp2-scroll-fix1';
+import { resolveSynRow16DisplayFromRaw } from './sp2CurbLink.js?v=5';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
 import { transformBdSheetAsync, transformSynthesisSheetAsync } from './sheetTransform.js?v=grid-perf9';
@@ -187,16 +187,9 @@ const App = {
       return editHistory.canRedo;
     });
 
-    const synCalcEngineReady = computed(() =>
-      Boolean(session.ready && session.ready.value)
-    );
-
     const overlayMessage = computed(() => {
       if (isSynthesis.value && !synthesisSheet.value) {
         return synthesisLoading.value ? 'Loading synthesis…' : 'Preparing synthesis…';
-      }
-      if (isSynthesis.value && synthesisSheet.value && !synCalcEngineReady.value) {
-        return 'Calcul Synthesis…';
       }
       if (bdLoading.value) return 'Loading database…';
       return 'Loading…';
@@ -205,10 +198,7 @@ const App = {
     const showContentOverlay = computed(() => {
       if (error.value) return false;
       if (isDatabase.value) return false;
-      if (isSynthesis.value) {
-        if (!synthesisSheet.value) return true;
-        if (!synCalcEngineReady.value) return true;
-      }
+      if (isSynthesis.value && !synthesisSheet.value) return true;
       return false;
     });
 
@@ -473,6 +463,20 @@ const App = {
       ensureSynGrid: startSynBackgroundPrepare,
     });
 
+    /** Options SP2 row 15 (F…T) — shared live values for MNS row 15 (Y…AM). */
+    const sp2Row15FtSums = shallowRef({});
+    const sp2Row15Tick = ref(0);
+
+    provide('optionsSp2CellLink', {
+      row15FtSums: sp2Row15FtSums,
+      sp2Row15Tick,
+      publishRow15FtSums(sums) {
+        sp2Row15FtSums.value =
+          sums && typeof sums === 'object' ? { ...sums } : {};
+        sp2Row15Tick.value += 1;
+      },
+    });
+
     // ── Supabase Realtime ──────────────────────────────────────────────────
     // Quand une cellule Synthesis change cote base (autre onglet / utilisateur),
     // on l'applique a synRaw en memoire et on bump le tick d'edition : la ligne 14
@@ -542,12 +546,14 @@ const App = {
           await fetchSynFromServer();
           preservedSynRaw = synRaw.value;
         }
-        await clearSheetTransform('syn');
-        bumpSynSheetRevision();
-        await applySynFromRaw(true);
+        // Prefer precomputed / IndexedDB grid — never force a full in-browser transform
+        // on every navigation (that was the ~2 min "Calcul Synthesis…" wait).
+        await applySynFromRaw(false);
         if (!synGridLooksHealthy(synthesisSheet.value)) {
+          await clearSheetTransform('syn');
           await fetchSynFromServer();
           preservedSynRaw = synRaw.value;
+          bumpSynSheetRevision();
           await applySynFromRaw(true);
         }
       })().catch((e) => {
@@ -714,16 +720,28 @@ const App = {
       }
     }
 
-    function loadSynthesis() {
+    async function loadSynthesis() {
       if (
         synthesisSheet.value &&
         synGridLooksHealthy(synthesisSheet.value)
       ) {
-        return Promise.resolve();
+        return;
       }
       if (synthesisLoadPromise) return synthesisLoadPromise;
       synthesisLoading.value = true;
-      synthesisLoadPromise = startSynBackgroundPrepare()
+      synthesisLoadPromise = (async () => {
+        // Instant paint: DB / build-time grid already holds materialized values.
+        if (!synthesisSheet.value) {
+          const pre = await fetchPrecomputedPack('syn');
+          if (pre && pre.sheet && synGridLooksHealthy(pre.sheet)) {
+            synthesisSheet.value = pre.sheet;
+            synSheetBuiltAt = synSheetRevision.value;
+            void startSynBackgroundPrepare();
+            return;
+          }
+        }
+        await startSynBackgroundPrepare();
+      })()
         .catch((e) => {
           error.value = (e && e.message) || String(e);
           synthesisLoadPromise = null;
@@ -932,7 +950,6 @@ const App = {
           }
           if (bdHasEdits || synHasEdits) {
             loadedFromLocal.value = true;
-            if (session && session.liveBdEdited) session.liveBdEdited.value = true;
           }
         }
 
@@ -991,30 +1008,9 @@ const App = {
           preservedSynRaw = synRaw.value;
         }
 
-        // Synthesis ships a build-time "materialized" snapshot. If we restored any
-        // Database change (edits or a full BD), that snapshot is stale, so switch
-        // Synthesis to live recalculation of the impacted cells after reload.
-        // In Supabase / remote-only mode there is no local snapshot, so the BD edits
-        // arrive inside the restored remote `bdRaw` (workbook_sessions snapshot). Scan
-        // it for user-edited cells too, otherwise the synthesis blue cells stay frozen
-        // on the stale materialized pack after F5 ("ça remet les valeurs précédentes").
-        const bdRawHasUserEdits =
-          bdRaw.value &&
-          Array.isArray(bdRaw.value.cells) &&
-          bdRaw.value.cells.some((c) => c && c.userEdited);
-        const restoredBdChanges =
-          Boolean(bdHasEdits) ||
-          Boolean(hasBdFull) ||
-          Boolean(bdRawHasUserEdits) ||
-          (snapshot &&
-            snapshot.version !== 2 &&
-            snapshot.version !== 3 &&
-            Boolean(snapshot.bd));
-        if (restoredBdChanges && session && session.liveBdEdited) {
-          session.liveBdEdited.value = true;
-        }
-
         gridPreparing.value = true;
+
+        const synBootPromise = wantSynthesis ? loadSynthesis() : null;
 
         if (!remoteOnly.value && !bdRaw.value && preBd && preBd.sheet) {
           await yieldToMain();
@@ -1034,13 +1030,8 @@ const App = {
           await loadBdFromServer({ progressive: chunkedApi.value });
         }
 
-        if (wantSynthesis) {
-          synthesisLoading.value = true;
-          try {
-            await loadSynthesis();
-          } finally {
-            synthesisLoading.value = false;
-          }
+        if (synBootPromise) {
+          await synBootPromise;
         } else {
           void deferHeavy(() => startSynBackgroundPrepare());
         }
@@ -2225,7 +2216,11 @@ const App = {
     }
 
     // Options SP2 row 14 mirrors Synthesis row 16 — preload Syn + react to BD recalc.
+    // MNS row 14 (Y…AM) uses the same live link.
     watch(isOptionsSp2, (on) => {
+      if (on) void startSynBackgroundPrepare();
+    });
+    watch(isMns, (on) => {
       if (on) void startSynBackgroundPrepare();
     });
     watch(
@@ -2237,7 +2232,7 @@ const App = {
     watch(
       () => session.displayTick?.value,
       () => {
-        if (isOptionsSp2.value) externalEditTick.value += 1;
+        if (isOptionsSp2.value || isMns.value) externalEditTick.value += 1;
       }
     );
 
@@ -2501,7 +2496,7 @@ const App = {
               :raw-syn="synRaw"
               :outline-only="outlineOnly"
               :outline-mode="outlineMode"
-              :pane-visible="isSynthesis && synCalcEngineReady"
+              :pane-visible="isSynthesis"
               :external-edit-tick="externalEditTick"
               :search-cmd="gridSearchCmd"
               :axis-clipboard="axisClipboard"

@@ -2,6 +2,7 @@
  * Options SP2 row 14 (Curb mass) ↔ Synthesis row 16.
  * SP2 F…T = Synthesis display M…AA (Excel R…AF).
  * SP2 V…AG = Synthesis display AC…AN (Excel AH…AS).
+ * SP2 AI…AU = Synthesis display AP…BB (Excel AU…BG).
  */
 import {
   formatSynNumericDisplay,
@@ -16,6 +17,7 @@ import {
 import {
   synMaaExcelCols,
   synAcanExcelCols,
+  synApbbExcelCols,
 } from './synthesisCalc.js?v=grid-perf2';
 
 export const OPTIONS_SP2_SYN_COL_OFFSET = 12;
@@ -25,14 +27,42 @@ export const SP2_ROW14_MAA_COLS = [
   'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
 ];
 
+/** MNS row 14 (Y…AM) ↔ Synthesis display M…AA (same Excel source as SP2 F…T). */
+export const MNS_SYN_YAM_COLS = [
+  'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ', 'AK', 'AL', 'AM',
+];
+
+function mnsColsFromTo(fromCol, toCol) {
+  const out = [];
+  for (let n = colToNum(fromCol); n <= colToNum(toCol); n++) out.push(numToCol(n));
+  return out;
+}
+
+/**
+ * MNS Synthesis copy — display band AD…AZ (AC…AN + AP…AZ).
+ * Column AN = blank spacer (24px, like X); tables AO…AZ + BB…BL (BA = inner spacer).
+ */
+export const MNS_SYN_TABLE_SPACER_COL = 'AN';
+export const MNS_SYN_ADAO_COLS = mnsColsFromTo('AO', 'AZ');
+/** Blank spacer between AC…AN (AO…AZ) and AP…AZ (BB…BL) blocks — same width as X. */
+export const MNS_SYN_ADAZ_SPACER_COL = 'BA';
+export const MNS_SYN_APAZ_COLS = mnsColsFromTo('BB', 'BL');
+export const MNS_SYN_ADAZ_COLS = [...MNS_SYN_ADAO_COLS, ...MNS_SYN_APAZ_COLS];
+
 /** Options SP2 row 14 ↔ Synthesis display AC…AN. */
 export const SP2_ROW14_ACAN_COLS = [
   'V', 'W', 'X', 'Y', 'Z', 'AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG',
 ];
 
+/** Options SP2 row 14 ↔ Synthesis display AP…BB. */
+export const SP2_ROW14_APBB_COLS = [
+  'AI', 'AJ', 'AK', 'AL', 'AM', 'AN', 'AO', 'AP', 'AQ', 'AR', 'AS', 'AT', 'AU',
+];
+
 const SP2_ROW14_CURB_COL_SET = new Set([
   ...SP2_ROW14_MAA_COLS,
   ...SP2_ROW14_ACAN_COLS,
+  ...SP2_ROW14_APBB_COLS,
 ]);
 
 function colToNum(col) {
@@ -51,9 +81,9 @@ function numToCol(n) {
   return s;
 }
 
-/** Excel columns for Synthesis row 16 that feed Options SP2 row 14 (M…AA + AC…AN). */
+/** Excel columns for Synthesis row 16 that feed Options SP2 row 14 (M…AA + AC…AN + AP…BB). */
 export function synRow16CurbSourceExcelCols() {
-  return [...synMaaExcelCols(), ...synAcanExcelCols()];
+  return [...synMaaExcelCols(), ...synAcanExcelCols(), ...synApbbExcelCols()];
 }
 
 /** Map SP2 row-14 column → matching Synthesis Excel column on row 16. */
@@ -68,11 +98,47 @@ export function sp2ColToSynExcelCol(sp2Col) {
     const acan = synAcanExcelCols();
     return acan[iAcan] || null;
   }
+  const iApbb = SP2_ROW14_APBB_COLS.indexOf(sp2Col);
+  if (iApbb >= 0) {
+    const apbb = synApbbExcelCols();
+    return apbb[iApbb] || null;
+  }
   return null;
 }
 
 export function isSp2CurbLinkedCol(sp2Col) {
   return SP2_ROW14_CURB_COL_SET.has(sp2Col);
+}
+
+/** Map MNS Y…AM column → matching Synthesis Excel column on row 16. */
+export function mnsYamColToSynExcelCol(mnsCol) {
+  const i = MNS_SYN_YAM_COLS.indexOf(mnsCol);
+  if (i < 0) return null;
+  const maa = synMaaExcelCols();
+  return maa[i] || null;
+}
+
+export function isMnsSynRow16LinkedCol(mnsCol) {
+  return MNS_SYN_YAM_COLS.includes(mnsCol);
+}
+
+/** Map MNS AO…BL column → matching Synthesis Excel column on row 16. */
+export function mnsAdazColToSynExcelCol(mnsCol) {
+  const iAcan = MNS_SYN_ADAO_COLS.indexOf(mnsCol);
+  if (iAcan >= 0) {
+    const acan = synAcanExcelCols();
+    return acan[iAcan] || null;
+  }
+  const iApbb = MNS_SYN_APAZ_COLS.indexOf(mnsCol);
+  if (iApbb >= 0) {
+    const apbb = synApbbExcelCols();
+    return apbb[iApbb] || null;
+  }
+  return null;
+}
+
+export function isMnsSynRow16LinkedColAdaz(mnsCol) {
+  return MNS_SYN_ADAZ_COLS.includes(mnsCol);
 }
 
 export function isSp2Row14MaaCurbCol(sp2Col) {

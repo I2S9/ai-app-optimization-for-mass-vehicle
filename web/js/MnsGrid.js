@@ -22,27 +22,25 @@ import {
 import {
   isSp2CurbLinkedCol,
   sp2ColToSynExcelCol,
-} from './sp2CurbLink.js?v=2';
+  mnsYamColToSynExcelCol,
+  mnsAdazColToSynExcelCol,
+  isMnsSynRow16LinkedCol,
+  isMnsSynRow16LinkedColAdaz,
+  MNS_SYN_YAM_COLS,
+  MNS_SYN_ADAZ_COLS,
+  MNS_SYN_ADAO_COLS,
+  MNS_SYN_APAZ_COLS,
+} from './sp2CurbLink.js?v=5';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
 import {
   ROW_H,
   rowOverscan,
-  colOverscanPx,
+  sp2ColOverscanPx,
   createRangeScrollCache,
   createScrollRafSync,
   shouldVirtualizeRows,
   shouldVirtualizeCols,
-} from './gridScroll.js?v=scroll-perf1';
-
-const MNS_COLUMN_COUNT = 26;
-const MNS_MIN_ROWS = 60;
-const OPTIONS_SP2_MIN_ROWS = 69;
-/** Frozen label columns while horizontally scrolling the wide SP2 sheet. */
-const SP2_STICKY_COLS = ['A', 'B'];
-const SP2_ROW_NUM_W = 42;
-const SP2_DEFAULT_COL_W = 72;
-const SP2_MAX_RENDERED_COLS = 52;
-const SP2_MAX_RENDERED_ROWS = 64;
+} from './gridScroll.js?v=sp2-scroll-fix1';
 
 /** Excel-style column letter for a 1-based column index (1 → A, 27 → AA). */
 function numToCol(n) {
@@ -62,6 +60,16 @@ function colToNum(col) {
   return n;
 }
 
+const MNS_COLUMN_COUNT = colToNum('BL');
+const MNS_MIN_ROWS = 60;
+const OPTIONS_SP2_MIN_ROWS = 69;
+/** Frozen label columns while horizontally scrolling the wide SP2 sheet. */
+const SP2_STICKY_COLS = ['A', 'B'];
+const SP2_ROW_NUM_W = 42;
+const SP2_DEFAULT_COL_W = 72;
+const SP2_MAX_RENDERED_COLS = 56;
+const SP2_MAX_RENDERED_ROWS = 72;
+
 function sp2ColsFromTo(fromCol, toCol) {
   const out = [];
   for (let n = colToNum(fromCol); n <= colToNum(toCol); n++) out.push(numToCol(n));
@@ -75,7 +83,7 @@ const OPTIONS_SP2_COLUMN_COUNT = colToNum(OPTIONS_SP2_MAX_COL);
 const OPTIONS_SP2_BLANK_COL = 'U';
 /** Blank spacer before the AP…BB copy (AI…AU). */
 const OPTIONS_SP2_BLANK_COL_AH = 'AH';
-/** Green options band — rows 19–39 & 41–47 (row 40 = white), cols V–AG + AV–HC. */
+/** Green options band — rows 19–39 & 41–47 (row 40 = white), cols AI…AU + AV–HC. */
 const OPTIONS_SP2_EXTENDED_GREEN_COLS = sp2ColsFromTo('AV', OPTIONS_SP2_MAX_COL);
 /** Rows 44–47 pre-filled with NO on extended green cols (AV–HC). */
 const OPTIONS_SP2_NO_SEED_ROWS = [44, 45, 46, 47];
@@ -200,8 +208,8 @@ const MNS_AE_TABLE_BANDS = [
   { start: 42, end: 59 },
 ];
 
-/** Narrow blank spacers (24px — same width as J): F, J, O, R, U, X. */
-const MNS_SPACER_COLS = ['F', 'J', 'O', 'R', 'U', 'X'];
+/** Narrow blank spacers (24px — same width as J): F, J, O, R, U, X, AN (Y…AM | AO…AZ), BA (AO…AZ | BB…BL). */
+const MNS_SPACER_COLS = ['F', 'J', 'O', 'R', 'U', 'X', 'AN', 'BA'];
 
 /** PQ / ST / VW tables — rows 24–40 & 42–59; rows 24 & 42 = green headers. Spacers: R, U, X. */
 const MNS_PQSTVW_TABLE_COLS = ['P', 'Q', 'S', 'T', 'V', 'W'];
@@ -230,6 +238,28 @@ const MNS_PW_ROW15_TABLE_COLS = MNS_PQSTVW_TABLE_COLS;
 const MNS_PW_BOTTOM_TABLE_START_ROW = 18;
 const MNS_PW_BOTTOM_TABLE_END_ROW = 21;
 const MNS_PW_BOTTOM_TABLE_COLS = MNS_PQSTVW_TABLE_COLS;
+
+/** Condensed copy of the P–W rows 18–21 band — one table Y…AM (15 cols, 4 rows). */
+const MNS_YAM_BOTTOM_TABLE_START_ROW = 18;
+const MNS_YAM_BOTTOM_TABLE_END_ROW = 21;
+
+/**
+ * Synthesis AC…AN + AP…AZ → MNS AO…BL (AN & BA = blank spacers).
+ * Same row bands as the Y…AM block (header 1–12, links 14–15, body 18–21).
+ */
+const MNS_SYN_ADAZ_START_ROW = 1;
+const MNS_SYN_ADAZ_END_ROW = 12;
+const MNS_ADAZ_BOTTOM_TABLE_START_ROW = 18;
+const MNS_ADAZ_BOTTOM_TABLE_END_ROW = 21;
+
+/**
+ * Synthesis project table (display M…AA, rows 1–12) copied on MNS as Y…AM.
+ * Same 15-column window as OPTIONS_SP2_FT (Synthesis → SP2 F…T).
+ */
+const MNS_SYN_YAM_START_ROW = 1;
+const MNS_SYN_YAM_END_ROW = 12;
+/** MNS row 14 (Y…AM) — live Curb mass from Synthesis row 16 (display M…AA). */
+const MNS_SYN_ROW16_LINKED_ROW = 14;
 
 /**
  * Dark-green paint bands on the MNS page (columns A–E, no inner gridlines).
@@ -430,7 +460,7 @@ const OPTIONS_SP2_CDE = [
  * Each inner array holds the 15 values for columns F…T of one row (Excel 3–14).
  */
 const OPTIONS_SP2_FT_COLS = ['F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T'];
-/** Dropdown values on the green/white options band (rows 19–47, cols F–T + V–AG + AH–HC). */
+/** Dropdown values on the green/white options band (rows 19–47, cols F–T + V–AG + AI–AU + AV–HC). */
 const SP2_OPTION_CHOICES = ['O', 'NO', 'REF'];
 const SP2_OPTION_CYCLE = ['', 'O', 'NO', 'REF'];
 /** Equipment red band (rows 53–55): columns F–T seeded with 0.00. */
@@ -556,6 +586,14 @@ function sp2PickVagFromFtRow(ftRow) {
 /** Options picker — columns V–AG, rows 19–47 (same pattern as F–T, AC…AN vehicles). */
 const OPTIONS_SP2_VAG_OPTIONS = OPTIONS_SP2_FT_OPTIONS.map(sp2PickVagFromFtRow);
 
+/** Map 15-col F…T seed row → 13-col AI…AU (AP…BB vehicle block). */
+function sp2PickAuFromFtRow(ftRow) {
+  return ftRow.slice(2, 15);
+}
+
+/** Options picker — columns AI…AU, rows 19–47 (AP…BB vehicles). */
+const OPTIONS_SP2_AU_OPTIONS = OPTIONS_SP2_FT_OPTIONS.map(sp2PickAuFromFtRow);
+
 /**
  * Synthesis AP…BB header table → Options SP2 columns AI…AU, rows 1–12.
  * Source: Synthesis display AP…BB (Excel AU…BG), rows 3–14.
@@ -577,6 +615,9 @@ const OPTIONS_SP2_AU = [
 ];
 
 const MNS_DEFAULT_STORAGE_KEY = 'mns-grid-cells-v3';
+const OPTIONS_SP2_STORAGE_KEY = 'options-sp2-grid-cells-v2';
+/** MNS row 15 (Y…AM) ← Options SP2 row 15 (columns F…T → Y…AM). */
+const MNS_SP2_ROW15_LINKED_ROW = 15;
 
 /** Rows that make up the red bands on the Options SP2 page (columns A–E). */
 const SP2_RED_ROWS = new Set([16, 17, 18, 53, 54, 55, 57, 58, 59]);
@@ -619,6 +660,7 @@ const SP2_GREEN_C_ROWS = new Set([22, 28, 32, 33, 40, 41, 42, 43]);
 const OPTIONS_SP2_OPTION_GREEN_COLS = [
   ...OPTIONS_SP2_FT_COLS,
   ...OPTIONS_SP2_VAG_COLS,
+  ...OPTIONS_SP2_AU_COLS,
   ...OPTIONS_SP2_EXTENDED_GREEN_COLS,
 ];
 const SP2_FT_COL_SET = new Set(OPTIONS_SP2_FT_COLS);
@@ -627,6 +669,7 @@ const SP2_AU_COL_SET = new Set(OPTIONS_SP2_AU_COLS);
 const SP2_OPTION_GREEN_COL_SET = new Set(OPTIONS_SP2_OPTION_GREEN_COLS);
 const SP2_BLANK_COL_SET = new Set([OPTIONS_SP2_BLANK_COL, OPTIONS_SP2_BLANK_COL_AH]);
 const SP2_COL_WIDTH_OVERRIDES = {
+  A: 72,
   B: 300,
   U: 24,
   AH: 24,
@@ -656,13 +699,21 @@ function sp2ColWidth(col) {
   return SP2_DEFAULT_COL_W;
 }
 
-/** Rows 16–18 live SUMIF — columns F…T + V…AG (vehicle blocks). */
-const SP2_SUMIF_COLS = [...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS];
+/** Rows 16–18 live SUMIF — columns F…T + V…AG + AI…AU (vehicle blocks). */
+const SP2_SUMIF_COLS = [
+  ...OPTIONS_SP2_FT_COLS,
+  ...OPTIONS_SP2_VAG_COLS,
+  ...OPTIONS_SP2_AU_COLS,
+];
 const SP2_SUMIF_COL_SET = new Set(SP2_SUMIF_COLS);
 const SP2_FT_SUMIF_COL_SET = new Set(OPTIONS_SP2_FT_COLS);
 const SP2_ROW16_SUMIF_COL_SET = SP2_SUMIF_COL_SET;
-/** Row 15 live sum (row 16 + row 53) — F…T + V…AG. */
-const SP2_SUM_COL_SET = new Set([...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS]);
+/** Row 15 live sum (row 16 + row 53) — F…T + V…AG + AI…AU. */
+const SP2_SUM_COL_SET = new Set([
+  ...OPTIONS_SP2_FT_COLS,
+  ...OPTIONS_SP2_VAG_COLS,
+  ...OPTIONS_SP2_AU_COLS,
+]);
 const OPTIONS_SP2_ALL_COLS = Array.from(
   { length: OPTIONS_SP2_COLUMN_COUNT },
   (_, i) => numToCol(i + 1)
@@ -677,6 +728,54 @@ function isSp2OptionGreenRow(row) {
 
 function isSp2OptionBandRow(row) {
   return row >= OPTIONS_SP2_FT_OPTION_START_ROW && row <= OPTIONS_SP2_FT_OPTION_END_ROW;
+}
+
+/** Synthesis M…AA colour bands on MNS Y…AM (display rows 1–12). */
+function mnsSynYamTableClass(row, col) {
+  if (row < MNS_SYN_YAM_START_ROW || row > MNS_SYN_YAM_END_ROW) return '';
+  const i = MNS_SYN_YAM_COLS.indexOf(col);
+  if (i < 0) return '';
+  if (row === 1 || row === 2 || row === 11) return 'mns-syn-proj-hdr-green';
+  if (row === 3) return 'mns-syn-proj-hdr-yellow';
+  if (row === 4) {
+    if (i <= 8) return 'mns-syn-bev';
+    if (i <= 11) return 'mns-syn-mhevp2';
+    return 'mns-syn-hev';
+  }
+  if (row === 7 && i >= 6 && i <= 8) return 'mns-syn-awd';
+  if (row === 9) return 'mns-syn-proj-hdr-grey';
+  if (row === 8 && i >= 9) return 'mns-syn-grey';
+  return '';
+}
+
+/** Synthesis AC…AN + AP…AZ colour bands on MNS AO…BL (display rows 1–12). */
+function mnsSynAdazTableClass(row, col) {
+  if (row < MNS_SYN_ADAZ_START_ROW || row > MNS_SYN_ADAZ_END_ROW) return '';
+  const iAcan = MNS_SYN_ADAO_COLS.indexOf(col);
+  const iApbb = MNS_SYN_APAZ_COLS.indexOf(col);
+  if (iAcan < 0 && iApbb < 0) return '';
+  if (row === 1 || row === 2) return 'mns-syn-proj-hdr-green';
+  if (iAcan >= 0) {
+    if (row === 3) return 'mns-syn-o3w';
+    if (row === 4) {
+      if (iAcan <= 5) return 'mns-syn-bev';
+      if (iAcan <= 8) return 'mns-syn-mhevp2';
+      return 'mns-syn-hev';
+    }
+    if ((row === 8 || row === 9) && iAcan >= 6) return 'mns-syn-grey';
+    if (row === 11) return 'mns-syn-target';
+    return '';
+  }
+  if (row === 3) return 'mns-syn-p3s';
+  if (row === 4) {
+    if (iApbb <= 8) return 'mns-syn-bev';
+    if (iApbb <= 10) return 'mns-syn-mhevp2';
+    return 'mns-syn-hev';
+  }
+  if (row === 7 && iApbb === 8) return 'mns-syn-awd';
+  if ((row === 8 || row === 9) && iApbb >= 9) return 'mns-syn-grey';
+  if (row === 11) return 'mns-syn-target';
+  return '';
 }
 
 function synTableClassStatic(row, col) {
@@ -726,9 +825,12 @@ function auTableClassStatic(row, col) {
   return '';
 }
 
-/** Bold black grid (AI–AU): Synthesis AP…BB header rows 1–12 only. */
+/** Bold black grid (AI–AU): header rows 1–12 + numeric body rows 14–18 (like F–T). */
 function isSp2AuSynFramedRow(row) {
-  return row >= 1 && row <= 12;
+  return (
+    (row >= 1 && row <= 12) ||
+    (row >= OPTIONS_SP2_CURB_ROW && row <= OPTIONS_SP2_SYN_TABLE_END_ROW)
+  );
 }
 
 /** Bold black grid (V–AG): header rows 1–12 + numeric body rows 14–18 (like F–T). */
@@ -896,6 +998,12 @@ function computeSp2Row15Sums(cellsObj, ftSumifs) {
   return out;
 }
 
+/** Row 15 sums for Options SP2 (F…T + V…AG + AI…AU) — shared with MNS live links. */
+function publishSp2Row15ToLink(link, allSums) {
+  if (!link?.publishRow15FtSums) return;
+  link.publishRow15FtSums(allSums && typeof allSums === 'object' ? { ...allSums } : {});
+}
+
 function affectsSp2FtSumif(row, col) {
   if (!isSp2SumifDataRow(row)) return false;
   return OPTIONS_SP2_FT_SUMIF_SUM_COLS.has(col) || SP2_SUMIF_COL_SET.has(col);
@@ -941,7 +1049,11 @@ function buildSeedCells(storageKey) {
     });
     // Equipment band → columns F–T & V–AG, rows 53–55.
     OPTIONS_SP2_EQUIPMENT_ROWS.forEach((row) => {
-      for (const col of [...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS]) {
+      for (const col of [
+        ...OPTIONS_SP2_FT_COLS,
+        ...OPTIONS_SP2_VAG_COLS,
+        ...OPTIONS_SP2_AU_COLS,
+      ]) {
         cells[`${row}:${col}`] = OPTIONS_SP2_EQUIPMENT_FT_VALUE;
       }
     });
@@ -975,6 +1087,14 @@ function buildSeedCells(storageKey) {
         if (v !== '') cells[`${row}:${OPTIONS_SP2_AU_COLS[j]}`] = v;
       });
     });
+    // Rows 16–18 AI…AU = live SUMIF (C / D / E); no static seed.
+    // Options picker — columns AI…AU, rows 19–47 (green / white bands).
+    OPTIONS_SP2_AU_OPTIONS.forEach((rowVals, i) => {
+      const row = OPTIONS_SP2_FT_OPTION_START_ROW + i;
+      rowVals.forEach((v, j) => {
+        cells[`${row}:${OPTIONS_SP2_AU_COLS[j]}`] = v;
+      });
+    });
     // Extended green cols AV–HC — rows 44–47 pre-filled NO.
     OPTIONS_SP2_NO_SEED_ROWS.forEach((row) => {
       OPTIONS_SP2_EXTENDED_GREEN_COLS.forEach((col) => {
@@ -1003,6 +1123,31 @@ function buildSeedCells(storageKey) {
       cells[`${row}:D`] = d;
       cells[`${row}:E`] = e;
     });
+    // Synthesis M…AA header table → MNS Y…AM, rows 1–12.
+    for (let row = MNS_SYN_YAM_START_ROW; row <= MNS_SYN_YAM_END_ROW; row++) {
+      const rowVals = OPTIONS_SP2_FT[row - 1];
+      if (!rowVals) continue;
+      rowVals.forEach((v, j) => {
+        if (v !== '') cells[`${row}:${MNS_SYN_YAM_COLS[j]}`] = v;
+      });
+    }
+    // Synthesis AC…AN → MNS AO…AZ, rows 1–12.
+    for (let row = MNS_SYN_ADAZ_START_ROW; row <= MNS_SYN_ADAZ_END_ROW; row++) {
+      const rowVals = OPTIONS_SP2_VAG[row - 1];
+      if (!rowVals) continue;
+      rowVals.forEach((v, j) => {
+        if (v !== '') cells[`${row}:${MNS_SYN_ADAO_COLS[j]}`] = v;
+      });
+    }
+    // Synthesis AP…AZ → MNS BB…BL, rows 1–12.
+    for (let row = MNS_SYN_ADAZ_START_ROW; row <= MNS_SYN_ADAZ_END_ROW; row++) {
+      const rowVals = OPTIONS_SP2_AU[row - 1];
+      if (!rowVals) continue;
+      for (let j = 0; j < MNS_SYN_APAZ_COLS.length; j++) {
+        const v = rowVals[j];
+        if (v !== '') cells[`${row}:${MNS_SYN_APAZ_COLS[j]}`] = v;
+      }
+    }
   }
   return cells;
 }
@@ -1017,6 +1162,22 @@ function loadStoredCells(storageKey) {
   } catch {
     return null;
   }
+}
+
+/** Merge persisted Options SP2 cells — drop computed row 15 & SUMIF rows 16–18. */
+function mergeOptionsSp2Cells(stored) {
+  let merged = stored
+    ? { ...buildSeedCells(OPTIONS_SP2_STORAGE_KEY), ...stored }
+    : buildSeedCells(OPTIONS_SP2_STORAGE_KEY);
+  for (const key of Object.keys(merged)) {
+    if (key.startsWith(`${OPTIONS_SP2_SUM_ROW}:`)) delete merged[key];
+    for (const { row } of OPTIONS_SP2_FT_SUMIF_ROWS) {
+      if (!key.startsWith(`${row}:`)) continue;
+      const col = key.split(':')[1];
+      if (SP2_SUMIF_COL_SET.has(col)) delete merged[key];
+    }
+  }
+  return merged;
 }
 
 export default {
@@ -1044,6 +1205,9 @@ export default {
 
     const ftSumifRows = ref({});
     const row15Sums = ref({});
+    const sp2LinkCells = shallowRef({});
+    const sp2LinkTick = ref(0);
+    let sp2LinkCleanup = null;
 
     // The Options SP2 page reuses this grid but brands column A (rows 1–12)
     // with a white "STLA S / SP2" header block instead of editable cells.
@@ -1060,21 +1224,32 @@ export default {
     // Live link to the Synthesis sheet (provided by the app root). Used to mirror
     // the Curb mass row (Synthesis 16 → Options SP2 row 14) in real time.
     const synLink = inject('synthesisCellLink', null);
+    const sp2RowLink = inject('optionsSp2CellLink', null);
 
     // Options SP2 row 14 ← Synthesis row 16 display M…AA (SP2 F…T) + AC…AN (SP2 V…AG).
+    // MNS row 14 ← Synthesis row 16 display M…AA (MNS Y…AM).
+    function synRow16DisplayDependencies() {
+      if (!synLink) return null;
+      if (synLink.synRevision) void synLink.synRevision.value;
+      if (synLink.synEditTick) void synLink.synEditTick.value;
+      if (synLink.session?.synCalcTick) void synLink.session.synCalcTick.value;
+      if (synLink.session?.displayTick) void synLink.session.displayTick.value;
+      if (synLink.session?.liveBdEdited) void synLink.session.liveBdEdited.value;
+      return synLink.getSynRow16Display;
+    }
+
     const curbMassRow = computed(() => {
       try {
         if (!isOptionsSp2.value || !synLink) return {};
-        if (synLink.synRevision) void synLink.synRevision.value;
-        if (synLink.synEditTick) void synLink.synEditTick.value;
-        if (synLink.session?.synCalcTick) void synLink.session.synCalcTick.value;
-        if (synLink.session?.displayTick) void synLink.session.displayTick.value;
-        if (synLink.session?.liveBdEdited) void synLink.session.liveBdEdited.value;
-        const getRow16 = synLink.getSynRow16Display;
+        const getRow16 = synRow16DisplayDependencies();
         if (typeof getRow16 !== 'function') return {};
 
         const out = {};
-        for (const sp2Col of [...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS]) {
+        for (const sp2Col of [
+          ...OPTIONS_SP2_FT_COLS,
+          ...OPTIONS_SP2_VAG_COLS,
+          ...OPTIONS_SP2_AU_COLS,
+        ]) {
           if (!isSp2CurbLinkedCol(sp2Col)) continue;
           const synExcelCol = sp2ColToSynExcelCol(sp2Col);
           if (!synExcelCol) continue;
@@ -1090,12 +1265,71 @@ export default {
       }
     });
 
+    const mnsSynRow16Display = computed(() => {
+      try {
+        if (isOptionsSp2.value || !synLink) return {};
+        const getRow16 = synRow16DisplayDependencies();
+        if (typeof getRow16 !== 'function') return {};
+
+        const out = {};
+        for (const mnsCol of MNS_SYN_YAM_COLS) {
+          if (!isMnsSynRow16LinkedCol(mnsCol)) continue;
+          const synExcelCol = mnsYamColToSynExcelCol(mnsCol);
+          if (!synExcelCol) continue;
+          const shown = getRow16(synExcelCol);
+          if (shown != null && String(shown) !== '') {
+            out[mnsCol] = String(shown);
+          }
+        }
+        for (const mnsCol of MNS_SYN_ADAZ_COLS) {
+          if (!isMnsSynRow16LinkedColAdaz(mnsCol)) continue;
+          const synExcelCol = mnsAdazColToSynExcelCol(mnsCol);
+          if (!synExcelCol) continue;
+          const shown = getRow16(synExcelCol);
+          if (shown != null && String(shown) !== '') {
+            out[mnsCol] = String(shown);
+          }
+        }
+        return out;
+      } catch (e) {
+        console.warn('MNS curb-mass link:', e);
+        return {};
+      }
+    });
+
     function isCurbLinkedCell(row, col) {
       return (
         isOptionsSp2.value &&
         row === OPTIONS_SP2_CURB_ROW &&
         isSp2CurbLinkedCol(col)
       );
+    }
+
+    function isMnsSynRow16LinkedCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        row === MNS_SYN_ROW16_LINKED_ROW &&
+        (isMnsSynRow16LinkedCol(col) || isMnsSynRow16LinkedColAdaz(col))
+      );
+    }
+
+    function isMnsSynRow16TableCell(row, col) {
+      return isMnsSynRow16LinkedCell(row, col);
+    }
+
+    function mnsSynRow16FluoCol(col) {
+      const i = MNS_SYN_YAM_COLS.indexOf(col);
+      if (i >= 0) return i % 3 === 0;
+      const j = MNS_SYN_ADAO_COLS.indexOf(col);
+      if (j >= 0) return j % 3 === 0;
+      const k = MNS_SYN_APAZ_COLS.indexOf(col);
+      if (k >= 0) return k === 0 || k === 6 || k === 8 || k === 9;
+      return false;
+    }
+
+    function mnsSynRow16CellClass(row, col) {
+      if (!isMnsSynRow16LinkedCell(row, col)) return '';
+      return mnsSynRow16FluoCol(col) ? 'mns-syn-row16-fluo' : 'mns-syn-row16-bg';
     }
 
     // Copied Synthesis table blocks: F–T & V–AG (rows 1–12 & 14–18).
@@ -1129,6 +1363,58 @@ export default {
       return (map && map[col]) || '';
     }
 
+    function mnsSynRow16LinkedValue(col) {
+      const map = mnsSynRow16Display.value;
+      return (map && map[col]) || '';
+    }
+
+    function reloadSp2LinkCells() {
+      if (isOptionsSp2.value) return;
+      sp2LinkCells.value = mergeOptionsSp2Cells(loadStoredCells(OPTIONS_SP2_STORAGE_KEY));
+      sp2LinkTick.value += 1;
+      publishSp2Row15ToLink(sp2RowLink, computeSp2Row15Sums(sp2LinkCells.value));
+    }
+
+    /** Options SP2 row 15 → MNS row 15 (Y…AM + AO…BL). */
+    const mnsSp2Row15Display = computed(() => {
+      if (isOptionsSp2.value) return {};
+      if (sp2RowLink?.sp2Row15Tick) void sp2RowLink.sp2Row15Tick.value;
+      void sp2LinkTick.value;
+      const sums = sp2RowLink?.row15FtSums?.value ?? {};
+      const out = {};
+      OPTIONS_SP2_FT_COLS.forEach((sp2Col, i) => {
+        const v = sums[sp2Col];
+        if (v != null && String(v) !== '') out[MNS_SYN_YAM_COLS[i]] = String(v);
+      });
+      OPTIONS_SP2_VAG_COLS.forEach((sp2Col, i) => {
+        const v = sums[sp2Col];
+        if (v != null && String(v) !== '') out[MNS_SYN_ADAO_COLS[i]] = String(v);
+      });
+      for (let i = 0; i < MNS_SYN_APAZ_COLS.length; i++) {
+        const sp2Col = OPTIONS_SP2_AU_COLS[i];
+        const v = sums[sp2Col];
+        if (v != null && String(v) !== '') out[MNS_SYN_APAZ_COLS[i]] = String(v);
+      }
+      return out;
+    });
+
+    function isMnsSp2Row15LinkedCell(row, col) {
+      return (
+        !isOptionsSp2.value &&
+        row === MNS_SP2_ROW15_LINKED_ROW &&
+        (MNS_SYN_YAM_COLS.includes(col) || MNS_SYN_ADAZ_COLS.includes(col))
+      );
+    }
+
+    function isMnsSp2Row15TableCell(row, col) {
+      return isMnsSp2Row15LinkedCell(row, col);
+    }
+
+    function mnsSp2Row15LinkedValue(col) {
+      const map = mnsSp2Row15Display.value;
+      return (map && map[col]) || '';
+    }
+
     function sp2Render(row, col) {
       return SP2_RENDER_MAP.get(`${row}:${col}`) || SP2_RENDER_FALLBACK;
     }
@@ -1138,6 +1424,7 @@ export default {
       const sums = computeSp2FtSumifRows(cells.value);
       ftSumifRows.value = sums;
       row15Sums.value = computeSp2Row15Sums(cells.value, sums);
+      publishSp2Row15ToLink(sp2RowLink, row15Sums.value);
       touchCells();
     }
 
@@ -1149,7 +1436,7 @@ export default {
     function rowFtSumifTitle(row) {
       const entry = OPTIONS_SP2_FT_SUMIF_ROWS.find((e) => e.row === row);
       const sumCol = entry ? entry.sumCol : 'C';
-      return `SOMME.SI F…AG : somme colonne ${sumCol} (l.19–49) si cette colonne = O`;
+      return `SOMME.SI F…AU : somme colonne ${sumCol} (l.19–49) si cette colonne = O`;
     }
 
     function row16SumifValue(col) {
@@ -1212,6 +1499,10 @@ export default {
     }
 
     function bindSp2Option(el, row, col) {
+      if (!el) return;
+      const key = cellKey(row, col);
+      if (el.dataset.sp2Key === key) return;
+      el.dataset.sp2Key = key;
       syncSp2OptionButton(el, row, col);
     }
 
@@ -1397,10 +1688,60 @@ export default {
       );
     }
 
+    // Rows 18–21, columns Y…AM — single condensed table (same band as P–W).
+    function isMnsYamBottomTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_YAM_BOTTOM_TABLE_START_ROW &&
+        row <= MNS_YAM_BOTTOM_TABLE_END_ROW &&
+        MNS_SYN_YAM_COLS.includes(col)
+      );
+    }
+
     // Row 15, columns P–W — three single-row framed tables.
     function isMnsPwRow15TableCell(row, col) {
       if (isOptionsSp2.value) return false;
       return row === MNS_PW_ROW15_TABLE_ROW && MNS_PW_ROW15_TABLE_COLS.includes(col);
+    }
+
+    // Synthesis M…AA → MNS Y…AM (rows 1–12).
+    function isMnsSynYamTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_SYN_YAM_START_ROW &&
+        row <= MNS_SYN_YAM_END_ROW &&
+        MNS_SYN_YAM_COLS.includes(col)
+      );
+    }
+
+    // Synthesis AC…AN + AP…AZ → MNS AO…BL (rows 1–12).
+    function isMnsSynAdazTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_SYN_ADAZ_START_ROW &&
+        row <= MNS_SYN_ADAZ_END_ROW &&
+        MNS_SYN_ADAZ_COLS.includes(col)
+      );
+    }
+
+    // Rows 18–21, columns AO…BL — condensed table (same band as Y…AM).
+    function isMnsAdazBottomTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_ADAZ_BOTTOM_TABLE_START_ROW &&
+        row <= MNS_ADAZ_BOTTOM_TABLE_END_ROW &&
+        MNS_SYN_ADAZ_COLS.includes(col)
+      );
+    }
+
+    function mnsSynYamCellClass(row, col) {
+      if (isOptionsSp2.value) return '';
+      return mnsSynYamTableClass(row, col);
+    }
+
+    function mnsSynAdazCellClass(row, col) {
+      if (isOptionsSp2.value) return '';
+      return mnsSynAdazTableClass(row, col);
     }
 
     // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E; G on 24 & 42).
@@ -1458,7 +1799,7 @@ export default {
       return isOptionsSp2.value && col === 'B' && row === 49;
     }
 
-    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + V–AG + AV–HC. */
+    /** Options band rows 19–47 — green (#92d050) + white row 40, cols F–T + V–AG + AI–AU + AV–HC. */
     function isOptionGreenBandCell(row, col) {
       if (!isOptionsSp2.value || !SP2_OPTION_GREEN_COL_SET.has(col)) return false;
       return isSp2OptionGreenRow(row);
@@ -1541,7 +1882,7 @@ export default {
     );
 
     const sp2ColScrollCache = createRangeScrollCache(SP2_MAX_RENDERED_COLS, {
-      monotonic: false,
+      monotonic: true,
     });
     const sp2ColRangeStart = ref(0);
     const sp2ColRangeEnd = ref(0);
@@ -1559,7 +1900,7 @@ export default {
         layout,
         scrollLeft.value,
         vpScrollW,
-        colOverscanPx(viewportW.value, 480)
+        sp2ColOverscanPx(viewportW.value)
       );
       sp2ColRangeStart.value = range.start;
       sp2ColRangeEnd.value = range.end;
@@ -1672,6 +2013,9 @@ export default {
       if (typeof localStorage === 'undefined') return;
       try {
         localStorage.setItem(props.storageKey, JSON.stringify(cells.value));
+        if (String(props.storageKey || '').includes('options-sp2')) {
+          window.dispatchEvent(new CustomEvent('options-sp2-cells-persisted'));
+        }
       } catch {
         /* storage full / unavailable — keep working in-memory */
       }
@@ -1683,14 +2027,7 @@ export default {
         ? { ...buildSeedCells(storageKey), ...stored }
         : buildSeedCells(storageKey);
       if (String(storageKey || '').includes('options-sp2')) {
-        for (const key of Object.keys(merged)) {
-          if (key.startsWith(`${OPTIONS_SP2_SUM_ROW}:`)) delete merged[key];
-          for (const { row } of OPTIONS_SP2_FT_SUMIF_ROWS) {
-            if (!key.startsWith(`${row}:`)) continue;
-            const col = key.split(':')[1];
-            if (SP2_SUMIF_COL_SET.has(col)) delete merged[key];
-          }
-        }
+        merged = mergeOptionsSp2Cells(stored);
       }
       cells.value = merged;
       if (String(storageKey || '').includes('options-sp2')) {
@@ -1726,6 +2063,22 @@ export default {
         sp2ResizeObs.observe(scrollEl.value);
       }
       nextTick(() => scrollSync.flush());
+      if (!isOptionsSp2.value) {
+        reloadSp2LinkCells();
+        const onSp2Persisted = () => reloadSp2LinkCells();
+        const onStorage = (ev) => {
+          if (ev.key === OPTIONS_SP2_STORAGE_KEY) reloadSp2LinkCells();
+        };
+        const onFocus = () => reloadSp2LinkCells();
+        window.addEventListener('options-sp2-cells-persisted', onSp2Persisted);
+        window.addEventListener('storage', onStorage);
+        window.addEventListener('focus', onFocus);
+        sp2LinkCleanup = () => {
+          window.removeEventListener('options-sp2-cells-persisted', onSp2Persisted);
+          window.removeEventListener('storage', onStorage);
+          window.removeEventListener('focus', onFocus);
+        };
+      }
       if (!isOptionsSp2.value || !synLink) return;
       const boot =
         typeof synLink.ensureSynGrid === 'function'
@@ -1738,6 +2091,13 @@ export default {
 
     onUnmounted(() => {
       clearTimeout(persistTimer);
+      if (isOptionsSp2.value) {
+        publishSp2Row15ToLink(sp2RowLink, row15Sums.value);
+      }
+      if (sp2LinkCleanup) {
+        sp2LinkCleanup();
+        sp2LinkCleanup = null;
+      }
       window.removeEventListener('resize', updateSp2Viewport);
       if (sp2ResizeObs) {
         sp2ResizeObs.disconnect();
@@ -1750,12 +2110,26 @@ export default {
     // another page (different storageKey).
     watch(
       () => props.storageKey,
-      (key) => loadForKey(key)
+      (key) => {
+        loadForKey(key);
+        if (!String(key || '').includes('options-sp2')) reloadSp2LinkCells();
+      }
     );
 
     watch(rowCount, () => {
       sp2RowScrollCache.reset();
+      sp2ColScrollCache.reset();
       nextTick(() => scrollSync.flush());
+    });
+
+    watch(isOptionsSp2, (on) => {
+      if (!on) return;
+      sp2RowScrollCache.reset();
+      sp2ColScrollCache.reset();
+      nextTick(() => {
+        updateSp2Viewport();
+        scrollSync.flush();
+      });
     });
 
     return {
@@ -1769,6 +2143,10 @@ export default {
       sp2TopSpacer,
       sp2BottomSpacer,
       sp2TableColSpan,
+      sp2ColRangeStart,
+      sp2ColRangeEnd,
+      editTick,
+      curbMassRow,
       scrollEl,
       onScroll: scrollSync.onScroll,
       cellValue,
@@ -1812,7 +2190,20 @@ export default {
       isMnsPwMidTableCell,
       isMnsPwMidLightGreenRow,
       isMnsPwBottomTableCell,
+      isMnsYamBottomTableCell,
+      isMnsAdazBottomTableCell,
       isMnsPwRow15TableCell,
+      isMnsSynYamTableCell,
+      isMnsSynAdazTableCell,
+      mnsSynYamCellClass,
+      mnsSynAdazCellClass,
+      isMnsSynRow16LinkedCell,
+      isMnsSynRow16TableCell,
+      mnsSynRow16CellClass,
+      mnsSynRow16LinkedValue,
+      isMnsSp2Row15LinkedCell,
+      isMnsSp2Row15TableCell,
+      mnsSp2Row15LinkedValue,
       isMnsGreenCell,
       mnsGreenLabel,
       isMnsYellowCell,
@@ -1850,6 +2241,7 @@ export default {
                   class="col-letter mns-col-band-hdr"
                   :class="{
                     'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col),
+                    'sp2-sticky-col-a': isOptionsSp2 && col === 'A',
                     'sp2-sticky-col-b': isOptionsSp2 && col === 'B',
                   }"
                   :data-col="col"
@@ -1873,6 +2265,7 @@ export default {
                   class="col-letter grid-axis-hdr"
                   :class="{
                     'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col),
+                    'sp2-sticky-col-a': isOptionsSp2 && col === 'A',
                     'sp2-sticky-col-b': isOptionsSp2 && col === 'B',
                     'grid-axis-hdr-focus': isAxisCol(col),
                   }"
@@ -1894,6 +2287,7 @@ export default {
             <tr
               v-for="row in sp2VisibleRows"
               :key="'sp2-row-' + row"
+              v-memo="[row, sp2ColRangeStart, sp2ColRangeEnd, editTick, curbMassRow]"
               class="grid-row-cv"
               :class="{ 'grid-axis-row-focus': isAxisRow(row) }"
             >
@@ -1914,7 +2308,9 @@ export default {
                   :class="[
                     sp2Render(row, col).classes,
                     {
+                      'sp2-sticky-col-a': col === 'A' && !isRedCell(row, col),
                       'sp2-sticky-col-b': col === 'B' && !isRedCell(row, col),
+                      'sp2-option-col-cell': isSp2OptionCol(col),
                       'grid-axis-col-focus': isAxisCol(col),
                     },
                   ]"
@@ -2029,14 +2425,20 @@ export default {
                   'mns-pw-mid-table-cell': isMnsPwMidTableCell(row, col),
                   'mns-pw-mid-light-green-row': isMnsPwMidLightGreenRow(row, col),
                   'mns-pw-bottom-table-cell': isMnsPwBottomTableCell(row, col),
+                  'mns-yam-bottom-table-cell': isMnsYamBottomTableCell(row, col),
+                  'mns-adaz-bottom-table-cell': isMnsAdazBottomTableCell(row, col),
                   'mns-pw-row15-table-cell': isMnsPwRow15TableCell(row, col),
+                  'mns-syn-yam-table-cell': isMnsSynYamTableCell(row, col),
+                  'mns-syn-adaz-table-cell': isMnsSynAdazTableCell(row, col),
+                  'mns-syn-row16-table-cell': isMnsSynRow16TableCell(row, col),
+                  'mns-sp2-row15-table-cell': isMnsSp2Row15TableCell(row, col),
                   'mns-green-cell': isMnsGreenCell(row, col),
                   'mns-yellow-cell': isMnsYellowCell(row, col),
                   'mns-beige-cell': isMnsBeigeCell(row, col),
                   'mns-red-value': isMnsRedValue(row, col),
                   'sp2-syn-cell': isSynTableCell(row, col),
                   'grid-axis-col-focus': isAxisCol(col),
-                }, synTableClass(row, col)]"
+                }, mnsSynYamCellClass(row, col), mnsSynAdazCellClass(row, col), mnsSynRow16CellClass(row, col), synTableClass(row, col)]"
               >
                 <template v-if="isBrandCell(row, col)">
                   <span
@@ -2091,6 +2493,18 @@ export default {
                   :class="'mns-green-' + mnsGreenLabel(row, col).align"
                   @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ mnsGreenLabel(row, col).text }}</span>
+                <span
+                  v-else-if="isMnsSp2Row15LinkedCell(row, col)"
+                  class="mns-sp2-row15-linked"
+                  title="Lié à Options SP2 (ligne 15, colonnes F…T / V…AG / AI…AS) — mis à jour automatiquement"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ mnsSp2Row15LinkedValue(col) }}</span>
+                <span
+                  v-else-if="isMnsSynRow16LinkedCell(row, col)"
+                  class="mns-syn-row16-linked"
+                  title="Lié à Synthesis (Curb mass, lignes 16 M…AA / AC…AN / AP…AZ) — mis à jour automatiquement"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ mnsSynRow16LinkedValue(col) }}</span>
                 <span
                   v-else-if="isCurbLinkedCell(row, col)"
                   class="sp2-curb-linked"

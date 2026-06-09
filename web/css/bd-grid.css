@@ -4229,7 +4229,7 @@
   max-width: 72px;
 }
 
-/* MNS — narrow blank spacer columns (F, J, O, R, U, X — 24px). */
+/* MNS — narrow blank spacer columns (F, J, O, R, U, X, AN, BA — 24px). */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   td.data-cell[data-col='F'],
@@ -4271,7 +4271,21 @@
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   thead
-  th.col-letter[data-col='X'] {
+  th.col-letter[data-col='X'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='AN'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AN'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='BA'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BA'] {
   width: 24px;
   min-width: 24px;
   max-width: 24px;
@@ -4303,6 +4317,376 @@
   td.data-cell.mns-spacer-col
   .grid-cell-input {
   background: #fff !important;
+}
+
+/* MNS — PQ / ST / VW columns P…W (spacers O, R, U, X stay 24px) — same width as Y (120px). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='P'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='P'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='Q'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='Q'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='S'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='S'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='T'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='T'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='V'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='V'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='W'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='W'] {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+/* MNS — Synthesis copy columns Y…AM — 120px (same width for AO…AZ & BB…BL below). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='Y'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='Y'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='Z'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='Z'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AA'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AA'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AB'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AB'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AC'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AC'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AD'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AD'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AE'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AE'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AF'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AF'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AG'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AG'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AH'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AH'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AI'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AI'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AJ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AJ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AK'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AK'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AL'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AL'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AM'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AM'] {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
+}
+
+/* MNS — Synthesis copy AO…AZ + BB…BL — same 120px as Y…AM (AN & BA spacers stay 24px). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AO'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AO'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AP'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AP'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AQ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AQ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AR'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AR'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AS'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AS'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AT'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AT'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AU'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AU'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AV'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AV'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AW'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AW'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AX'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AX'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AY'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AY'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='AZ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='AZ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BB'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BB'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BC'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BC'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BD'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BD'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BE'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BE'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BF'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BF'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BG'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BG'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BH'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BH'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BI'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BI'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BJ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BJ'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BK'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BK'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='BL'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='BL'] {
+  width: 120px;
+  min-width: 120px;
+  max-width: 120px;
 }
 
 /* MNS — curb-mass variant columns H–I & K–N (slightly narrower than default 200px). */
@@ -4531,7 +4915,7 @@
   white-space: nowrap;
 }
 
-/* MNS — framed tables: A–E; H–N; PQ/ST/VW (rows 24–40 & 42–59); rows 1–3, 5–12, 15 & 18–21 P–W. */
+/* MNS — framed tables: A–E; H–N; PQ/ST/VW; rows 1–3, 5–12, 15 & 18–21 P–W; Y–AM & AO–BL rows 1–12, 14–15 & 18–21. */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
@@ -4571,8 +4955,233 @@
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
+  td.data-cell.mns-syn-yam-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-adaz-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-yam-bottom-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-adaz-bottom-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-row16-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-sp2-row15-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
   td.data-cell.mns-m-meta-table-cell {
   border: 3px solid #000 !important;
+}
+/* MNS — rows 18–21, columns Y…AM — single framed table (bold black grid). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-yam-bottom-table-cell {
+  border: 3px solid #000 !important;
+  position: relative;
+  z-index: 2;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-yam-bottom-table-cell
+  .grid-cell-input {
+  background: transparent;
+}
+/* MNS row 15 Y…AM — Options SP2 row 15 (F…T), read-only live link. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-sp2-row15-table-cell
+  .mns-sp2-row15-linked {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff00ff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  background: transparent;
+}
+/* MNS row 14 Y…AM — Curb mass linked to Synthesis (read-only, live). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-row16-bg {
+  background: #ebf1de !important;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-row16-fluo {
+  background: #ffff00 !important;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-row16-table-cell
+  .mns-syn-row16-linked {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  background: transparent;
+}
+/* MNS — Synthesis M…AA copy on Y…AM (rows 3–13): project header colours. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-proj-hdr-green,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-proj-hdr-green
+  .grid-cell-input {
+  background: #92d050 !important;
+  color: #000 !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-proj-hdr-yellow,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-proj-hdr-yellow
+  .grid-cell-input {
+  background: #ffff99 !important;
+  color: #000 !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-proj-hdr-grey,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-proj-hdr-grey
+  .grid-cell-input {
+  background: #bfbfbf !important;
+  color: #000 !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-bev
+  .grid-cell-input {
+  color: #00b050;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-mhevp2,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-mhevp2
+  .grid-cell-input {
+  background: #ffff00 !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-hev,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-hev
+  .grid-cell-input {
+  background: #ff0000 !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-awd
+  .grid-cell-input {
+  color: #ffc000;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-grey,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-grey
+  .grid-cell-input {
+  background: #d9d9d9 !important;
+  font-weight: 700;
+}
+/* MNS — Synthesis AC…AN / AP…AZ header bands (O3W orange, P3S black, TARGET green). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-o3w,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-o3w
+  .grid-cell-input {
+  background: #ffc000 !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-p3s,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-p3s
+  .grid-cell-input {
+  background: #000 !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-target,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-syn-target
+  .grid-cell-input {
+  background: #92d050 !important;
+  font-weight: 700;
 }
 /* MNS — rows 5–12 P–W tables: light-green band on row 11. */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
@@ -4845,6 +5454,15 @@
 /* Options SP2 — copied Synthesis table: bold text + Synthesis column widths */
 .bd-grid-root.options-sp2-grid {
   --sp2-syn-bold-border: 3px;
+  --sp2-col-a-w: 72px;
+  --sp2-row-num-w: 42px;
+}
+/* Base width — must match MnsGrid sp2ColWidth() or virtual-scroll spacers drift */
+.bd-grid-root.options-sp2-grid .bd-table td.data-cell,
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell,
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell .grid-cell-input,
@@ -4916,7 +5534,7 @@
   border-width: 1px !important;
   padding: 0;
 }
-/* AP…BB copy — columns AI…AU (rows 1–12, like Synthesis AP…BB rows 3–14) */
+/* AP…BB copy — columns AI…AU (rows 1–12 + rows 14–18, like F–T / V–AG) */
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AI'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AJ'],
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='AK'],
@@ -4969,11 +5587,24 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-/* Frozen column B (labels) while scrolling horizontally — column A stays in normal flow */
+/* Frozen columns A + B while scrolling horizontally (matches sp2ColWidth / virtual layout) */
+.bd-grid-root.options-sp2-grid .bd-table th.sp2-sticky-col-a,
+.bd-grid-root.options-sp2-grid .bd-table td.data-cell.sp2-sticky-col-a {
+  position: sticky;
+  left: var(--sp2-row-num-w);
+  z-index: 198;
+  isolation: isolate;
+  background: #fff;
+  background-clip: padding-box;
+}
+.bd-grid-root.options-sp2-grid .bd-table thead th.sp2-sticky-col-a {
+  z-index: 348;
+  background: #d9d9d9;
+}
 .bd-grid-root.options-sp2-grid .bd-table th.sp2-sticky-col-b,
 .bd-grid-root.options-sp2-grid .bd-table td.data-cell.sp2-sticky-col-b {
   position: sticky;
-  left: calc(42px + 72px);
+  left: calc(var(--sp2-row-num-w) + var(--sp2-col-a-w));
   z-index: 199;
   isolation: isolate;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
@@ -5127,8 +5758,7 @@
   background: transparent;
 }
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter.sp2-option-col-letter,
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-green-band,
-.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-white-band {
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-option-col-cell {
   width: 77px;
   min-width: 77px;
   max-width: 77px;
@@ -5174,9 +5804,9 @@
   color: #000;
   box-sizing: border-box;
 }
-/* Scroll perf — row contain for paint isolation */
+/* Scroll perf — paint isolation only (contain:layout breaks position:sticky on cells) */
 .bd-grid-root.options-sp2-grid .bd-table tbody tr.grid-row-cv {
-  contain: layout style;
+  contain: style;
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-ft-row15-magenta,
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-ft-row15-magenta .grid-cell-input,

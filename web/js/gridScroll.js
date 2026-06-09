@@ -36,6 +36,11 @@ export function synColOverscanPx(viewportW) {
   return Math.min(1200, Math.max(480, Math.floor(viewportW * 0.65)));
 }
 
+/** Options SP2 horizontal buffer — wide sheet (211 cols); keep flings inside mounted DOM. */
+export function sp2ColOverscanPx(viewportW) {
+  return Math.min(2400, Math.max(720, Math.floor(viewportW * 1.2)));
+}
+
 /** Binary search on precomputed column layout (`left`, `width`). */
 export function findVisibleColIndexRange(layout, minPx, maxPx) {
   if (!layout.length) return { start: 0, end: 0 };

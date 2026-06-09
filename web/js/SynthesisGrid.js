@@ -23,7 +23,7 @@ import {
   isSynVehicleMassCol,
   isSynTrustMaterializedLiveCell,
 } from './synthesisCalc.js?v=grid-perf2';
-import { synRow16CurbSourceExcelCols } from './sp2CurbLink.js?v=2';
+import { synRow16CurbSourceExcelCols } from './sp2CurbLink.js?v=5';
 import { createGridCellEditor } from './gridCellEdit.js?v=grid-live1';
 import { createGridCellNavigation } from './gridCellNavigation.js?v=nav-cache1';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
