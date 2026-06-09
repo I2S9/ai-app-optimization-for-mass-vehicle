@@ -4163,6 +4163,21 @@
 .bd-grid-root.mns-grid .bd-table td.row-num {
   left: 0;
 }
+/* MNS — grey band row above column letters (same finish as hdr-row-letters). */
+.bd-grid-root.mns-grid .bd-table thead tr.hdr-row-band th {
+  background: #d9d9d9 !important;
+  border-bottom: none !important;
+  padding: 0 !important;
+  height: 16px;
+  line-height: 16px;
+}
+.bd-grid-root.mns-grid .bd-table thead tr.hdr-row-band th.corner {
+  background: #d9d9d9 !important;
+}
+.bd-grid-root.mns-grid .bd-table thead tr.hdr-row-letters th.col-letter,
+.bd-grid-root.mns-grid .bd-table thead tr.hdr-row-letters th.corner {
+  border-top: none !important;
+}
 /* MNS / Options SP2 — axis highlight on cell click (row + column headers) */
 .bd-grid-root.mns-grid .bd-table thead th.col-letter.grid-axis-hdr-focus,
 .bd-grid-root.mns-grid .bd-table td.row-num.grid-axis-hdr-focus {
@@ -4214,28 +4229,49 @@
   max-width: 72px;
 }
 
-/* MNS — narrow spacer column F (gap between the A–E block and columns G+). */
+/* MNS — narrow blank spacer columns (F, J, O, R, U, X — 24px). */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   td.data-cell[data-col='F'],
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   thead
-  th.col-letter[data-col='F'] {
-  width: 24px;
-  min-width: 24px;
-  max-width: 24px;
-  padding: 0;
-}
-
-/* MNS — narrow spacer column J (blank white gap; never part of H–N tables). */
+  th.col-letter[data-col='F'],
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   td.data-cell[data-col='J'],
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   thead
-  th.col-letter[data-col='J'] {
+  th.col-letter[data-col='J'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='O'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='O'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='R'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='R'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='U'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='U'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='X'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='X'] {
   width: 24px;
   min-width: 24px;
   max-width: 24px;
@@ -4244,14 +4280,27 @@
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
-  td.data-cell[data-col='J'] {
+  td.data-cell[data-col='F'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='F']
+  .grid-cell-input {
+  background: #fff !important;
+  border-color: #b4b4b4 !important;
+  color: #000;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-spacer-col {
   background: #fff !important;
   border-color: #b4b4b4 !important;
 }
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
-  td.data-cell[data-col='J']
+  td.data-cell.mns-spacer-col
   .grid-cell-input {
   background: #fff !important;
 }
@@ -4372,14 +4421,13 @@
   text-align: right;
 }
 
-/* MNS — red paint bands (rows 15–16, columns A–E). Borders match the fill so
-   the band is one seamless red zone, with a centred white label on top. */
+/* MNS — red zone (rows 15–16, columns A–E): red fill + normal grid lines (not framed). */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
   td.data-cell.mns-red-cell {
   background: #ff0000;
-  border-color: #ff0000;
+  border-color: #b4b4b4 !important;
   overflow: visible;
   position: relative;
   z-index: 1;
@@ -4437,13 +4485,16 @@
   white-space: nowrap;
 }
 
-/* MNS — green variant headers (row 15, columns K–N). Seamless #00b050 fill. */
+/* MNS — green variant headers (row 15, columns K–N) + rows 1–3 P–W block fill. */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
-  td.data-cell.mns-lime-cell {
+  td.data-cell.mns-lime-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pw-top-green-cell {
   background: #00b050;
-  border-color: #00b050;
   overflow: visible;
   position: relative;
   z-index: 1;
@@ -4451,7 +4502,18 @@
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
+  td.data-cell.mns-lime-cell {
+  border-color: #00b050;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
   td.data-cell.mns-lime-cell
+  .grid-cell-input,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pw-top-green-cell
   .grid-cell-input {
   background: transparent;
   color: #000;
@@ -4469,7 +4531,11 @@
   white-space: nowrap;
 }
 
-/* MNS — H–N tables (rows 24–40 & 42–59; column J excluded), bold black grid. */
+/* MNS — framed tables: A–E; H–N; PQ/ST/VW (rows 24–40 & 42–59); rows 1–3 P–W. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-ae-table-cell,
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
@@ -4481,8 +4547,67 @@
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
-  td.data-cell.mns-hn-table-cell {
+  td.data-cell.mns-hn-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pqstvw-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pw-top-green-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pw-mid-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-m-meta-table-cell {
   border: 3px solid #000 !important;
+}
+/* MNS — rows 5–12 P–W tables: light-green band on row 11. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pw-mid-light-green-row {
+  background: #92d050 !important;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-pw-mid-light-green-row
+  .grid-cell-input {
+  background: transparent;
+  color: #000;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-m-meta-table-cell
+  .mns-m-meta-label {
+  display: block;
+  text-align: left;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 0 4px;
+  color: #000;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-m-meta-grey {
+  background: #bfbfbf !important;
+  border: 3px solid #000 !important;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-m-meta-grey
+  .mns-m-meta-grey-fill {
+  display: block;
+  min-height: 1em;
 }
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table

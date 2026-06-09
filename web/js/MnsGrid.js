@@ -113,9 +113,29 @@ const MNS_PAINT_COLS = ['A', 'B', 'C', 'D', 'E'];
 const MNS_PAINT_MAX_ROW = 11;
 
 /**
- * Red paint bands on the MNS page (columns A–E, no inner gridlines). Rows 12–14
- * are intentionally left blank between the peach block and these red bands.
- * Each band carries a centred white label (English).
+ * Column M metadata table (rows 1–12): French field labels + grey spacer row 8.
+ */
+const MNS_M_META_START_ROW = 1;
+const MNS_M_META_END_ROW = 12;
+const MNS_M_META_COL = 'M';
+const MNS_M_META_GREY_ROW = 8;
+const MNS_M_META_LABELS = {
+  '1:M': 'Date',
+  '2:M': 'Project',
+  '3:M': 'Silhouette',
+  '4:M': 'Charge utile',
+  '5:M': 'Plaque de conception',
+  '6:M': 'Sièges',
+  '7:M': 'Spécificités techniques',
+  '9:M': 'Pôle',
+  '10:M': 'Energie',
+  '11:M': 'Pack technique',
+  '12:M': 'finition',
+};
+
+/**
+ * Red zone (rows 15–16, columns A–E): gridded cells, outside the A–E framed tables.
+ * Column F stays blank white (spacer). Rows 12–14 are blank above this zone.
  */
 const MNS_RED_ROWS = [15, 16];
 const MNS_RED_COLS = ['A', 'B', 'C', 'D', 'E'];
@@ -150,15 +170,15 @@ const MNS_LIME_LABELS = {
   '15:K': 'P1X FWD L1',
   '15:L': 'P1X AWD L2',
   '15:M': 'O2X FWD L1',
-  '15:N': 'O2X AWD L3',
+  '15:N': 'O2X AWD L2',
   '24:K': 'P1X FWD L1',
   '24:L': 'P1X AWD L2',
   '24:M': 'O2X FWD L1',
-  '24:N': 'O2X AWD L3',
+  '24:N': 'O2X AWD L2',
   '42:K': 'P1X FWD L1',
   '42:L': 'P1X AWD L2',
   '42:M': 'O2X FWD L1',
-  '42:N': 'O2X AWD L3',
+  '42:N': 'O2X AWD L2',
 };
 
 /** Curb-mass mini table — columns K–N, rows 18–21 (row labels shared with col G). */
@@ -171,6 +191,36 @@ const MNS_HN_TABLE_BANDS = [
   { start: 24, end: 40 },
   { start: 42, end: 59 },
 ];
+
+/** MNS A–E tables — bold black grid on columns A–E. */
+const MNS_AE_TABLE_COLS = ['A', 'B', 'C', 'D', 'E'];
+const MNS_AE_TABLE_BANDS = [
+  { start: 17, end: 21 },
+  { start: 23, end: 40 },
+  { start: 42, end: 59 },
+];
+
+/** Narrow blank spacers (24px — same width as J): F, J, O, R, U, X. */
+const MNS_SPACER_COLS = ['F', 'J', 'O', 'R', 'U', 'X'];
+
+/** PQ / ST / VW tables — rows 24–40 & 42–59; rows 24 & 42 = green headers. Spacers: R, U, X. */
+const MNS_PQSTVW_TABLE_COLS = ['P', 'Q', 'S', 'T', 'V', 'W'];
+const MNS_PQSTVW_TABLE_BANDS = [
+  { start: 24, end: 40 },
+  { start: 42, end: 59 },
+];
+const MNS_PQSTVW_LIME_ROWS = [24, 42];
+
+/** Green header block — rows 1–3, columns P–W (spacers O, R, U excluded). */
+const MNS_PW_TOP_GREEN_START_ROW = 1;
+const MNS_PW_TOP_GREEN_END_ROW = 3;
+const MNS_PW_TOP_GREEN_COLS = MNS_PQSTVW_TABLE_COLS;
+
+/** PQ / ST / VW mini tables — rows 5–12, same 2-column blocks (P–Q, S–T, V–W). */
+const MNS_PW_MID_TABLE_START_ROW = 5;
+const MNS_PW_MID_TABLE_END_ROW = 12;
+const MNS_PW_MID_TABLE_COLS = MNS_PQSTVW_TABLE_COLS;
+const MNS_PW_MID_LIGHT_GREEN_ROW = 11;
 
 /**
  * Dark-green paint bands on the MNS page (columns A–E, no inner gridlines).
@@ -1191,7 +1241,27 @@ export default {
       return !isOptionsSp2.value && col === 'E' && row >= 1 && row <= MNS_PAINT_MAX_ROW;
     }
 
-    // MNS page: red paint bands (rows 15–16, columns A–E), no inner gridlines.
+    // Column M metadata table (rows 1–12) — bold grid, French labels.
+    function isMnsMMetaTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        col === MNS_M_META_COL &&
+        row >= MNS_M_META_START_ROW &&
+        row <= MNS_M_META_END_ROW
+      );
+    }
+
+    function isMnsMMetaGreyCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return col === MNS_M_META_COL && row === MNS_M_META_GREY_ROW;
+    }
+
+    function mnsMMetaLabel(row, col) {
+      if (isOptionsSp2.value) return null;
+      return MNS_M_META_LABELS[`${row}:${col}`] || null;
+    }
+
+    // MNS page: red zone (rows 15–16, columns A–E), gridded — not in A–E framed tables.
     function isMnsRedCell(row, col) {
       return (
         !isOptionsSp2.value &&
@@ -1228,9 +1298,15 @@ export default {
       return MNS_HI_TABLE_LABELS[`${row}:${col}`] || null;
     }
 
-    // Green variant headers (row 15, columns K–N).
+    // Green variant headers (rows 15, 24 & 42 — K–N; rows 24 & 42 — PQ/ST/VW).
     function isMnsLimeCell(row, col) {
       if (isOptionsSp2.value) return false;
+      if (
+        MNS_PQSTVW_LIME_ROWS.includes(row) &&
+        MNS_PQSTVW_TABLE_COLS.includes(col)
+      ) {
+        return true;
+      }
       return Object.prototype.hasOwnProperty.call(MNS_LIME_LABELS, `${row}:${col}`);
     }
 
@@ -1252,6 +1328,54 @@ export default {
       return MNS_HN_TABLE_BANDS.some(
         (band) => row >= band.start && row <= band.end
       );
+    }
+
+    // MNS A–E tables (rows 15–21, 23–40 & 42–59) — bold black grid.
+    function isMnsAeTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      if (!MNS_AE_TABLE_COLS.includes(col)) return false;
+      return MNS_AE_TABLE_BANDS.some(
+        (band) => row >= band.start && row <= band.end
+      );
+    }
+
+    // PQ / ST / VW tables (rows 24–40 & 42–59) — bold grid; rows 24 & 42 = green headers.
+    function isMnsPqstvwTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      if (!MNS_PQSTVW_TABLE_COLS.includes(col)) return false;
+      return MNS_PQSTVW_TABLE_BANDS.some(
+        (band) => row >= band.start && row <= band.end
+      );
+    }
+
+    function isMnsSpacerCol(row, col) {
+      if (isOptionsSp2.value) return false;
+      return MNS_SPACER_COLS.includes(col);
+    }
+
+    // Rows 1–3, columns P–W (O/R/U spacers stay white).
+    function isMnsPwTopGreenCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_PW_TOP_GREEN_START_ROW &&
+        row <= MNS_PW_TOP_GREEN_END_ROW &&
+        MNS_PW_TOP_GREEN_COLS.includes(col)
+      );
+    }
+
+    // Rows 5–12, columns P–W — three 2-column framed tables.
+    function isMnsPwMidTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_PW_MID_TABLE_START_ROW &&
+        row <= MNS_PW_MID_TABLE_END_ROW &&
+        MNS_PW_MID_TABLE_COLS.includes(col)
+      );
+    }
+
+    function isMnsPwMidLightGreenRow(row, col) {
+      if (isOptionsSp2.value) return false;
+      return row === MNS_PW_MID_LIGHT_GREEN_ROW && MNS_PW_MID_TABLE_COLS.includes(col);
     }
 
     // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E; G on 24 & 42).
@@ -1643,6 +1767,9 @@ export default {
       isBrandCell,
       isMnsPaintCell,
       isMnsLabelCell,
+      isMnsMMetaTableCell,
+      isMnsMMetaGreyCell,
+      mnsMMetaLabel,
       isMnsRedCell,
       mnsRedLabel,
       isMnsBlueCell,
@@ -1653,6 +1780,12 @@ export default {
       mnsLimeLabel,
       isMnsKnTableCell,
       isMnsHnTableCell,
+      isMnsAeTableCell,
+      isMnsPqstvwTableCell,
+      isMnsSpacerCol,
+      isMnsPwTopGreenCell,
+      isMnsPwMidTableCell,
+      isMnsPwMidLightGreenRow,
       isMnsGreenCell,
       mnsGreenLabel,
       isMnsYellowCell,
@@ -1678,6 +1811,29 @@ export default {
       <div class="bd-grid-scroll" ref="scrollEl" @scroll.passive="onScroll">
         <table class="bd-table mns-table" role="grid">
           <thead>
+            <tr class="hdr-row-band">
+              <th class="corner"></th>
+              <template v-for="(col, idx) in headerColumns" :key="'mns-band-' + col">
+                <th
+                  v-if="isOptionsSp2 && sp2VirtualizeCols && idx === 2 && sp2LeftPad > 0"
+                  class="col-spacer"
+                  :style="{ width: sp2LeftPad + 'px', minWidth: sp2LeftPad + 'px', maxWidth: sp2LeftPad + 'px', padding: 0, border: 'none' }"
+                ></th>
+                <th
+                  class="col-letter mns-col-band-hdr"
+                  :class="{
+                    'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col),
+                    'sp2-sticky-col-b': isOptionsSp2 && col === 'B',
+                  }"
+                  :data-col="col"
+                ></th>
+              </template>
+              <th
+                v-if="isOptionsSp2 && sp2VirtualizeCols && sp2RightPad > 0"
+                class="col-spacer"
+                :style="{ width: sp2RightPad + 'px', minWidth: sp2RightPad + 'px', maxWidth: sp2RightPad + 'px', padding: 0, border: 'none' }"
+              ></th>
+            </tr>
             <tr class="hdr-row-letters">
               <th class="corner"></th>
               <template v-for="(col, idx) in headerColumns" :key="'mns-letter-' + col">
@@ -1830,12 +1986,21 @@ export default {
                   'sp2-option-green-band': isOptionGreenBandCell(row, col),
                   'mns-paint-cell': isMnsPaintCell(row, col),
                   'mns-e-label': isMnsLabelCell(row, col),
+                  'mns-m-meta-table-cell': isMnsMMetaTableCell(row, col),
+                  'mns-m-meta-grey': isMnsMMetaGreyCell(row, col),
                   'mns-red-cell': isMnsRedCell(row, col),
                   'mns-blue-cell': isMnsBlueCell(row, col),
                   'mns-lime-cell': isMnsLimeCell(row, col),
                   'mns-hi-table-cell': isMnsHiTableCell(row, col),
                   'mns-kn-table-cell': isMnsKnTableCell(row, col),
                   'mns-hn-table-cell': isMnsHnTableCell(row, col),
+                  'mns-ae-table-cell': isMnsAeTableCell(row, col),
+                  'mns-pqstvw-table-cell': isMnsPqstvwTableCell(row, col),
+                  'mns-spacer-col': isMnsSpacerCol(row, col),
+                  'mns-pw-top-green-cell': isMnsPwTopGreenCell(row, col),
+                  'mns-pw-top-green-table-cell': isMnsPwTopGreenCell(row, col),
+                  'mns-pw-mid-table-cell': isMnsPwMidTableCell(row, col),
+                  'mns-pw-mid-light-green-row': isMnsPwMidLightGreenRow(row, col),
                   'mns-green-cell': isMnsGreenCell(row, col),
                   'mns-yellow-cell': isMnsYellowCell(row, col),
                   'mns-beige-cell': isMnsBeigeCell(row, col),
@@ -1872,7 +2037,17 @@ export default {
                   @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ mnsBlueLabel(row, col) }}</span>
                 <span
-                  v-else-if="mnsLimeLabel(row, col)"
+                  v-else-if="mnsMMetaLabel(row, col)"
+                  class="mns-m-meta-label"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ mnsMMetaLabel(row, col) }}</span>
+                <span
+                  v-else-if="isMnsMMetaGreyCell(row, col)"
+                  class="mns-m-meta-grey-fill"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                ></span>
+                <span
+                  v-else-if="isMnsLimeCell(row, col)"
                   class="mns-lime-label"
                   @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ mnsLimeLabel(row, col) }}</span>
