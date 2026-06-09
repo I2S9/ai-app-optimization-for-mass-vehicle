@@ -222,6 +222,15 @@ const MNS_PW_MID_TABLE_END_ROW = 12;
 const MNS_PW_MID_TABLE_COLS = MNS_PQSTVW_TABLE_COLS;
 const MNS_PW_MID_LIGHT_GREEN_ROW = 11;
 
+/** PQ / ST / VW single-row tables — row 15, 2-column blocks P–Q, S–T, V–W. */
+const MNS_PW_ROW15_TABLE_ROW = 15;
+const MNS_PW_ROW15_TABLE_COLS = MNS_PQSTVW_TABLE_COLS;
+
+/** PQ / ST / VW mini tables — rows 18–21 (curb-mass band), 2-column blocks P–Q, S–T, V–W. */
+const MNS_PW_BOTTOM_TABLE_START_ROW = 18;
+const MNS_PW_BOTTOM_TABLE_END_ROW = 21;
+const MNS_PW_BOTTOM_TABLE_COLS = MNS_PQSTVW_TABLE_COLS;
+
 /**
  * Dark-green paint bands on the MNS page (columns A–E, no inner gridlines).
  * Rows 23–24 head the front unsprung-masses block, row 42 the rear one.
@@ -1378,6 +1387,22 @@ export default {
       return row === MNS_PW_MID_LIGHT_GREEN_ROW && MNS_PW_MID_TABLE_COLS.includes(col);
     }
 
+    // Rows 18–21, columns P–W — three 2-column framed tables.
+    function isMnsPwBottomTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return (
+        row >= MNS_PW_BOTTOM_TABLE_START_ROW &&
+        row <= MNS_PW_BOTTOM_TABLE_END_ROW &&
+        MNS_PW_BOTTOM_TABLE_COLS.includes(col)
+      );
+    }
+
+    // Row 15, columns P–W — three single-row framed tables.
+    function isMnsPwRow15TableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return row === MNS_PW_ROW15_TABLE_ROW && MNS_PW_ROW15_TABLE_COLS.includes(col);
+    }
+
     // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E; G on 24 & 42).
     function isMnsGreenCell(row, col) {
       if (isOptionsSp2.value) return false;
@@ -1786,6 +1811,8 @@ export default {
       isMnsPwTopGreenCell,
       isMnsPwMidTableCell,
       isMnsPwMidLightGreenRow,
+      isMnsPwBottomTableCell,
+      isMnsPwRow15TableCell,
       isMnsGreenCell,
       mnsGreenLabel,
       isMnsYellowCell,
@@ -2001,6 +2028,8 @@ export default {
                   'mns-pw-top-green-table-cell': isMnsPwTopGreenCell(row, col),
                   'mns-pw-mid-table-cell': isMnsPwMidTableCell(row, col),
                   'mns-pw-mid-light-green-row': isMnsPwMidLightGreenRow(row, col),
+                  'mns-pw-bottom-table-cell': isMnsPwBottomTableCell(row, col),
+                  'mns-pw-row15-table-cell': isMnsPwRow15TableCell(row, col),
                   'mns-green-cell': isMnsGreenCell(row, col),
                   'mns-yellow-cell': isMnsYellowCell(row, col),
                   'mns-beige-cell': isMnsBeigeCell(row, col),
