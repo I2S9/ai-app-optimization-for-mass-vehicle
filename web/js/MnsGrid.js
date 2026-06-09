@@ -669,7 +669,7 @@ const SP2_AU_COL_SET = new Set(OPTIONS_SP2_AU_COLS);
 const SP2_OPTION_GREEN_COL_SET = new Set(OPTIONS_SP2_OPTION_GREEN_COLS);
 const SP2_BLANK_COL_SET = new Set([OPTIONS_SP2_BLANK_COL, OPTIONS_SP2_BLANK_COL_AH]);
 const SP2_COL_WIDTH_OVERRIDES = {
-  A: 72,
+  A: 200,
   B: 300,
   U: 24,
   AH: 24,
@@ -2241,7 +2241,6 @@ export default {
                   class="col-letter mns-col-band-hdr"
                   :class="{
                     'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col),
-                    'sp2-sticky-col-a': isOptionsSp2 && col === 'A',
                     'sp2-sticky-col-b': isOptionsSp2 && col === 'B',
                   }"
                   :data-col="col"
@@ -2265,7 +2264,6 @@ export default {
                   class="col-letter grid-axis-hdr"
                   :class="{
                     'sp2-option-col-letter': isOptionsSp2 && isSp2OptionCol(col),
-                    'sp2-sticky-col-a': isOptionsSp2 && col === 'A',
                     'sp2-sticky-col-b': isOptionsSp2 && col === 'B',
                     'grid-axis-hdr-focus': isAxisCol(col),
                   }"
@@ -2308,7 +2306,6 @@ export default {
                   :class="[
                     sp2Render(row, col).classes,
                     {
-                      'sp2-sticky-col-a': col === 'A' && !isRedCell(row, col),
                       'sp2-sticky-col-b': col === 'B' && !isRedCell(row, col),
                       'sp2-option-col-cell': isSp2OptionCol(col),
                       'grid-axis-col-focus': isAxisCol(col),

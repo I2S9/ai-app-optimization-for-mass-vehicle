@@ -5454,15 +5454,20 @@
 /* Options SP2 — copied Synthesis table: bold text + Synthesis column widths */
 .bd-grid-root.options-sp2-grid {
   --sp2-syn-bold-border: 3px;
-  --sp2-col-a-w: 72px;
-  --sp2-row-num-w: 42px;
 }
-/* Base width — must match MnsGrid sp2ColWidth() or virtual-scroll spacers drift */
+/* Base width for scrollable cols — must match MnsGrid sp2ColWidth() (column A excluded below) */
 .bd-grid-root.options-sp2-grid .bd-table td.data-cell,
 .bd-grid-root.options-sp2-grid .bd-table thead th.col-letter {
   width: 72px;
   min-width: 72px;
   max-width: 72px;
+}
+/* Column A — wide branding panel (STLA S / SP2), not frozen on horizontal scroll */
+.bd-grid-root.options-sp2-grid .bd-table thead th.col-letter[data-col='A'],
+.bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell[data-col='A'] {
+  width: 200px;
+  min-width: 200px;
+  max-width: 200px;
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell,
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-syn-cell .grid-cell-input,
@@ -5587,24 +5592,11 @@
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
-/* Frozen columns A + B while scrolling horizontally (matches sp2ColWidth / virtual layout) */
-.bd-grid-root.options-sp2-grid .bd-table th.sp2-sticky-col-a,
-.bd-grid-root.options-sp2-grid .bd-table td.data-cell.sp2-sticky-col-a {
-  position: sticky;
-  left: var(--sp2-row-num-w);
-  z-index: 198;
-  isolation: isolate;
-  background: #fff;
-  background-clip: padding-box;
-}
-.bd-grid-root.options-sp2-grid .bd-table thead th.sp2-sticky-col-a {
-  z-index: 348;
-  background: #d9d9d9;
-}
+/* Frozen column B (labels) while scrolling horizontally — column A stays in normal flow */
 .bd-grid-root.options-sp2-grid .bd-table th.sp2-sticky-col-b,
 .bd-grid-root.options-sp2-grid .bd-table td.data-cell.sp2-sticky-col-b {
   position: sticky;
-  left: calc(var(--sp2-row-num-w) + var(--sp2-col-a-w));
+  left: calc(42px + 72px);
   z-index: 199;
   isolation: isolate;
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
@@ -5816,4 +5808,165 @@
 }
 .bd-grid-root.options-sp2-grid .bd-table tbody td.data-cell.sp2-blue-cell {
   background: #00b0f0;
+}
+
+/* CDC Output for CDC — blank grid A…CA (200 rows), wide column B */
+.bd-grid-root.cdc-output-grid .bd-table th.corner,
+.bd-grid-root.cdc-output-grid .bd-table td.row-num {
+  left: 0;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-band th {
+  background: #d9d9d9 !important;
+  border-bottom: none !important;
+  padding: 0 !important;
+  height: 16px;
+  line-height: 16px;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-band th.corner {
+  background: #d9d9d9 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-letters th.col-letter,
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-letters th.corner {
+  border-top: none !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter.grid-axis-hdr-focus,
+.bd-grid-root.cdc-output-grid .bd-table td.row-num.grid-axis-hdr-focus {
+  background: #a8a8a8 !important;
+  color: #000 !important;
+  font-weight: 700;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='A'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='A'] {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='B'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] {
+  width: 480px;
+  min-width: 480px;
+  max-width: 480px;
+}
+/* Columns C…CA — slightly wider than A */
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter:not([data-col='A']):not([data-col='B']),
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell:not([data-col='A']):not([data-col='B']) {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] .grid-cell-input {
+  text-align: left;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell .grid-cell-input {
+  color: #000;
+}
+
+/* CDC Output — row 1 header band */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue {
+  background: #00b0f0 !important;
+  border-color: #00b0f0;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish {
+  background: #366092 !important;
+  border-color: #366092;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-fluo {
+  background: #ffff00 !important;
+  border-color: #b4b4b4;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue .cdc-fixed-label,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish .cdc-fixed-label {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-weight: 700;
+  color: #000;
+  user-select: none;
+  cursor: default;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish .cdc-fixed-label {
+  color: #fff;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-fluo .cdc-fixed-label {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  text-align: center;
+  font-weight: 700;
+  color: #000;
+  user-select: none;
+  cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green {
+  background: #00b050 !important;
+  border-color: #00b050;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green .cdc-fixed-label {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  font-weight: 700;
+  color: #000;
+  user-select: none;
+  cursor: default;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green[data-col='B'] .cdc-fixed-label {
+  text-align: left;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black {
+  background: #000 !important;
+  border-color: #000;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black .cdc-fixed-label {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  font-weight: 700;
+  color: #fff;
+  user-select: none;
+  cursor: default;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black[data-col='B'] .cdc-fixed-label {
+  text-align: left;
+}
+/* CDC Output — collapse toggle row (+/−) for columns O…V */
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-toggle th {
+  background: #d9d9d9 !important;
+  border-bottom: none !important;
+  padding: 0 !important;
+  height: 16px;
+  text-align: center;
+  vertical-align: middle;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-toggle th.corner {
+  background: #d9d9d9 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-toggle .cdc-col-toggle-btn {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #888;
+  border-radius: 2px;
+  background: #fff;
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-toggle .cdc-col-toggle-btn:hover {
+  background: #eaeaea;
 }
