@@ -124,10 +124,14 @@ const MNS_RED_LABELS = {
   '16:C': 'OPTIONAL EQUIPMENT',
 };
 
-/** Blue spot labels on row 15 (columns H–I), variant headers on the curb-mass band. */
+/** Blue spot labels — rows 15, 24 & 42 (columns H–I), variant headers. */
 const MNS_BLUE_LABELS = {
   '15:H': 'P64 € Bev FWD',
   '15:I': 'P64 € Bev AWD',
+  '24:H': 'P64 € Bev FWD',
+  '24:I': 'P64 € Bev AWD',
+  '42:H': 'P64 € Bev FWD',
+  '42:I': 'P64 € Bev AWD',
 };
 
 /** Curb-mass mini table — columns G–I, rows 17–21 (bold black grid). */
@@ -141,17 +145,32 @@ const MNS_HI_TABLE_LABELS = {
   '21:G': 'Rear Brake',
 };
 
-/** Green variant headers on row 15 (columns K–N). */
+/** Green variant headers — rows 15, 24 & 42 (columns K–N). */
 const MNS_LIME_LABELS = {
   '15:K': 'P1X FWD L1',
   '15:L': 'P1X AWD L2',
   '15:M': 'O2X FWD L1',
   '15:N': 'O2X AWD L3',
+  '24:K': 'P1X FWD L1',
+  '24:L': 'P1X AWD L2',
+  '24:M': 'O2X FWD L1',
+  '24:N': 'O2X AWD L3',
+  '42:K': 'P1X FWD L1',
+  '42:L': 'P1X AWD L2',
+  '42:M': 'O2X FWD L1',
+  '42:N': 'O2X AWD L3',
 };
 
 /** Curb-mass mini table — columns K–N, rows 18–21 (row labels shared with col G). */
 const MNS_KN_TABLE_ROWS = [18, 19, 20, 21];
 const MNS_KN_TABLE_COLS = ['K', 'L', 'M', 'N'];
+
+/** MNS H–N tables (column J excluded — blank spacer). Cols H,I + K..N only. */
+const MNS_HN_TABLE_COLS = ['H', 'I', 'K', 'L', 'M', 'N'];
+const MNS_HN_TABLE_BANDS = [
+  { start: 24, end: 40 },
+  { start: 42, end: 59 },
+];
 
 /**
  * Dark-green paint bands on the MNS page (columns A–E, no inner gridlines).
@@ -1226,6 +1245,15 @@ export default {
       return MNS_KN_TABLE_ROWS.includes(row) && MNS_KN_TABLE_COLS.includes(col);
     }
 
+    // MNS H–N tables (rows 24–40 & 42–59; J stays blank) — bold grid + row-24/42 headers.
+    function isMnsHnTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      if (!MNS_HN_TABLE_COLS.includes(col)) return false;
+      return MNS_HN_TABLE_BANDS.some(
+        (band) => row >= band.start && row <= band.end
+      );
+    }
+
     // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E; G on 24 & 42).
     function isMnsGreenCell(row, col) {
       if (isOptionsSp2.value) return false;
@@ -1624,6 +1652,7 @@ export default {
       isMnsLimeCell,
       mnsLimeLabel,
       isMnsKnTableCell,
+      isMnsHnTableCell,
       isMnsGreenCell,
       mnsGreenLabel,
       isMnsYellowCell,
@@ -1806,6 +1835,7 @@ export default {
                   'mns-lime-cell': isMnsLimeCell(row, col),
                   'mns-hi-table-cell': isMnsHiTableCell(row, col),
                   'mns-kn-table-cell': isMnsKnTableCell(row, col),
+                  'mns-hn-table-cell': isMnsHnTableCell(row, col),
                   'mns-green-cell': isMnsGreenCell(row, col),
                   'mns-yellow-cell': isMnsYellowCell(row, col),
                   'mns-beige-cell': isMnsBeigeCell(row, col),

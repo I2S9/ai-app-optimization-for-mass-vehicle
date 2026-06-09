@@ -4228,7 +4228,7 @@
   padding: 0;
 }
 
-/* MNS — narrow spacer column J (gap between the G–I block and columns K+). */
+/* MNS — narrow spacer column J (blank white gap; never part of H–N tables). */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   td.data-cell[data-col='J'],
@@ -4240,6 +4240,20 @@
   min-width: 24px;
   max-width: 24px;
   padding: 0;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='J'] {
+  background: #fff !important;
+  border-color: #b4b4b4 !important;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell[data-col='J']
+  .grid-cell-input {
+  background: #fff !important;
 }
 
 /* MNS — curb-mass variant columns H–I & K–N (slightly narrower than default 200px). */
@@ -4455,7 +4469,7 @@
   white-space: nowrap;
 }
 
-/* MNS — curb-mass mini tables (G–I rows 17–21; K–N rows 18–21), bold black grid. */
+/* MNS — H–N tables (rows 24–40 & 42–59; column J excluded), bold black grid. */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
@@ -4463,7 +4477,11 @@
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
   .bd-table
   tbody
-  td.data-cell.mns-kn-table-cell {
+  td.data-cell.mns-kn-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-hn-table-cell {
   border: 3px solid #000 !important;
 }
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
