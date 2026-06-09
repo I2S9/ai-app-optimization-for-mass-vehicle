@@ -531,7 +531,7 @@ export function createAutoSave(getPayload, { debounceMs = 1500, onStatus } = {})
           throw err;
         }
       } else if (remoteOnly) {
-        throw new Error('API Supabase inaccessible — lancez go-api.bat');
+        throw new Error('API Supabase inaccessible — lancez run-supabase-server.bat');
       }
       if (onStatus) onStatus('saved');
     } catch (e) {

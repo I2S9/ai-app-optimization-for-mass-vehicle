@@ -446,7 +446,7 @@ async function proxyApiToBackend(req, res, fullUrl, urlPath) {
         ok: false,
         error: `API Python injoignable sur ${PROXY_API}`,
         detail: msg,
-        hint: 'Ouvrez une fenetre et lancez: api\\go-api.bat  puis rechargez cette page',
+        hint: 'Lancez run-bd-server.bat (Node) ou run-supabase-server.bat pour la persistance cloud',
         urlPath,
       },
       503
@@ -470,7 +470,7 @@ const server = http.createServer(async (req, res) => {
       {
         error: 'Route API inconnue',
         path: urlPath,
-        hint: 'Demarrez api\\go-api.bat puis http://127.0.0.1:5173/api/v1/config',
+        hint: 'Lancez run-bd-server.bat puis http://127.0.0.1:5173/api/v1/config',
       },
       404
     );
@@ -482,7 +482,7 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`WGHT app:     http://${HOST}:${PORT}/`);
   console.log(`API config:   http://${HOST}:${PORT}/api/v1/config  → proxy ${PROXY_API}`);
-  console.log('Si config echoue: lancez api\\go-api.bat dans une autre fenetre');
+  console.log('Si config echoue: lancez run-bd-server.bat (Node) ou run-supabase-server.bat');
 });
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

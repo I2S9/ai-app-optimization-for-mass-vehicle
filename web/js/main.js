@@ -16,7 +16,7 @@ import SynthesisGrid from './SynthesisGrid.js?v=syn-row16-link1';
 import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
-import MnsGrid from './MnsGrid.js?v=sp2-au-table1';
+import MnsGrid from './MnsGrid.js?v=sp2-sumif-19-47-vag';
 import { resolveSynRow16DisplayFromRaw } from './sp2CurbLink.js?v=2';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
@@ -847,12 +847,7 @@ const App = {
 
         if (remoteOnly.value && (!apiCfg || apiCfg.mode === 'static')) {
           error.value =
-            'Supabase requis : 1) api\\go-api.bat  2) run-bd-server.bat  3) SUPABASE_SERVICE_KEY dans api\\.env  4) go-ingest-supabase.bat si premiere fois';
-          return;
-        }
-        if (apiCfg?.apiUnreachable) {
-          error.value =
-            'API Supabase injoignable — lancez api\\go-api.bat puis run-bd-server.bat';
+            'Supabase requis : 1) run-supabase-server.bat  2) run-bd-server.bat  3) SUPABASE_SERVICE_KEY dans api\\.env';
           return;
         }
 

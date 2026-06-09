@@ -68,7 +68,15 @@ export async function probeSheetApi() {
         apiConfigCache = cfg;
         return cfg;
       } catch {
-        apiConfigCache = { mode: 'static', chunkedLoad: false, apiUnreachable: true };
+        apiConfigCache = {
+          mode: 'static',
+          chunkedLoad: false,
+          serverCalc: false,
+          cloudPersist: false,
+          remoteOnly: false,
+          version: 2,
+          projectId: 'default',
+        };
         return apiConfigCache;
       }
     })();
@@ -158,7 +166,7 @@ export async function loadSheetRaw(sheetId, opts = {}) {
   } catch (e) {
     if (cfg?.cloudPersist) {
       throw new Error(
-        `Supabase/API indisponible pour ${sheetId} — lancez go-api.bat et go-ingest-supabase.bat (${e.message || e})`
+        `Supabase/API indisponible pour ${sheetId} — lancez run-supabase-server.bat (${e.message || e})`
       );
     }
     return loadStaticSheet(sheetId);

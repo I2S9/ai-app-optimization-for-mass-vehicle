@@ -60,6 +60,16 @@ function Handle-Client($client) {
         $urlPath = [Uri]::UnescapeDataString(($parts[1] -split '\?')[0])
         if ($urlPath -eq '/') { $urlPath = '/index.html' }
 
+        $apiJson = @{
+            '/api/v1/config' = '{"mode":"static","chunkedLoad":false,"serverCalc":false,"cloudPersist":false,"remoteOnly":false,"version":2,"projectId":"default"}'
+            '/api/v1/health' = '{"ok":true,"backend":"serve-web"}'
+        }
+        if ($apiJson.ContainsKey($urlPath)) {
+            $body = [Text.Encoding]::UTF8.GetBytes($apiJson[$urlPath])
+            Send-HttpResponse $stream 200 'application/json; charset=utf-8' $body
+            return
+        }
+
         $mime = @{
             '.html' = 'text/html; charset=utf-8'
             '.js'   = 'text/javascript; charset=utf-8'

@@ -124,6 +124,35 @@ const MNS_RED_LABELS = {
   '16:C': 'OPTIONAL EQUIPMENT',
 };
 
+/** Blue spot labels on row 15 (columns H–I), variant headers on the curb-mass band. */
+const MNS_BLUE_LABELS = {
+  '15:H': 'P64 € Bev FWD',
+  '15:I': 'P64 € Bev AWD',
+};
+
+/** Curb-mass mini table — columns G–I, rows 17–21 (bold black grid). */
+const MNS_HI_TABLE_ROWS = [17, 18, 19, 20, 21];
+const MNS_HI_TABLE_COLS = ['G', 'H', 'I'];
+/** Row labels in column G (rows 18–21); H/I stay editable under the row-15 headers. */
+const MNS_HI_TABLE_LABELS = {
+  '18:G': 'Front Axle',
+  '19:G': 'Rear Axle',
+  '20:G': 'Front Brake',
+  '21:G': 'Rear Brake',
+};
+
+/** Green variant headers on row 15 (columns K–N). */
+const MNS_LIME_LABELS = {
+  '15:K': 'P1X FWD L1',
+  '15:L': 'P1X AWD L2',
+  '15:M': 'O2X FWD L1',
+  '15:N': 'O2X AWD L3',
+};
+
+/** Curb-mass mini table — columns K–N, rows 18–21 (row labels shared with col G). */
+const MNS_KN_TABLE_ROWS = [18, 19, 20, 21];
+const MNS_KN_TABLE_COLS = ['K', 'L', 'M', 'N'];
+
 /**
  * Dark-green paint bands on the MNS page (columns A–E, no inner gridlines).
  * Rows 23–24 head the front unsprung-masses block, row 42 the rear one.
@@ -136,10 +165,12 @@ const MNS_GREEN_LABELS = {
   '23:A': { text: 'UNSPRUNG MASSES DETAIL (MNS)', align: 'left' },
   '24:A': { text: 'FRONT UNSPRUNG MASSES', align: 'left' },
   '24:C': { text: 'Coeff', align: 'center' },
+  '24:G': { text: 'MNS AV', align: 'center' },
   '42:A': { text: 'REAR UNSPRUNG MASSES', align: 'left' },
   '42:C': { text: 'Coeff', align: 'center' },
   '42:D': { text: 'TD', align: 'center' },
   '42:E': { text: 'MB', align: 'center' },
+  '42:G': { text: 'MNS AR', align: 'center' },
 };
 
 /**
@@ -359,12 +390,23 @@ const OPTIONS_SP2_FT_16_18 = [
 ];
 const OPTIONS_SP2_FT_16_18_START_ROW = 16;
 
-/** Row 16 F…T = SUMIF(col19:col49,"O",C19:C49) — Excel SOMME.SI. */
+/**
+ * Rows 16–18 (F…T + V…AG) — per column, SOMME.SI on the option band (l.19–47):
+ * row 16 ← sum C, row 17 ← sum D, row 18 ← sum E, when that column = "O".
+ * Row 40 (white band) is skipped.
+ */
+const OPTIONS_SP2_FT_SUMIF_ROWS = [
+  { row: 16, sumCol: 'C' },
+  { row: 17, sumCol: 'D' },
+  { row: 18, sumCol: 'E' },
+];
 const OPTIONS_SP2_ROW16_SUMIF_ROW = 16;
-const OPTIONS_SP2_ROW16_SUMIF_START_ROW = 19;
-const OPTIONS_SP2_ROW16_SUMIF_END_ROW = 49;
+const OPTIONS_SP2_SUMIF_START_ROW = OPTIONS_SP2_FT_OPTION_START_ROW;
+const OPTIONS_SP2_SUMIF_END_ROW = 49;
+const OPTIONS_SP2_ROW16_SUMIF_START_ROW = OPTIONS_SP2_SUMIF_START_ROW;
+const OPTIONS_SP2_ROW16_SUMIF_END_ROW = OPTIONS_SP2_SUMIF_END_ROW;
 const OPTIONS_SP2_ROW16_SUMIF_CRITERIA = 'O';
-const OPTIONS_SP2_ROW16_SUMIF_SUM_COL = 'C';
+const OPTIONS_SP2_FT_SUMIF_SUM_COLS = new Set(['C', 'D', 'E']);
 
 /**
  * Options picker values — columns F–T, rows 19–47 (source spreadsheet).
@@ -435,12 +477,6 @@ function sp2PickVagFromFtRow(ftRow) {
 
 /** Options picker — columns V–AG, rows 19–47 (same pattern as F–T, AC…AN vehicles). */
 const OPTIONS_SP2_VAG_OPTIONS = OPTIONS_SP2_FT_OPTIONS.map(sp2PickVagFromFtRow);
-
-/** Numeric block columns V–AG, rows 17–18 (row 16 = live SUMIF, row 15 = row16+53). */
-const OPTIONS_SP2_VAG_16_18 = [
-  sp2PickVagFromFtRow(OPTIONS_SP2_FT_16_18[1]),
-  sp2PickVagFromFtRow(OPTIONS_SP2_FT_16_18[2]),
-];
 
 /**
  * Synthesis AP…BB header table → Options SP2 columns AI…AU, rows 1–12.
@@ -542,11 +578,13 @@ function sp2ColWidth(col) {
   return SP2_DEFAULT_COL_W;
 }
 
-const SP2_ROW16_SUMIF_COL_SET = new Set([
-  ...OPTIONS_SP2_FT_COLS,
-  ...OPTIONS_SP2_VAG_COLS,
-]);
-const SP2_SUM_COL_SET = SP2_ROW16_SUMIF_COL_SET;
+/** Rows 16–18 live SUMIF — columns F…T + V…AG (vehicle blocks). */
+const SP2_SUMIF_COLS = [...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS];
+const SP2_SUMIF_COL_SET = new Set(SP2_SUMIF_COLS);
+const SP2_FT_SUMIF_COL_SET = new Set(OPTIONS_SP2_FT_COLS);
+const SP2_ROW16_SUMIF_COL_SET = SP2_SUMIF_COL_SET;
+/** Row 15 live sum (row 16 + row 53) — F…T + V…AG. */
+const SP2_SUM_COL_SET = new Set([...OPTIONS_SP2_FT_COLS, ...OPTIONS_SP2_VAG_COLS]);
 const OPTIONS_SP2_ALL_COLS = Array.from(
   { length: OPTIONS_SP2_COLUMN_COUNT },
   (_, i) => numToCol(i + 1)
@@ -704,8 +742,8 @@ function buildSp2RenderMap() {
         kind = 'red-label';
       } else if (row === OPTIONS_SP2_CURB_ROW && isSp2CurbLinkedCol(col)) {
         kind = 'curb';
-      } else if (isSp2Row16SumifCell(row, col)) {
-        kind = 'row16-sumif';
+      } else if (isSp2FtSumifCell(row, col)) {
+        kind = 'row-ft-sumif';
       } else if (row === OPTIONS_SP2_SUM_ROW && SP2_SUM_COL_SET.has(col)) {
         kind = 'sum';
       } else if (SP2_BLANK_COL_SET.has(col)) {
@@ -733,29 +771,43 @@ function parseSp2Num(raw) {
   return Number.isFinite(n) ? n : null;
 }
 
-/**
- * SOMME.SI(F19:F49,"O",$C$19:$C$49) per column — criteria col varies, sum col C fixed.
- */
-function computeSp2Row16Sumifs(cellsObj) {
+function isSp2SumifDataRow(row) {
+  if (row === OPTIONS_SP2_OPTION_WHITE_ROW) return false;
+  return row >= OPTIONS_SP2_SUMIF_START_ROW && row <= OPTIONS_SP2_SUMIF_END_ROW;
+}
+
+/** One SUMIF output row: SOMME.SI(col19:col47,"O",sumCol19:sumCol47). */
+function computeSp2FtSumifRow(cellsObj, sumCol) {
   const out = {};
-  for (const col of SP2_ROW16_SUMIF_COL_SET) {
+  for (const col of SP2_SUMIF_COLS) {
     let sum = 0;
-    let any = false;
-    for (let row = OPTIONS_SP2_ROW16_SUMIF_START_ROW; row <= OPTIONS_SP2_ROW16_SUMIF_END_ROW; row++) {
+    for (let row = OPTIONS_SP2_SUMIF_START_ROW; row <= OPTIONS_SP2_SUMIF_END_ROW; row++) {
+      if (!isSp2SumifDataRow(row)) continue;
       const choice = String(cellsObj[`${row}:${col}`] ?? '').trim().toUpperCase();
       if (choice !== OPTIONS_SP2_ROW16_SUMIF_CRITERIA) continue;
-      const n = parseSp2Num(cellsObj[`${row}:${OPTIONS_SP2_ROW16_SUMIF_SUM_COL}`]);
-      if (n == null) continue;
-      sum += n;
-      any = true;
+      const n = parseSp2Num(cellsObj[`${row}:${sumCol}`]);
+      if (n != null) sum += n;
     }
-    out[col] = any ? sum.toFixed(2) : '';
+    out[col] = sum.toFixed(2);
   }
   return out;
 }
 
-function computeSp2Row15Sums(cellsObj, row16Sumifs) {
-  const r16 = row16Sumifs || computeSp2Row16Sumifs(cellsObj);
+function computeSp2FtSumifRows(cellsObj) {
+  const out = {};
+  for (const { row, sumCol } of OPTIONS_SP2_FT_SUMIF_ROWS) {
+    out[row] = computeSp2FtSumifRow(cellsObj, sumCol);
+  }
+  return out;
+}
+
+function computeSp2Row16Sumifs(cellsObj) {
+  return computeSp2FtSumifRow(cellsObj, 'C');
+}
+
+function computeSp2Row15Sums(cellsObj, ftSumifs) {
+  const all = ftSumifs || computeSp2FtSumifRows(cellsObj);
+  const r16 = all[OPTIONS_SP2_ROW16_SUMIF_ROW] || computeSp2Row16Sumifs(cellsObj);
   const out = {};
   for (const col of SP2_SUM_COL_SET) {
     const a = parseSp2Num(r16[col]);
@@ -766,17 +818,22 @@ function computeSp2Row15Sums(cellsObj, row16Sumifs) {
   return out;
 }
 
+function affectsSp2FtSumif(row, col) {
+  if (!isSp2SumifDataRow(row)) return false;
+  return OPTIONS_SP2_FT_SUMIF_SUM_COLS.has(col) || SP2_SUMIF_COL_SET.has(col);
+}
+
 function affectsSp2Row16Sumif(row, col) {
-  if (row < OPTIONS_SP2_ROW16_SUMIF_START_ROW || row > OPTIONS_SP2_ROW16_SUMIF_END_ROW) {
-    return false;
-  }
-  return (
-    col === OPTIONS_SP2_ROW16_SUMIF_SUM_COL || SP2_ROW16_SUMIF_COL_SET.has(col)
-  );
+  return affectsSp2FtSumif(row, col);
+}
+
+function isSp2FtSumifCell(row, col) {
+  if (!SP2_SUMIF_COL_SET.has(col)) return false;
+  return OPTIONS_SP2_FT_SUMIF_ROWS.some((e) => e.row === row);
 }
 
 function isSp2Row16SumifCell(row, col) {
-  return row === OPTIONS_SP2_ROW16_SUMIF_ROW && SP2_ROW16_SUMIF_COL_SET.has(col);
+  return isSp2FtSumifCell(row, col);
 }
 
 function fieldsForKey(storageKey) {
@@ -810,14 +867,7 @@ function buildSeedCells(storageKey) {
         cells[`${row}:${col}`] = OPTIONS_SP2_EQUIPMENT_FT_VALUE;
       }
     });
-    // Numeric block → columns F–T, rows 17–18 (row 16 = live SUMIF, row 15 = row16+53).
-    OPTIONS_SP2_FT_16_18.forEach((rowVals, i) => {
-      const row = OPTIONS_SP2_FT_16_18_START_ROW + i;
-      if (row === OPTIONS_SP2_ROW16_SUMIF_ROW) return;
-      rowVals.forEach((v, j) => {
-        if (v !== '') cells[`${row}:${OPTIONS_SP2_FT_COLS[j]}`] = v;
-      });
-    });
+    // Rows 16–18 F…T = live SUMIF (C / D / E); no static seed on F…T.
     // Synthesis AC…AN header table → columns V–AG, rows 1–12.
     OPTIONS_SP2_VAG.forEach((rowVals, i) => {
       const row = i + 1;
@@ -825,13 +875,7 @@ function buildSeedCells(storageKey) {
         if (v !== '') cells[`${row}:${OPTIONS_SP2_VAG_COLS[j]}`] = v;
       });
     });
-    // Numeric block → columns V–AG, rows 17–18 (row 16 = live SUMIF).
-    OPTIONS_SP2_VAG_16_18.forEach((rowVals, i) => {
-      const row = OPTIONS_SP2_FT_16_18_START_ROW + 1 + i;
-      rowVals.forEach((v, j) => {
-        if (v !== '') cells[`${row}:${OPTIONS_SP2_VAG_COLS[j]}`] = v;
-      });
-    });
+    // Rows 16–18 V…AG = live SUMIF (FRONT D + BACK E → row 16); no static seed.
     // Options picker — columns V–AG, rows 19–47 (green / white bands).
     OPTIONS_SP2_VAG_OPTIONS.forEach((rowVals, i) => {
       const row = OPTIONS_SP2_FT_OPTION_START_ROW + i;
@@ -920,7 +964,7 @@ export default {
       syncAxisFromCell(row, col);
     }
 
-    const row16Sumifs = ref({});
+    const ftSumifRows = ref({});
     const row15Sums = ref({});
 
     // The Options SP2 page reuses this grid but brands column A (rows 1–12)
@@ -1013,15 +1057,25 @@ export default {
 
     function recomputeSp2DerivedSums() {
       if (!isOptionsSp2.value) return;
-      const r16 = computeSp2Row16Sumifs(cells.value);
-      row16Sumifs.value = r16;
-      row15Sums.value = computeSp2Row15Sums(cells.value, r16);
+      const sums = computeSp2FtSumifRows(cells.value);
+      ftSumifRows.value = sums;
+      row15Sums.value = computeSp2Row15Sums(cells.value, sums);
       touchCells();
     }
 
+    function rowFtSumifValue(row, col) {
+      const byRow = ftSumifRows.value[row];
+      return (byRow && byRow[col]) || '';
+    }
+
+    function rowFtSumifTitle(row) {
+      const entry = OPTIONS_SP2_FT_SUMIF_ROWS.find((e) => e.row === row);
+      const sumCol = entry ? entry.sumCol : 'C';
+      return `SOMME.SI F…AG : somme colonne ${sumCol} (l.19–49) si cette colonne = O`;
+    }
+
     function row16SumifValue(col) {
-      const map = row16Sumifs.value;
-      return (map && map[col]) || '';
+      return rowFtSumifValue(OPTIONS_SP2_ROW16_SUMIF_ROW, col);
     }
 
     /** Row 15 = row 16 + row 53 (F–T columns only), read-only. */
@@ -1062,7 +1116,7 @@ export default {
       if (!changed) return;
       schedulePersist();
       if (
-        affectsSp2Row16Sumif(row, col) ||
+        affectsSp2FtSumif(row, col) ||
         (row === OPTIONS_SP2_SUM_SRC_ROWS[1] && SP2_SUM_COL_SET.has(col))
       ) {
         recomputeSp2DerivedSums();
@@ -1093,7 +1147,7 @@ export default {
       else cells.value[key] = next;
       syncSp2OptionButton(event.currentTarget, row, col);
       schedulePersist();
-      if (affectsSp2Row16Sumif(row, col)) {
+      if (affectsSp2FtSumif(row, col)) {
         recomputeSp2DerivedSums();
       }
     }
@@ -1133,13 +1187,51 @@ export default {
       return MNS_RED_LABELS[`${row}:${col}`] || null;
     }
 
-    // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E).
+    // Blue spot cells (row 15, columns H–I) with centred labels.
+    function isMnsBlueCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return Object.prototype.hasOwnProperty.call(MNS_BLUE_LABELS, `${row}:${col}`);
+    }
+
+    function mnsBlueLabel(row, col) {
+      if (isOptionsSp2.value) return null;
+      return MNS_BLUE_LABELS[`${row}:${col}`] || null;
+    }
+
+    // Curb-mass mini table (G–I, rows 17–21) — bold black grid.
+    function isMnsHiTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return MNS_HI_TABLE_ROWS.includes(row) && MNS_HI_TABLE_COLS.includes(col);
+    }
+
+    function mnsHiTableLabel(row, col) {
+      if (isOptionsSp2.value) return null;
+      return MNS_HI_TABLE_LABELS[`${row}:${col}`] || null;
+    }
+
+    // Green variant headers (row 15, columns K–N).
+    function isMnsLimeCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return Object.prototype.hasOwnProperty.call(MNS_LIME_LABELS, `${row}:${col}`);
+    }
+
+    function mnsLimeLabel(row, col) {
+      if (isOptionsSp2.value) return null;
+      return MNS_LIME_LABELS[`${row}:${col}`] || null;
+    }
+
+    // Curb-mass mini table (K–N, rows 18–21) — bold black grid.
+    function isMnsKnTableCell(row, col) {
+      if (isOptionsSp2.value) return false;
+      return MNS_KN_TABLE_ROWS.includes(row) && MNS_KN_TABLE_COLS.includes(col);
+    }
+
+    // MNS page: dark-green paint bands (rows 23, 24, 42, columns A–E; G on 24 & 42).
     function isMnsGreenCell(row, col) {
-      return (
-        !isOptionsSp2.value &&
-        MNS_GREEN_ROWS.includes(row) &&
-        MNS_GREEN_COLS.includes(col)
-      );
+      if (isOptionsSp2.value) return false;
+      if (!MNS_GREEN_ROWS.includes(row)) return false;
+      if (MNS_GREEN_COLS.includes(col)) return true;
+      return col === 'G' && (row === 24 || row === 42);
     }
 
     // White label sitting on a green band (English): { text, align }.
@@ -1416,9 +1508,10 @@ export default {
       if (String(storageKey || '').includes('options-sp2')) {
         for (const key of Object.keys(merged)) {
           if (key.startsWith(`${OPTIONS_SP2_SUM_ROW}:`)) delete merged[key];
-          if (key.startsWith(`${OPTIONS_SP2_ROW16_SUMIF_ROW}:`)) {
+          for (const { row } of OPTIONS_SP2_FT_SUMIF_ROWS) {
+            if (!key.startsWith(`${row}:`)) continue;
             const col = key.split(':')[1];
-            if (SP2_ROW16_SUMIF_COL_SET.has(col)) delete merged[key];
+            if (SP2_SUMIF_COL_SET.has(col)) delete merged[key];
           }
         }
       }
@@ -1514,7 +1607,9 @@ export default {
       onSp2CellInput,
       bindSp2Option,
       cycleSp2Option,
-      row16Sumifs,
+      ftSumifRows,
+      rowFtSumifValue,
+      rowFtSumifTitle,
       row16SumifValue,
       row15Sums,
       isBrandCell,
@@ -1522,6 +1617,13 @@ export default {
       isMnsLabelCell,
       isMnsRedCell,
       mnsRedLabel,
+      isMnsBlueCell,
+      mnsBlueLabel,
+      isMnsHiTableCell,
+      mnsHiTableLabel,
+      isMnsLimeCell,
+      mnsLimeLabel,
+      isMnsKnTableCell,
       isMnsGreenCell,
       mnsGreenLabel,
       isMnsYellowCell,
@@ -1627,11 +1729,11 @@ export default {
                   @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ curbLinkedValue(col) }}</span>
                 <span
-                  v-else-if="sp2Render(row, col).kind === 'row16-sumif'"
+                  v-else-if="sp2Render(row, col).kind === 'row-ft-sumif'"
                   class="sp2-row16-sumif"
-                  title="SOMME.SI : somme colonne C (l.19–49) si cette colonne = O"
+                  :title="rowFtSumifTitle(row)"
                   @mousedown="onCellAxisSelect(row, col, $event)"
-                >{{ row16SumifValue(col) }}</span>
+                >{{ rowFtSumifValue(row, col) }}</span>
                 <span
                   v-else-if="sp2Render(row, col).kind === 'sum'"
                   class="sp2-row15-sum"
@@ -1700,6 +1802,10 @@ export default {
                   'mns-paint-cell': isMnsPaintCell(row, col),
                   'mns-e-label': isMnsLabelCell(row, col),
                   'mns-red-cell': isMnsRedCell(row, col),
+                  'mns-blue-cell': isMnsBlueCell(row, col),
+                  'mns-lime-cell': isMnsLimeCell(row, col),
+                  'mns-hi-table-cell': isMnsHiTableCell(row, col),
+                  'mns-kn-table-cell': isMnsKnTableCell(row, col),
                   'mns-green-cell': isMnsGreenCell(row, col),
                   'mns-yellow-cell': isMnsYellowCell(row, col),
                   'mns-beige-cell': isMnsBeigeCell(row, col),
@@ -1730,6 +1836,21 @@ export default {
                   class="mns-red-label"
                   @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ mnsRedLabel(row, col) }}</span>
+                <span
+                  v-else-if="mnsBlueLabel(row, col)"
+                  class="mns-blue-label"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ mnsBlueLabel(row, col) }}</span>
+                <span
+                  v-else-if="mnsLimeLabel(row, col)"
+                  class="mns-lime-label"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ mnsLimeLabel(row, col) }}</span>
+                <span
+                  v-else-if="mnsHiTableLabel(row, col)"
+                  class="mns-hi-table-label"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
+                >{{ mnsHiTableLabel(row, col) }}</span>
                 <span
                   v-else-if="mnsGreenLabel(row, col)"
                   class="mns-green-label"

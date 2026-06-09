@@ -4214,6 +4214,82 @@
   max-width: 72px;
 }
 
+/* MNS — narrow spacer column F (gap between the A–E block and columns G+). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='F'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='F'] {
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  padding: 0;
+}
+
+/* MNS — narrow spacer column J (gap between the G–I block and columns K+). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='J'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='J'] {
+  width: 24px;
+  min-width: 24px;
+  max-width: 24px;
+  padding: 0;
+}
+
+/* MNS — curb-mass variant columns H–I & K–N (slightly narrower than default 200px). */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='H'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='H'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='I'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='I'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='K'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='K'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='L'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='L'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='M'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='M'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  td.data-cell[data-col='N'],
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  thead
+  th.col-letter[data-col='N'] {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+}
+
 /* MNS — front coeff column (D) yellow; rear TD/MB columns (D, E) beige.
    Inputs go transparent so the cell colour shows; table gridlines are kept. */
 .bd-grid-root.mns-grid:not(.options-sp2-grid)
@@ -4313,6 +4389,94 @@
   font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
+}
+
+/* MNS — blue spot cells (row 15, columns H–I). Seamless #00b0f0 fill, centred label. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-blue-cell {
+  background: #00b0f0;
+  border-color: #00b0f0;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-blue-cell
+  .grid-cell-input {
+  background: transparent;
+  color: #000;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-blue-cell
+  .mns-blue-label {
+  display: block;
+  text-align: center;
+  color: #000;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* MNS — green variant headers (row 15, columns K–N). Seamless #00b050 fill. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-lime-cell {
+  background: #00b050;
+  border-color: #00b050;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-lime-cell
+  .grid-cell-input {
+  background: transparent;
+  color: #000;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-lime-cell
+  .mns-lime-label {
+  display: block;
+  text-align: center;
+  color: #000;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* MNS — curb-mass mini tables (G–I rows 17–21; K–N rows 18–21), bold black grid. */
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-hi-table-cell,
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-kn-table-cell {
+  border: 3px solid #000 !important;
+}
+.bd-grid-root.mns-grid:not(.options-sp2-grid)
+  .bd-table
+  tbody
+  td.data-cell.mns-hi-table-cell
+  .mns-hi-table-label {
+  display: block;
+  text-align: left;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  padding: 0 4px;
 }
 
 /* MNS — dark-green paint bands (rows 23–24, 42, columns A–E). Seamless fill
