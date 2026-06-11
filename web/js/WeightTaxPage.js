@@ -55,6 +55,9 @@ const BEV_CELL_DEFAULTS = {
   H: '600 kg',
 };
 
+/** Valeurs par défaut G/H pour E → F → S sur BEV, MHEV et HEV. */
+const WT_VEHICLE_ROW_DEFAULTS = BEV_CELL_DEFAULTS;
+
 /** Colonnes de données grisées (#a6a6a6) à partir de la ligne 4. */
 const WT_GRAY_DATA_COLS = new Set(['E', 'F', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S']);
 
@@ -71,6 +74,28 @@ function parseMassKg(raw) {
   if (s === '') return null;
   const n = parseFloat(s);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Colonnes € additionnées dans T (Weight Tax). */
+const WEIGHT_TAX_EURO_SUM_COLS = ['J', 'L', 'N', 'P', 'R'];
+
+function parseEuro(raw) {
+  if (raw == null) return null;
+  const s = String(raw)
+    .trim()
+    .replace(/€/g, '')
+    .replace(/\s/g, '')
+    .replace(',', '.');
+  if (s === '') return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatEuro(n) {
+  if (n == null || !Number.isFinite(n)) return '';
+  const rounded = Math.round(n * 100) / 100;
+  const text = Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  return `${text} €`;
 }
 
 function formatMassKg(n) {
@@ -281,8 +306,12 @@ export default {
     function ensureVehicleData(variant, cdcRow) {
       const key = vehicleRowKey(cdcRow);
       if (!cellData[variant][key]) {
-        const defaults = variant === 'bev' ? BEV_CELL_DEFAULTS : {};
-        cellData[variant][key] = createEmptyRowCols(defaults);
+        cellData[variant][key] = createEmptyRowCols(WT_VEHICLE_ROW_DEFAULTS);
+      } else {
+        const row = cellData[variant][key];
+        for (const [col, val] of Object.entries(WT_VEHICLE_ROW_DEFAULTS)) {
+          if (row[col] == null || String(row[col]).trim() === '') row[col] = val;
+        }
       }
       if (launchYears[variant][key] == null) {
         launchYears[variant][key] = DEFAULT_LAUNCH_YEAR;
@@ -331,6 +360,49 @@ export default {
       const key = vehicleRowKey(cdcRow);
       const g = cellData[props.variant][key]?.G || '—';
       return `F (${f}) − G (${g}) — mis à jour automatiquement`;
+    }
+
+    function rowCellEuro(cdcRow, col) {
+      const key = vehicleRowKey(cdcRow);
+      const row = cellData[props.variant][key];
+      if (!row) return null;
+      return parseEuro(row[col]);
+    }
+
+    /** Colonne T = J + L + N + P + R (Weight Tax €). */
+    function weightTaxTotalForRow(cdcRow) {
+      const key = vehicleRowKey(cdcRow);
+      if (!cellData[props.variant][key]) return formatEuro(0);
+      let sum = 0;
+      for (const col of WEIGHT_TAX_EURO_SUM_COLS) {
+        sum += rowCellEuro(cdcRow, col) ?? 0;
+      }
+      return formatEuro(sum);
+    }
+
+    function weightTaxTotalTitle(cdcRow) {
+      const key = vehicleRowKey(cdcRow);
+      const row = cellData[props.variant][key];
+      if (!row) return 'J + L + N + P + R';
+      const parts = WEIGHT_TAX_EURO_SUM_COLS.map((col) => `${col} (${row[col] || '0'})`);
+      return `${parts.join(' + ')} — mis à jour automatiquement`;
+    }
+
+    /** Colonne U — CO2 Malus (€), fixée à 0 pour l'instant. */
+    function co2MalusForRow() {
+      return formatEuro(0);
+    }
+
+    /** Colonne V = T + U (Mass + CO2 Malus €). */
+    function massCo2MalusTotalForRow(cdcRow) {
+      const t = parseEuro(weightTaxTotalForRow(cdcRow)) ?? 0;
+      return formatEuro(t);
+    }
+
+    function massCo2MalusTotalTitle(cdcRow) {
+      const t = weightTaxTotalForRow(cdcRow) || '0 €';
+      const u = co2MalusForRow();
+      return `T (${t}) + U (${u}) — mis à jour automatiquement`;
     }
 
     function applyPersistedState(saved) {
@@ -661,6 +733,9 @@ export default {
     watch(() => props.variant, () => {
       headerEditingCol.value = null;
       vehiclePickerOpen.value = false;
+      for (const vehicle of selectedVehicles[props.variant]) {
+        ensureVehicleData(props.variant, vehicle.cdcRow);
+      }
       requestAnimationFrame(syncChartWidth);
     });
 
@@ -787,6 +862,11 @@ export default {
       massAfterDeductionTitle,
       weightTaxGapForRow,
       weightTaxGapTitle,
+      weightTaxTotalForRow,
+      weightTaxTotalTitle,
+      co2MalusForRow,
+      massCo2MalusTotalForRow,
+      massCo2MalusTotalTitle,
       isGrayDataCol,
     };
   },
@@ -896,6 +976,33 @@ export default {
                   class="wt-computed-linked"
                   :title="weightTaxGapTitle(vehicleAtRow(r).cdcRow)"
                 >{{ weightTaxGapForRow(vehicleAtRow(r).cdcRow) }}</span>
+              </td>
+              <!-- Colonne T : J + L + N + P + R. -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'T'"
+                class="wt-cell wt-cell-computed"
+              >
+                <span
+                  class="wt-computed-linked"
+                  :title="weightTaxTotalTitle(vehicleAtRow(r).cdcRow)"
+                >{{ weightTaxTotalForRow(vehicleAtRow(r).cdcRow) }}</span>
+              </td>
+              <!-- Colonne U : CO2 Malus (0 € pour l'instant). -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'U'"
+                class="wt-cell wt-cell-computed"
+              >
+                <span class="wt-computed-linked" title="CO2 Malus — 0 € (provisoire)">{{ co2MalusForRow() }}</span>
+              </td>
+              <!-- Colonne V : T + U. -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'V'"
+                class="wt-cell wt-cell-computed"
+              >
+                <span
+                  class="wt-computed-linked"
+                  :title="massCo2MalusTotalTitle(vehicleAtRow(r).cdcRow)"
+                >{{ massCo2MalusTotalForRow(vehicleAtRow(r).cdcRow) }}</span>
               </td>
               <!-- Lignes véhicules — cellules éditables (I…R grisées). -->
               <td
