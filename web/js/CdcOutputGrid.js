@@ -2,8 +2,13 @@
  * CDC ▸ Output for CDC — blank editable spreadsheet (A…AY, 200 rows).
  * Column B is intentionally wide; all other columns use the default width.
  */
-import { ref, shallowRef, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, shallowRef, computed, inject, onMounted, onUnmounted, nextTick } from 'vue';
 import { createGridAxisHighlight } from './gridAxisHighlight.js?v=axis2';
+import {
+  CDC_SYN_CURB_BLOCKS,
+  cdcCurbLinkTitle,
+  isCdcCurbLinkedCell,
+} from './cdcCurbLink.js?v=cdc-curb1';
 import {
   ROW_H,
   MAX_RENDERED_ROWS,
@@ -642,6 +647,52 @@ export default {
     const editTick = ref(0);
     let persistTimer = 0;
 
+    const synLink = inject('synthesisCellLink', null);
+
+    function synRow16DisplayDependencies() {
+      if (!synLink) return null;
+      if (synLink.synRevision) void synLink.synRevision.value;
+      if (synLink.synEditTick) void synLink.synEditTick.value;
+      if (synLink.session?.synCalcTick) void synLink.session.synCalcTick.value;
+      if (synLink.session?.displayTick) void synLink.session.displayTick.value;
+      if (synLink.session?.liveBdEdited) void synLink.session.liveBdEdited.value;
+      return synLink.getSynRow16Display;
+    }
+
+    /** Synthesis row 16 → CDC column W, keyed by CDC row number. */
+    const curbMassByRow = computed(() => {
+      try {
+        const getRow16 = synRow16DisplayDependencies();
+        if (typeof getRow16 !== 'function') return {};
+        const out = {};
+        for (const block of CDC_SYN_CURB_BLOCKS) {
+          const cols = block.getSynCols();
+          for (let row = block.from; row <= block.to; row += 1) {
+            const idx = row - block.from;
+            if (idx >= cols.length) continue;
+            const synExcelCol = cols[idx];
+            const shown = getRow16(synExcelCol);
+            if (shown != null && String(shown).trim() !== '') {
+              out[row] = String(shown);
+            }
+          }
+        }
+        return out;
+      } catch (e) {
+        console.warn('CDC curb-mass link:', e);
+        return {};
+      }
+    });
+
+    function curbLinkedValue(row) {
+      const map = curbMassByRow.value;
+      return (map && map[row]) || '';
+    }
+
+    function isCurbLinkedCell(row, col) {
+      return isCdcCurbLinkedCell(row, col);
+    }
+
     const {
       axisRow,
       axisCol,
@@ -768,6 +819,7 @@ export default {
 
     function cellValue(row, col) {
       void editTick.value;
+      if (isCurbLinkedCell(row, col)) return curbLinkedValue(row);
       const stored = cells.value[cellKey(row, col)];
       if (stored !== undefined) return stored;
       if (isBConcatCell(row, col)) return concatBValue(row);
@@ -796,6 +848,10 @@ export default {
 
     function startEdit(row, col, event) {
       if (isBConcatCell(row, col)) {
+        onCellAxisSelect(row, col, event);
+        return;
+      }
+      if (isCurbLinkedCell(row, col)) {
         onCellAxisSelect(row, col, event);
         return;
       }
@@ -864,6 +920,10 @@ export default {
     onMounted(() => {
       const stored = loadStoredCells();
       if (stored) cells.value = stored;
+      if (synLink) {
+        if (typeof synLink.ensureSynGrid === 'function') void synLink.ensureSynGrid();
+        else if (typeof synLink.ensureSyn === 'function') void synLink.ensureSyn();
+      }
       measureViewport();
       scrollSync.flush();
       if (typeof window !== 'undefined') {
@@ -919,6 +979,9 @@ export default {
       columnTintClass,
       rowTextClass,
       hybridOptions: HYBRID_OPTIONS,
+      isCurbLinkedCell,
+      curbLinkedValue,
+      cdcCurbLinkTitle,
     };
   },
   template: `
@@ -974,7 +1037,7 @@ export default {
             <tr
               v-for="row in visibleRows"
               :key="'cdc-row-' + row"
-              v-memo="[row, editTick, activeKey, axisRow, axisCol, ovGroupCollapsed]"
+              v-memo="[row, editTick, activeKey, axisRow, axisCol, ovGroupCollapsed, curbMassByRow]"
               class="grid-row-cv"
               :class="[rowTextClass(row), { 'grid-axis-row-focus': isAxisRow(row), 'cdc-row1': row === 1 }]"
             >
@@ -1004,6 +1067,12 @@ export default {
                   v-else-if="isHybridSelectCell(row, col)"
                   class="cdc-cell-text cdc-hyb-cycle"
                   @mousedown="cycleHybrid(row, col, $event)"
+                >{{ cellValue(row, col) }}</span>
+                <span
+                  v-else-if="isCurbLinkedCell(row, col)"
+                  class="cdc-cell-text cdc-curb-linked"
+                  :title="cdcCurbLinkTitle(row)"
+                  @mousedown="onCellAxisSelect(row, col, $event)"
                 >{{ cellValue(row, col) }}</span>
                 <input
                   v-else-if="isEditing(row, col)"

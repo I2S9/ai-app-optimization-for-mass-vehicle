@@ -17,9 +17,9 @@ import { createEditHistory } from './editHistory.js?v=undo4';
 import AppSidebar from './AppSidebar.js?v=syn-perf32';
 import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MnsGrid from './MnsGrid.js?v=sp2-col-a-meta1';
-import CdcOutputGrid from './CdcOutputGrid.js?v=cdc-wt-link1';
+import CdcOutputGrid from './CdcOutputGrid.js?v=cdc-curb1';
 import WaterlinePage from './WaterlinePage.js?v=waterline14';
-import WeightTaxPage from './WeightTaxPage.js?v=weighttax29';
+import WeightTaxPage from './WeightTaxPage.js?v=weighttax30';
 import { resolveSynRow16DisplayFromRaw } from './sp2CurbLink.js?v=5';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
@@ -182,25 +182,10 @@ const App = {
     const isCdcOutput = computed(() => route.value === 'cdc-output');
     const isWaterline = computed(() => route.value === 'waterline');
     const isWeightTax = computed(() => route.value === 'weight-tax');
-    const WEIGHT_TAX_VARIANT_KEY = 'weight-tax-variant-v1';
-    function loadWeightTaxVariant() {
-      if (typeof localStorage === 'undefined') return 'bev';
-      try {
-        const v = localStorage.getItem(WEIGHT_TAX_VARIANT_KEY);
-        return ['bev', 'mhev', 'hev'].includes(v) ? v : 'bev';
-      } catch {
-        return 'bev';
-      }
+    const weightTaxVariant = ref('bev');
+    function onWeightTaxVariantLoaded(v) {
+      if (['bev', 'mhev', 'hev'].includes(v)) weightTaxVariant.value = v;
     }
-    const weightTaxVariant = ref(loadWeightTaxVariant());
-    watch(weightTaxVariant, (v) => {
-      if (typeof localStorage === 'undefined') return;
-      try {
-        localStorage.setItem(WEIGHT_TAX_VARIANT_KEY, v);
-      } catch {
-        /* ignore */
-      }
-    });
     const weightTaxVariants = [
       { id: 'bev', label: 'BEV' },
       { id: 'mhev', label: 'MHEV' },
@@ -2329,6 +2314,7 @@ const App = {
       isWeightTax,
       weightTaxVariant,
       weightTaxVariants,
+      onWeightTaxVariantLoaded,
       isGridPage,
       sessionLoading,
       showLegacyTopbarActions,
@@ -2651,7 +2637,12 @@ const App = {
             <WaterlinePage v-if="isWaterline" key="waterline-page" />
           </div>
           <div v-show="isWeightTax" class="grid-route-pane">
-            <WeightTaxPage v-if="isWeightTax" :variant="weightTaxVariant" key="weight-tax-page" />
+            <WeightTaxPage
+              v-if="isWeightTax"
+              :variant="weightTaxVariant"
+              key="weight-tax-page"
+              @loaded-variant="onWeightTaxVariantLoaded"
+            />
           </div>
           <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>

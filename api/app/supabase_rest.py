@@ -333,3 +333,84 @@ def ingest_sheet(
         if progress:
             progress(count)
     return count
+
+
+def fetch_module_state(project_id: str, module_key: str) -> dict[str, Any] | None:
+    with _client() as c:
+        r = c.get(
+            "/module_state",
+            params={
+                "project_id": f"eq.{project_id}",
+                "module_key": f"eq.{module_key}",
+                "select": "revision,state_json,updated_at,updated_by",
+                "limit": 1,
+            },
+        )
+        _raise(r)
+        rows = r.json()
+        if not rows:
+            return None
+        row = rows[0]
+        state = row.get("state_json")
+        if isinstance(state, str):
+            state = json.loads(state)
+        return {
+            "project_id": project_id,
+            "module_key": module_key,
+            "revision": int(row.get("revision") or 0),
+            "state": dict(state) if state else {},
+            "updated_at": row.get("updated_at"),
+            "updated_by": row.get("updated_by"),
+        }
+
+
+def upsert_module_state(
+    project_id: str,
+    module_key: str,
+    revision: int,
+    state: dict[str, Any],
+    updated_by: str = "web",
+) -> dict[str, Any]:
+    with _client() as c:
+        r = c.get(
+            "/module_state",
+            params={
+                "project_id": f"eq.{project_id}",
+                "module_key": f"eq.{module_key}",
+                "select": "revision",
+                "limit": 1,
+            },
+        )
+        _raise(r)
+        existing = r.json()
+        if existing and int(existing[0].get("revision") or 0) > revision:
+            return {
+                "project_id": project_id,
+                "module_key": module_key,
+                "revision": int(existing[0]["revision"]),
+                "ok": False,
+                "conflict": True,
+            }
+
+        payload = {
+            "project_id": project_id,
+            "module_key": module_key,
+            "revision": revision,
+            "state_json": state,
+            "updated_by": updated_by,
+        }
+        r2 = c.post(
+            "/module_state",
+            headers={**_HEADERS_EXTRA, "Prefer": "resolution=merge-duplicates,return=representation"},
+            json=payload,
+        )
+        _raise(r2)
+        rows = r2.json()
+        saved_rev = int(rows[0].get("revision") or revision) if rows else revision
+
+    return {
+        "project_id": project_id,
+        "module_key": module_key,
+        "revision": saved_rev,
+        "ok": True,
+    }

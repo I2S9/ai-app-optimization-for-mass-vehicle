@@ -10,6 +10,7 @@ Les calculs **temps réel** restent dans le navigateur (`WorkbookSession`) — S
 
 1. [supabase.com](https://supabase.com) → New project  
 2. SQL Editor → coller et exécuter **`api/sql/supabase_001_schema.sql`**
+3. SQL Editor → coller et exécuter **`api/sql/supabase_004_module_state.sql`** (Weight Tax, Waterline, …)
 
 ---
 

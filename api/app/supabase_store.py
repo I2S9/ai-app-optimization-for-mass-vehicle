@@ -207,3 +207,83 @@ def ingest_connection() -> Iterator[Any]:
         raise
     finally:
         conn.close()
+
+
+def fetch_module_state(project_id: str, module_key: str) -> dict[str, Any] | None:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT revision, state_json, updated_at, updated_by
+                FROM public.module_state
+                WHERE project_id = %s AND module_key = %s
+                """,
+                (project_id, module_key),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            revision, state_json, updated_at, updated_by = row
+            state = state_json
+            if isinstance(state, str):
+                state = json.loads(state)
+            return {
+                "project_id": project_id,
+                "module_key": module_key,
+                "revision": int(revision or 0),
+                "state": dict(state) if state else {},
+                "updated_at": updated_at.isoformat() if updated_at else None,
+                "updated_by": updated_by,
+            }
+
+
+def upsert_module_state(
+    project_id: str,
+    module_key: str,
+    revision: int,
+    state: dict[str, Any],
+    updated_by: str = "web",
+) -> dict[str, Any]:
+    with pg_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT revision FROM public.module_state
+                WHERE project_id = %s AND module_key = %s
+                """,
+                (project_id, module_key),
+            )
+            existing = cur.fetchone()
+            if existing and int(existing[0] or 0) > revision:
+                return {
+                    "project_id": project_id,
+                    "module_key": module_key,
+                    "revision": int(existing[0]),
+                    "ok": False,
+                    "conflict": True,
+                }
+
+            cur.execute(
+                """
+                INSERT INTO public.module_state (
+                  project_id, module_key, revision, state_json, updated_at, updated_by
+                ) VALUES (%s, %s, %s, %s, now(), %s)
+                ON CONFLICT (project_id, module_key) DO UPDATE SET
+                  revision = EXCLUDED.revision,
+                  state_json = EXCLUDED.state_json,
+                  updated_at = now(),
+                  updated_by = EXCLUDED.updated_by
+                WHERE public.module_state.revision <= EXCLUDED.revision
+                RETURNING revision
+                """,
+                (project_id, module_key, revision, json.dumps(state), updated_by),
+            )
+            saved = cur.fetchone()
+
+    saved_rev = int(saved[0]) if saved else revision
+    return {
+        "project_id": project_id,
+        "module_key": module_key,
+        "revision": saved_rev,
+        "ok": True,
+    }

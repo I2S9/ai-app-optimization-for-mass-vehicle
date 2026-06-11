@@ -279,6 +279,45 @@ def put_session(project_id: str, body: SessionPutBody):
         raise HTTPException(503, str(exc)) from exc
 
 
+class ModuleStatePutBody(BaseModel):
+    revision: int = 0
+    state: dict[str, Any] = {}
+    updated_by: str = "web"
+
+
+@app.get("/api/v1/modules/{module_key}")
+def get_module_state(module_key: str, project_id: str = DEFAULT_PROJECT):
+    store = _require_remote() if settings.remote_only else _remote_store()
+    if not store or not hasattr(store, "fetch_module_state"):
+        raise HTTPException(501, "Module state API requires Supabase")
+    try:
+        row = store.fetch_module_state(project_id, module_key)
+        if not row:
+            raise HTTPException(404, f"No state for module '{module_key}'")
+        return row
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@app.put("/api/v1/modules/{module_key}")
+def put_module_state(module_key: str, body: ModuleStatePutBody, project_id: str = DEFAULT_PROJECT):
+    store = _require_remote() if settings.remote_only else _remote_store()
+    if not store or not hasattr(store, "upsert_module_state"):
+        raise HTTPException(501, "Module state API requires Supabase")
+    try:
+        return store.upsert_module_state(
+            project_id,
+            module_key,
+            body.revision,
+            body.state or {},
+            body.updated_by,
+        )
+    except Exception as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
 # Code/données servis sans cache navigateur. Sans cela, Starlette n'envoie qu'un
 # ETag/Last-Modified et Edge ressert un module ES périmé sous la même URL
 # `?v=...` (ex: navConfig.js d'avant l'ajout de NAV_ROUTES) → "does not provide

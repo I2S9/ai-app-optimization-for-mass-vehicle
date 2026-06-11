@@ -138,6 +138,61 @@ async function supabaseUpsertSession(projectId, payload) {
   return { project_id: projectId, revision, structureRevision: structRev, ok: true };
 }
 
+async function supabaseFetchModuleState(projectId, moduleKey) {
+  const url =
+    `${SUPABASE.url}/rest/v1/module_state?project_id=eq.` +
+    `${encodeURIComponent(projectId)}` +
+    `&module_key=eq.${encodeURIComponent(moduleKey)}` +
+    `&select=revision,state_json,updated_at,updated_by&limit=1`;
+  const res = await fetch(url, { headers: supabaseHeaders() });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  const rows = await res.json();
+  if (!rows || !rows.length) return null;
+  const row = rows[0];
+  return {
+    project_id: projectId,
+    module_key: moduleKey,
+    revision: Number(row.revision || 0),
+    state: row.state_json || {},
+    updated_at: row.updated_at,
+    updated_by: row.updated_by,
+  };
+}
+
+async function supabaseUpsertModuleState(projectId, moduleKey, payload) {
+  const revision = Number(payload.revision || 0);
+  const existing = await supabaseFetchModuleState(projectId, moduleKey).catch(() => null);
+  if (existing && existing.revision > revision) {
+    return {
+      project_id: projectId,
+      module_key: moduleKey,
+      revision: existing.revision,
+      ok: false,
+      conflict: true,
+    };
+  }
+  const body = [
+    {
+      project_id: projectId,
+      module_key: moduleKey,
+      revision,
+      state_json: payload.state || {},
+      updated_by: payload.updated_by || 'web',
+    },
+  ];
+  const res = await fetch(`${SUPABASE.url}/rest/v1/module_state`, {
+    method: 'POST',
+    headers: supabaseHeaders({
+      Prefer: 'resolution=merge-duplicates,return=representation',
+    }),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+  const rows = await res.json();
+  const savedRev = rows && rows[0] ? Number(rows[0].revision || revision) : revision;
+  return { project_id: projectId, module_key: moduleKey, revision: savedRev, ok: true };
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -324,6 +379,36 @@ async function handleApi(req, res, urlPath, fullUrl) {
       sendJson(res, { error: e.message }, 500);
     }
     return true;
+  }
+
+  const moduleMatch = urlPath.match(/^\/api\/v1\/modules\/([^/]+)$/);
+  if (moduleMatch && SUPABASE_ENABLED) {
+    const moduleKey = decodeURIComponent(moduleMatch[1]);
+    const q = parseQuery(fullUrl);
+    const projectId = q.projectId || q.project_id || 'default';
+    if (req.method === 'GET') {
+      try {
+        const row = await supabaseFetchModuleState(projectId, moduleKey);
+        if (!row) {
+          sendJson(res, { error: 'Module state not found' }, 404);
+          return true;
+        }
+        sendJson(res, row);
+      } catch (e) {
+        sendJson(res, { error: e.message }, 503);
+      }
+      return true;
+    }
+    if (req.method === 'PUT') {
+      try {
+        const body = await readJsonBody(req);
+        const result = await supabaseUpsertModuleState(projectId, moduleKey, body || {});
+        sendJson(res, result);
+      } catch (e) {
+        sendJson(res, { error: e.message }, 503);
+      }
+      return true;
+    }
   }
 
   const sessionMatch = urlPath.match(/^\/api\/v1\/sessions\/([^/]+)$/);

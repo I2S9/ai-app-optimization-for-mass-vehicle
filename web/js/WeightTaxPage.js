@@ -18,6 +18,13 @@ import {
   loadCdcOutputCells,
   CDC_OUTPUT_STORAGE_KEY,
 } from './CdcOutputGrid.js?v=cdc-wt-link1';
+import {
+  fetchModuleState,
+  saveModuleState,
+  moduleCloudConfig,
+} from './moduleStateApi.js?v=wt-cloud1';
+
+const MODULE_KEY = 'weight-tax';
 
 /** En-têtes de colonnes Excel B → V (21 colonnes). */
 function makeColumns() {
@@ -151,6 +158,7 @@ function createHeaderLabelsFromSaved(savedVariant) {
 
 export default {
   name: 'WeightTaxPage',
+  emits: ['loaded-variant'],
   props: {
     variant: {
       type: String,
@@ -158,36 +166,86 @@ export default {
       validator: (v) => ['bev', 'mhev', 'hev'].includes(v),
     },
   },
-  setup(props) {
+  setup(props, { emit }) {
     const cols = makeColumns();
     const launchYearOptions = makeLaunchYearOptions();
-    const saved = loadPersistedState();
+    const cachedLocal = loadPersistedState();
+    const cloudRevision = ref(0);
+    let cloudProjectId = 'default';
+    let cloudEnabled = false;
+    let saving = false;
+    let pendingSave = false;
 
     const selectedVehicles = reactive({
-      bev: hydrateVehiclesForVariant('bev', saved?.selectedVehicles?.bev ?? []),
-      mhev: hydrateVehiclesForVariant('mhev', saved?.selectedVehicles?.mhev ?? []),
-      hev: hydrateVehiclesForVariant('hev', saved?.selectedVehicles?.hev ?? []),
+      bev: [],
+      mhev: [],
+      hev: [],
     });
     const cellData = reactive({
-      bev: { ...(saved?.cellData?.bev ?? {}) },
-      mhev: { ...(saved?.cellData?.mhev ?? {}) },
-      hev: { ...(saved?.cellData?.hev ?? {}) },
+      bev: {},
+      mhev: {},
+      hev: {},
     });
     const headerLabels = reactive({
-      bev: createHeaderLabelsFromSaved(saved?.headerLabels?.bev),
-      mhev: createHeaderLabelsFromSaved(saved?.headerLabels?.mhev),
-      hev: createHeaderLabelsFromSaved(saved?.headerLabels?.hev),
+      bev: createVariantHeaderLabels(),
+      mhev: createVariantHeaderLabels(),
+      hev: createVariantHeaderLabels(),
     });
     const launchYears = reactive({
-      bev: { ...(saved?.launchYears?.bev ?? {}) },
-      mhev: { ...(saved?.launchYears?.mhev ?? {}) },
-      hev: { ...(saved?.launchYears?.hev ?? {}) },
+      bev: {},
+      mhev: {},
+      hev: {},
     });
     const chartTitles = reactive({
-      bev: saved?.chartTitles?.bev ?? DEFAULT_CHART_TITLE,
-      mhev: saved?.chartTitles?.mhev ?? DEFAULT_CHART_TITLE,
-      hev: saved?.chartTitles?.hev ?? DEFAULT_CHART_TITLE,
+      bev: DEFAULT_CHART_TITLE,
+      mhev: DEFAULT_CHART_TITLE,
+      hev: DEFAULT_CHART_TITLE,
     });
+
+    function vehicleRowKey(cdcRow) {
+      return String(cdcRow);
+    }
+
+    function ensureVehicleData(variant, cdcRow) {
+      const key = vehicleRowKey(cdcRow);
+      if (!cellData[variant][key]) {
+        const defaults = variant === 'bev' ? BEV_CELL_DEFAULTS : {};
+        cellData[variant][key] = createEmptyRowCols(defaults);
+      }
+      if (launchYears[variant][key] == null) {
+        launchYears[variant][key] = DEFAULT_LAUNCH_YEAR;
+      }
+    }
+
+    function applyPersistedState(saved) {
+      if (!saved || typeof saved !== 'object') return;
+      selectedVehicles.bev = hydrateVehiclesForVariant('bev', saved.selectedVehicles?.bev ?? []);
+      selectedVehicles.mhev = hydrateVehiclesForVariant('mhev', saved.selectedVehicles?.mhev ?? []);
+      selectedVehicles.hev = hydrateVehiclesForVariant('hev', saved.selectedVehicles?.hev ?? []);
+      cellData.bev = { ...(saved.cellData?.bev ?? {}) };
+      cellData.mhev = { ...(saved.cellData?.mhev ?? {}) };
+      cellData.hev = { ...(saved.cellData?.hev ?? {}) };
+      headerLabels.bev = createHeaderLabelsFromSaved(saved.headerLabels?.bev);
+      headerLabels.mhev = createHeaderLabelsFromSaved(saved.headerLabels?.mhev);
+      headerLabels.hev = createHeaderLabelsFromSaved(saved.headerLabels?.hev);
+      launchYears.bev = { ...(saved.launchYears?.bev ?? {}) };
+      launchYears.mhev = { ...(saved.launchYears?.mhev ?? {}) };
+      launchYears.hev = { ...(saved.launchYears?.hev ?? {}) };
+      chartTitles.bev = saved.chartTitles?.bev ?? DEFAULT_CHART_TITLE;
+      chartTitles.mhev = saved.chartTitles?.mhev ?? DEFAULT_CHART_TITLE;
+      chartTitles.hev = saved.chartTitles?.hev ?? DEFAULT_CHART_TITLE;
+      for (const variant of ['bev', 'mhev', 'hev']) {
+        for (const vehicle of selectedVehicles[variant]) {
+          ensureVehicleData(variant, vehicle.cdcRow);
+        }
+      }
+      if (['bev', 'mhev', 'hev'].includes(saved.activeVariant)) {
+        emit('loaded-variant', saved.activeVariant);
+      }
+      nextTick(syncChartWidth);
+    }
+
+    if (cachedLocal) applyPersistedState(cachedLocal);
     const chartTitle = computed({
       get: () => chartTitles[props.variant] ?? DEFAULT_CHART_TITLE,
       set: (value) => {
@@ -209,68 +267,115 @@ export default {
       return dataRows.value[r - DATA_ROW_START] ?? null;
     }
 
-    function vehicleRowKey(cdcRow) {
-      return String(cdcRow);
+    function buildStateSnapshot() {
+      return {
+        activeVariant: props.variant,
+        selectedVehicles: {
+          bev: selectedVehicles.bev.map((v) => v.cdcRow),
+          mhev: selectedVehicles.mhev.map((v) => v.cdcRow),
+          hev: selectedVehicles.hev.map((v) => v.cdcRow),
+        },
+        cellData: {
+          bev: cellData.bev,
+          mhev: cellData.mhev,
+          hev: cellData.hev,
+        },
+        launchYears: {
+          bev: launchYears.bev,
+          mhev: launchYears.mhev,
+          hev: launchYears.hev,
+        },
+        headerLabels: {
+          bev: headerLabels.bev,
+          mhev: headerLabels.mhev,
+          hev: headerLabels.hev,
+        },
+        chartTitles: {
+          bev: chartTitles.bev,
+          mhev: chartTitles.mhev,
+          hev: chartTitles.hev,
+        },
+        savedAt: new Date().toISOString(),
+      };
     }
 
-    function ensureVehicleData(variant, cdcRow) {
-      const key = vehicleRowKey(cdcRow);
-      if (!cellData[variant][key]) {
-        const defaults = variant === 'bev' ? BEV_CELL_DEFAULTS : {};
-        cellData[variant][key] = createEmptyRowCols(defaults);
-      }
-      if (launchYears[variant][key] == null) {
-        launchYears[variant][key] = DEFAULT_LAUNCH_YEAR;
-      }
-    }
-
-    for (const variant of ['bev', 'mhev', 'hev']) {
-      for (const vehicle of selectedVehicles[variant]) {
-        ensureVehicleData(variant, vehicle.cdcRow);
-      }
-    }
-
-    function persistState() {
+    function saveLocalCache(snapshot) {
       if (typeof localStorage === 'undefined') return;
       try {
-        localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            selectedVehicles: {
-              bev: selectedVehicles.bev.map((v) => v.cdcRow),
-              mhev: selectedVehicles.mhev.map((v) => v.cdcRow),
-              hev: selectedVehicles.hev.map((v) => v.cdcRow),
-            },
-            cellData: {
-              bev: cellData.bev,
-              mhev: cellData.mhev,
-              hev: cellData.hev,
-            },
-            launchYears: {
-              bev: launchYears.bev,
-              mhev: launchYears.mhev,
-              hev: launchYears.hev,
-            },
-            headerLabels: {
-              bev: headerLabels.bev,
-              mhev: headerLabels.mhev,
-              hev: headerLabels.hev,
-            },
-            chartTitles: {
-              bev: chartTitles.bev,
-              mhev: chartTitles.mhev,
-              hev: chartTitles.hev,
-            },
-          })
-        );
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
       } catch {
         /* quota / private mode */
       }
     }
 
+    async function loadRemoteState() {
+      try {
+        const cfg = await moduleCloudConfig();
+        cloudEnabled = cfg.cloudPersist;
+        cloudProjectId = cfg.projectId;
+        if (!cloudEnabled) return;
+
+        const remote = await fetchModuleState(MODULE_KEY, cloudProjectId);
+        if (!remote || !remote.state || typeof remote.state !== 'object') {
+          if (cachedLocal) {
+            await flushPersistState();
+          }
+          return;
+        }
+
+        cloudRevision.value = Number(remote.revision || 0);
+        const remoteTime = remote.updated_at ? Date.parse(remote.updated_at) : 0;
+        const localTime = cachedLocal?.savedAt ? Date.parse(cachedLocal.savedAt) : 0;
+        if (!cachedLocal || remoteTime >= localTime) {
+          applyPersistedState(remote.state);
+        }
+      } catch (e) {
+        console.warn('[weight-tax] chargement Supabase impossible:', e);
+      }
+    }
+
+    async function flushPersistState() {
+      const snapshot = buildStateSnapshot();
+      saveLocalCache(snapshot);
+
+      if (!cloudEnabled) return;
+      if (saving) {
+        pendingSave = true;
+        return;
+      }
+      saving = true;
+      try {
+        const nextRevision = cloudRevision.value + 1;
+        const res = await saveModuleState(
+          MODULE_KEY,
+          { revision: nextRevision, state: snapshot },
+          cloudProjectId
+        );
+        if (res && res.conflict) {
+          await loadRemoteState();
+          return;
+        }
+        if (res && res.revision != null) {
+          cloudRevision.value = Number(res.revision);
+        } else {
+          cloudRevision.value = nextRevision;
+        }
+      } catch (e) {
+        console.warn('[weight-tax] sauvegarde Supabase impossible:', e);
+      } finally {
+        saving = false;
+        if (pendingSave) {
+          pendingSave = false;
+          void flushPersistState();
+        }
+      }
+    }
+
     function schedulePersist() {
       clearTimeout(persistTimer);
-      persistTimer = setTimeout(persistState, 300);
+      persistTimer = setTimeout(() => {
+        void flushPersistState();
+      }, 300);
     }
 
     function rehydrateSelectedVehiclesFromCdc() {
@@ -392,6 +497,7 @@ export default {
     }
 
     onMounted(() => {
+      void loadRemoteState();
       syncChartWidth();
       const table = tableWrapRef.value?.querySelector('.wt-sheet');
       if (table && typeof ResizeObserver !== 'undefined') {
@@ -417,6 +523,7 @@ export default {
 
     watch(
       () => ({
+        activeVariant: props.variant,
         selectedVehicles: {
           bev: selectedVehicles.bev.map((v) => v.cdcRow),
           mhev: selectedVehicles.mhev.map((v) => v.cdcRow),
