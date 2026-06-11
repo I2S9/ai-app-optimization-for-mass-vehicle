@@ -1,0 +1,240 @@
+/* Waterline — planche fond noir + grands rectangles blancs (2x2). */
+.waterline-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  background: #000;
+  padding: 14px;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+/*
+ * 2 lignes visibles ; colonnes larges = la moitié de la zone visible, donc 4 panneaux
+ * (2x2) à l'écran. Les colonnes suivantes débordent à droite -> ascenseur horizontal.
+ * calc(50% - 7px) : 2 colonnes + 1 gouttière de 14px tiennent exactement dans la largeur.
+ */
+.waterline-grid {
+  display: grid;
+  grid-template-rows: repeat(2, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: calc(50% - 7px);
+  gap: 14px;
+  height: 100%;
+  min-height: 620px;
+  box-sizing: border-box;
+}
+
+.waterline-panel {
+  background: #fff;
+  border: 3px solid #000;
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+}
+
+.waterline-panel.active {
+  box-shadow: 0 0 0 2px #2f6fed inset;
+}
+
+.waterline-panel.dragover {
+  box-shadow: 0 0 0 3px #2f6fed inset;
+}
+
+/* En-tête sur la zone blanche : date WATERLINE à gauche, titre centré, Export à droite. */
+.waterline-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-bottom: 1px solid #e2e2e2;
+  background: #fff;
+}
+
+.waterline-left {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+}
+
+.waterline-right {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+}
+
+.waterline-export-btn {
+  border: 1px solid #000;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.waterline-export-btn:hover {
+  background: #000;
+  color: #fff;
+}
+
+.waterline-title {
+  width: 100%;
+  min-width: 0;
+  /* Espace réservé de chaque côté pour rester centré sans chevaucher date (gauche) / Export (droite). */
+  padding: 0 220px;
+  box-sizing: border-box;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #000;
+  font-weight: 800;
+  font-size: 16px;
+  letter-spacing: 0.4px;
+  text-align: center;
+  text-transform: uppercase;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.waterline-title::placeholder {
+  color: #b8b8b8;
+  font-weight: 700;
+}
+
+.waterline-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.waterline-tag-word {
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #000;
+  white-space: nowrap;
+}
+
+.waterline-select {
+  border: 1px solid #cfcfcf;
+  border-radius: 3px;
+  background: #fff;
+  color: #000;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 1px 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.waterline-select:focus {
+  outline: none;
+  border-color: #2f6fed;
+}
+
+/* Corps : zone image (import / drop / paste). */
+.waterline-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.waterline-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.waterline-img-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.waterline-body:hover .waterline-img-actions {
+  opacity: 1;
+}
+
+.waterline-mini-btn {
+  border: 1px solid #000;
+  background: rgba(255, 255, 255, 0.92);
+  color: #000;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.waterline-mini-btn:hover {
+  background: #000;
+  color: #fff;
+}
+
+.waterline-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% - 28px);
+  height: calc(100% - 28px);
+  margin: 14px;
+  border: 2px dashed #bdbdbd;
+  border-radius: 6px;
+  background: #fafafa;
+  color: #6a6a6a;
+  cursor: pointer;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.waterline-drop:hover {
+  border-color: #2f6fed;
+  color: #2f6fed;
+  background: #f5f8ff;
+}
+
+.waterline-drop-icon {
+  font-size: 34px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.waterline-drop-text {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.waterline-drop-hint {
+  font-size: 11px;
+  color: #9a9a9a;
+}
+
+.waterline-file {
+  display: none;
+}

@@ -12,7 +12,7 @@ import {
 } from './gridScroll.js?v=sp2-scroll-fix1';
 
 const STORAGE_KEY = 'cdc-output-grid-cells-v1';
-const ROW_COUNT = 200;
+const ROW_COUNT = 194;
 const MAX_COL = 'CA';
 
 function numToCol(n) {
@@ -46,9 +46,7 @@ const COL_OV_TO = colToNum('V');
 const ROW5_BAND = 5;
 const ROW121_BAND = 121;
 /** Rows kept fully blank: never receive default text nor colour. */
-const NO_FILL_ROWS = new Set([
-  2, 3, 4, 6, 120, 122, 123, 194, 195, 196, 197, 198, 199, 200,
-]);
+const NO_FILL_ROWS = new Set([2, 3, 4, 6, 120, 122, 123]);
 /** Rows that keep their colour band but receive no default text (except listed labels). */
 const NO_TEXT_ROWS = new Set([ROW5_BAND]);
 /** Text-only labels still shown on blank / no-text rows (nothing else is written). */
@@ -197,6 +195,198 @@ function colDDefault(row) {
   const match = COL_D_RANGES.find(([from, to]) => row >= from && row <= to);
   return match ? match[2] : '';
 }
+/** Column C ("Trim"): per-row commercial labels. */
+const COL_C = 'C';
+const COL_C_VALUES = {
+  7: 'STLA/S - O3H FWD HR (€) Edition',
+  8: 'STLA/S - O3H FWD HR (€) GS',
+  9: 'STLA/S - O3H FWD HR (€) Ultimate',
+  10: 'STLA/S - O3H FWD XR(€) Edition',
+  11: 'STLA/S - O3H FWD XR(€) GS',
+  12: 'STLA/S - O3H FWD XR(€) Ultimate',
+  13: 'STLA/S - O3H AWD XR (€) GS',
+  14: 'STLA/S - O3H AWD XR (€) Ultimate',
+  15: 'STLA/S - O3H AWD XR (€) GSE',
+  16: 'STLA/S - O3H FWD MHEV P2 + (€) Edition',
+  17: 'STLA/S - O3H FWD MHEV P2 + (€) GS',
+  18: 'STLA/S - O3H FWD MHEV P2 + (€) Ultimate',
+  19: 'STLA/S - O3H FWD HEV (€) Edition',
+  20: 'STLA/S - O3H FWD HEV (€) GS',
+  21: 'STLA/S - O3H FWD HEV (€) Ultimate',
+  22: 'STLA/S - O3W FWD HR (€) Edition',
+  23: 'STLA/S - O3W FWD HR (€) GS',
+  24: 'STLA/S - O3W FWD HR (€) Ultimate',
+  25: 'STLA/S - O3W FWD XR (€) Edition',
+  26: 'STLA/S - O3W FWD XR (€) GS',
+  27: 'STLA/S - O3W FWD XR (€) Ultimate',
+  28: 'STLA/S - O3W FWD MHEV P2 + (€) Edition',
+  29: 'STLA/S - O3W FWD MHEV P2 + (€) GS',
+  30: 'STLA/S - O3W FWD MHEV P2 + (€) Ultimate',
+  31: 'STLA/S - O3W FWD HEV (€) Edition',
+  32: 'STLA/S - O3W FWD HEV (€) GS',
+  33: 'STLA/S - O3W FWD HEV (€) Ultimate',
+  34: 'STLA/S - P3S-FWD-HR-L2-EPS',
+  35: 'STLA/S-P3S-FWD-HR-L3-EPS',
+  36: 'STLA/S-P3S-FWD-HR-L3-SBW',
+  37: 'STLA/S-P3S-FWD-HR-L4-EPS',
+  38: 'STLA/S-P3S-FWD-HR-L4-SBW',
+  39: 'STLA/S-P3S-FWD-XR-L3-EPS',
+  40: 'STLA/S-P3S-FWD-XR-L4-EPS',
+  41: 'STLA/S-P3S-FWD-XR-L4-SBW',
+  42: 'STLA/S-P3S-FWD-XR-L5-SBW',
+  43: 'STLA/S-P3S-AWD-XR-GTX-SBW',
+  44: 'STLA/S-P3S-FWD-MHEVP2-L2',
+  45: 'STLA/S-P3S-FWD-MHEVP2-L3',
+  46: 'STLA/S-P3S-FWD-MHEVP2-L4',
+  47: 'STLA/S-P3S-FWD-HEV-L2',
+  48: 'STLA/S-P3S-FWD-HEV-L3',
+  49: 'STLA/S-P3S-FWD-HEV-L4',
+  50: 'STLA/S-P3S-FWD-HEV-L5',
+  51: 'STLA/S-P3W-FWD-HR-L2-EPS',
+  52: 'STLA/S-P3W-FWD-HR-L3-EPS',
+  53: 'STLA/S-P3W-FWD-HR-L3-SBW',
+  54: 'STLA/S-P3W-FWD-HR-GT-EPS',
+  55: 'STLA/S-P3W-FWD-HR-GT-SBW',
+  56: 'STLA/S-P3W-FWD-XR-L3-EPS',
+  57: 'STLA/S-P3W-FWD-XR-L3-SBW',
+  58: 'STLA/S-P3W-FWD-XR-GT-SBW',
+  59: 'STLA/S-P3W-FWD-MHEVP2+-L2',
+  60: 'STLA/S-P3W-FWD-MHEVP2+-L3',
+  61: 'STLA/S-P3W-FWD-HEV-L3',
+  62: 'STLA/S-P3W-FWD-HEV-GT',
+  63: 'STLA/S - P3U-FWD-HR-L2-EPS',
+  64: 'STLA/S-P3U-FWD-HR-L3-EPS',
+  65: 'STLA/S-P3U-FWD-HR-L3-SBW',
+  66: 'STLA/S-P3U-FWD-HR-L4-EPS',
+  67: 'STLA/S-P3U-FWD-HR-L4-SBW',
+  68: 'STLA/S-P3U-FWD-XR-L3-EPS',
+  69: 'STLA/S-P3U-FWD-XR-L4-EPS',
+  70: 'STLA/S-P3U-FWD-XR-L4-SBW',
+  71: 'STLA/S-P3U-FWD-XR-L5-SBW',
+  72: 'STLA/S-P3U-AWD-XR-GTX-SBW',
+  73: 'STLA/S-P3U-FWD-MHEVP2-L2',
+  74: 'STLA/S-P3U-FWD-MHEVP2-L3',
+  75: 'STLA/S-P3U-FWD-MHEVP2-L4',
+  76: 'STLA/S-P3U-FWD-HEV-L2',
+  77: 'STLA/S-P3U-FWD-HEV-L3',
+  78: 'STLA/S-P3U-FWD-HEV-L4',
+  79: 'STLA/S-P3U-FWD-HEV-L5',
+  80: 'STLA/S-P3H-FWD-HR-L2-EPS',
+  81: 'STLA/S-P3H-FWD-HR-L3-EPS',
+  82: 'STLA/S-P3H-FWD-HR-L3-SBW',
+  83: 'STLA/S-P3H-FWD-HR-GT-EPS',
+  84: 'STLA/S-P3H-FWD-HR-GT-SBW',
+  85: 'STLA/S-P3H-FWD-XR-L3-EPS',
+  86: 'STLA/S-P3H-FWD-XR-L3-SBW',
+  87: 'STLA/S-P3H-FWD-XR-GT-SBW',
+  88: 'STLA/S-P3H-AWD-XR-GTI-SBW',
+  89: 'STLA/S-P3H-FWD-MHEVP2-L2',
+  90: 'STLA/S-P3H-FWD-MHEVP2-L3',
+  91: 'STLA/S-P3H-FWD-HEV-L3',
+  92: 'STLA/S-P3H-FWD-HEV-GT',
+  93: 'STLA/S-J1X-FWD-SR-L1',
+  94: 'STLA/S-J1X-FWD-SR-L2',
+  95: 'STLA/S-J1X-FWD-SR-L3',
+  96: 'STLA/S-J1X-FWD-MHEVP2-L1',
+  97: 'STLA/S-J1X-FWD-MHEVP2-L2',
+  98: 'STLA/S-J1X-FWD-MHEVP2-L3',
+  99: 'STLA/S-J1X-AWD-MHEVP2-L1',
+  100: 'STLA/S-J1X-AWD-MHEVP2-L2',
+  101: 'STLA/S-J1X-AWD-MHEVP2-L3',
+  102: 'STLA/S-J1X-FWD-HEV-L1',
+  103: 'STLA/S-J1X-FWD-HEV-L2',
+  104: 'STLA/S-J1X-FWD-HEV-L3',
+  105: 'STLA/S-J2U-FWD-HR-L2',
+  106: 'STLA/S-J2U-FWD-HR-L3',
+  107: 'STLA/S-J2U-FWD-HR-L4',
+  108: 'STLA/S-J2U-FWD-XR-L2',
+  109: 'STLA/S-J2U-FWD-XR-L3',
+  110: 'STLA/S-J2U-FWD-XR-L4',
+  111: 'STLA/S-J2U-FWD-MHEVP2-L2',
+  112: 'STLA/S-J2U-FWD-MHEVP2-L3',
+  113: 'STLA/S-J2U-FWD-MHEVP2-L4',
+  114: 'STLA/S-J2U-FWD-HEV-L2',
+  115: 'STLA/S-J2U-FWD-HEV-L3',
+  116: 'STLA/S-J2U-FWD-HEV-L4',
+  117: 'STLA/S-J2U-AWD-HEV-L2',
+  118: 'STLA/S-J2U-AWD-HEV-L3',
+  119: 'STLA/S-J2U-AWD-HEV-L4',
+  124: 'STLA/S - P3H-FWD-HR-L2-EPS',
+  125: 'STLA/S-P3H-FWD-HR-L3-EPS',
+  126: 'STLA/S-P3H-FWD-HR-L3-SBW',
+  127: 'STLA/S-P3H-FWD-HR-L4-EPS',
+  128: 'STLA/S-P3H-FWD-HR-L4-SBW',
+  129: 'STLA/S-P3H-FWD-XR-L3-EPS',
+  130: 'STLA/S-P3H-FWD-XR-L4-EPS',
+  131: 'STLA/S-P3H-FWD-XR-L4-SBW',
+  132: 'STLA/S-P3H-FWD-XR-L5-SBW',
+  133: 'STLA/S-P3H-AWD-XR-GTX-SBW',
+  134: 'STLA/S-P3H-FWD-MHEVP2-L2',
+  135: 'STLA/S-P3H-FWD-MHEVP2-L3',
+  136: 'STLA/S-P3H-FWD-MHEVP2-L4',
+  137: 'STLA/S-P3H-FWD-HEV-L2',
+  138: 'STLA/S-P3H-FWD-HEV-L3',
+  139: 'STLA/S-P3H-FWD-HEV-L4',
+  140: 'STLA/S-P3H-FWD-HEV-L5',
+  141: 'STLA/S - P3W-FWD-HR-L2-EPS',
+  142: 'STLA/S-P3W-FWD-HR-L3-EPS',
+  143: 'STLA/S-P3W-FWD-HR-L3-SBW',
+  144: 'STLA/S-P3W-FWD-HR-L4-EPS',
+  145: 'STLA/S-P3W-FWD-HR-L4-SBW',
+  146: 'STLA/S-P3W-FWD-XR-L3-EPS',
+  147: 'STLA/S-P3W-FWD-XR-L4-EPS',
+  148: 'STLA/S-P3W-FWD-XR-L4-SBW',
+  149: 'STLA/S-P3W-FWD-XR-L5-SBW',
+  150: 'STLA/S-P3W-FWD-MHEVP2-L2',
+  151: 'STLA/S-P3W-FWD-MHEVP2-L3',
+  152: 'STLA/S-P3W-FWD-MHEVP2-L4',
+  153: 'STLA/S-P3W-FWD-HEV-L2',
+  154: 'STLA/S-P3W-FWD-HEV-L3',
+  155: 'STLA/S-P3W-FWD-HEV-L4',
+  156: 'STLA/S-P3W-FWD-HEV-L5',
+  157: 'STLA/S - O3H-FWD-HR-L2-EPS',
+  158: 'STLA/S-O3H-FWD-HR-L3-EPS',
+  159: 'STLA/S-O3H-FWD-HR-L4-EPS',
+  160: 'STLA/S-O3H-FWD-XR-L3-EPS',
+  161: 'STLA/S-O3H-FWD-XR-L4-EPS',
+  162: 'STLA/S-O3H-AWD-XR-GSE-EPS',
+  163: 'STLA/S-O3H-FWD-MHEVP2-L2',
+  164: 'STLA/S-O3H-FWD-MHEVP2-L3',
+  165: 'STLA/S-O3H-FWD-MHEVP2-L4',
+  166: 'STLA/S-O3H-FWD-HEV-L2',
+  167: 'STLA/S-O3H-FWD-HEV-L3',
+  168: 'STLA/S-O3H-FWD-HEV-L4',
+  169: 'STLA/S-O3H-FWD-HEV-L5',
+  170: 'STLA/S - O3W-FWD-HR-L2-EPS',
+  171: 'STLA/S-O3W-FWD-HR-L3-EPS',
+  172: 'STLA/S-O3W-FWD-HR-L4-EPS',
+  173: 'STLA/S-O3W-FWD-XR-L3-EPS',
+  174: 'STLA/S-O3W-FWD-XR-L4-EPS',
+  175: 'STLA/S-O3W-FWD-MHEVP2-L2',
+  176: 'STLA/S-O3W-FWD-MHEVP2-L3',
+  177: 'STLA/S-O3W-FWD-MHEVP2-L4',
+  178: 'STLA/S-O3W-FWD-HEV-L2',
+  179: 'STLA/S-O3W-FWD-HEV-L3',
+  180: 'STLA/S-O3W-FWD-HEV-L4',
+  181: 'STLA/S-O3W-FWD-HEV-L5',
+  182: 'STLA/S - A3H-FWD-HR-L2-EPS',
+  183: 'STLA/S-A3H-FWD-HR-L3-EPS',
+  184: 'STLA/S-A3H-FWD-HR-L4-EPS',
+  185: 'STLA/S-A3H-FWD-XR-L3-EPS',
+  186: 'STLA/S-A3H-FWD-XR-L4-EPS',
+  187: 'STLA/S-A3H-AWD-XR-VELOCE-EPS',
+  188: 'STLA/S-A3H-FWD-MHEVP2-L2',
+  189: 'STLA/S-A3H-FWD-MHEVP2-L3',
+  190: 'STLA/S-A3H-FWD-MHEVP2-L4',
+  191: 'STLA/S-A3H-FWD-HEV-L2',
+  192: 'STLA/S-A3H-FWD-HEV-L3',
+  193: 'STLA/S-A3H-FWD-HEV-L4',
+  194: 'STLA/S-A3H-FWD-HEV-L5',
+};
+
+function colCDefault(row) {
+  return COL_C_VALUES[row] || '';
+}
 const COL_I_SW_FROM = 22;
 const COL_I_SW_TO = 33;
 /** Column L ("Front Engine"): default "S13F4.9" from row 7; blank only on the SP2 band row. */
@@ -344,6 +534,7 @@ function columnDefaultValue(row, col) {
   }
   const fixed = fixedCellLabel(row, col);
   if (fixed) return fixed;
+  if (col === COL_C) return colCDefault(row);
   if (col === COL_D) return colDDefault(row);
   if (col === COL_HYBRID) return isHybridSelectCell(row, col) ? hybridDefault(row) : '';
   if (col === COL_WHEELS) return wheelsDefault(row);
@@ -395,8 +586,8 @@ export default {
       Array.from({ length: COLUMN_COUNT }, (_, i) => numToCol(i + 1))
     );
 
-    /** O…V visible by default; +/- on column N toggles the block. */
-    const ovGroupCollapsed = ref(false);
+    /** O…V collapsed by default; +/- on column N toggles the block. */
+    const ovGroupCollapsed = ref(true);
 
     const visibleColumns = computed(() => {
       if (!ovGroupCollapsed.value) return allColumns.value;

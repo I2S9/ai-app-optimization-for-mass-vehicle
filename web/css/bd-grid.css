@@ -5820,9 +5820,9 @@
 }
 .bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='B'],
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] {
-  width: 760px;
-  min-width: 760px;
-  max-width: 760px;
+  width: 900px;
+  min-width: 900px;
+  max-width: 900px;
 }
 /* Columns C…CA — slightly wider than A */
 .bd-grid-root.cdc-output-grid .bd-table thead th.col-letter:not([data-col='A']):not([data-col='B']),
