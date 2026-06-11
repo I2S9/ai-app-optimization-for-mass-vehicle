@@ -5820,9 +5820,9 @@
 }
 .bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='B'],
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] {
-  width: 480px;
-  min-width: 480px;
-  max-width: 480px;
+  width: 760px;
+  min-width: 760px;
+  max-width: 760px;
 }
 /* Columns C…CA — slightly wider than A */
 .bd-grid-root.cdc-output-grid .bd-table thead th.col-letter:not([data-col='A']):not([data-col='B']),
@@ -5831,12 +5831,171 @@
   min-width: 96px;
   max-width: 96px;
 }
+/* Columns C and J — wider to fit longer values */
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='C'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='C'],
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='J'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='J'] {
+  width: 160px;
+  min-width: 160px;
+  max-width: 160px;
+}
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'],
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] .grid-cell-input {
   text-align: left;
 }
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] .cdc-b-concat {
+  display: block;
+  width: 100%;
+  padding: 0 6px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #000;
+  cursor: default;
+}
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell .grid-cell-input {
   color: #000;
+}
+/* CDC Output — column B row bands (rows 22…33 orange, 34…50 black) */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-b-orange {
+  background: #ffc000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-b-black {
+  background: #000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-b-black .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-b-black .grid-cell-input {
+  color: #fff;
+}
+/* CDC Output — static text shown when a cell is NOT being edited. Cheap to
+   paint and to reconcile, which is what keeps scrolling smooth. */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell .cdc-cell-text {
+  display: block;
+  width: 100%;
+  height: 19px;
+  line-height: 19px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: #000;
+  text-align: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+  box-sizing: border-box;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] .cdc-cell-text {
+  text-align: left;
+  padding: 0 6px;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-fluo .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green .cdc-cell-text {
+  font-weight: 700;
+  text-align: center;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black .cdc-cell-text {
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green[data-col='B'] .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black[data-col='B'] .cdc-cell-text {
+  text-align: left;
+}
+/* CDC Output — header/band cells are editable inputs: keep their look readable */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-fluo .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green .grid-cell-input {
+  font-weight: 700;
+  text-align: center;
+  color: #000;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black .grid-cell-input {
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green[data-col='B'] .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black[data-col='B'] .grid-cell-input {
+  text-align: left;
+}
+
+/* CDC Output — Hybridization dropdown (column F) with colour-coded choices */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell .cdc-hyb-select {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: #000;
+  text-align: center;
+  text-align-last: center;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-hyb-bev {
+  background: #92d050 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-hyb-hev {
+  background: #ff0000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-hyb-mhev {
+  background: #ffff99 !important;
+}
+
+/* CDC Output — column tints */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-yellow {
+  background: #ffff99 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-orange {
+  background: #ffc000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluo,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluo .cdc-b-concat {
+  background: #ffff00 !important;
+}
+
+/* CDC Output — narrower column E */
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='E'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='E'] {
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+}
+
+/* CDC Output — taller row 1 so multi-word titles (G, H) can wrap on two lines
+   without widening the column. */
+.bd-grid-root.cdc-output-grid .bd-table tbody tr.cdc-row1 td.data-cell,
+.bd-grid-root.cdc-output-grid .bd-table tbody tr.cdc-row1 td.row-num {
+  height: 34px;
+  vertical-align: middle;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody tr.cdc-row1 .cdc-r1-wrap-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 34px;
+  padding: 1px 2px;
+  box-sizing: border-box;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.05;
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  user-select: none;
+  cursor: default;
 }
 
 /* CDC Output — row 1 header band */
@@ -5914,6 +6073,18 @@
 }
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black[data-col='B'] .cdc-fixed-label {
   text-align: left;
+}
+/* CDC Output — coloured header/band cells are now editable inputs; keep their look readable */
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-fluo .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green .grid-cell-input {
+  font-weight: 700;
+  color: #000;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black .grid-cell-input {
+  font-weight: 700;
+  color: #fff;
 }
 /* CDC Output — collapse toggle row (+/−) for columns O…V */
 .bd-grid-root.cdc-output-grid .bd-table thead tr.hdr-row-toggle th {
