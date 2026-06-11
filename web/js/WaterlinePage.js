@@ -19,7 +19,6 @@
  * Données véhicules lues via le lien injecté `synthesisCellLink`.
  */
 import { ref, computed, inject, onMounted, onUnmounted, watch } from 'vue';
-import { synCalcExcelCols } from './synthesisCalc.js';
 import { isSynRow16FluoCol } from './synStore.js';
 import { excelToDisplayCol, colToNum, numToCol } from './synthesisPerf.js';
 
@@ -51,7 +50,7 @@ const BUBBLE_HEIGHT = BUBBLE.font + BUBBLE.padY * 2;
 function yearChoices() {
   const now = new Date().getFullYear();
   const out = [];
-  for (let y = now - 3; y <= now + 4; y++) out.push(y);
+  for (let y = now - 3; y <= 2050; y++) out.push(y);
   return out;
 }
 
@@ -200,9 +199,22 @@ export default {
       return '';
     }
 
+    /** Jaune fluo : #ffff00 (gère le format ARGB Excel "FFFFFF00"). */
+    function isFluoYellow(bg) {
+      if (!bg) return false;
+      let s = String(bg).trim().toLowerCase().replace('#', '');
+      if (s.length === 8) s = s.slice(2); // ARGB -> RGB
+      return s === 'ffff00' || s === 'ff0';
+    }
+
+    /** Dernière colonne Excel balayée (au-delà de la table EF…EQ). */
+    const MAX_SCAN_COL = colToNum('HZ');
+
     /**
-     * Liste réactive des véhicules : trios silhouette/hybridization/curb mass des
-     * colonnes dont le curb mass (ligne 16) est en jaune fluo.
+     * Liste réactive des véhicules : trios silhouette/hybridization/curb mass de
+     * TOUTES les colonnes dont le curb mass (ligne 16) est en jaune fluo —
+     * tables M…AA, AC…AN, AP…BB ET étendues (BD…BO, BS…CE, CI…CY, DA…DP,
+     * DR…ED, EF…EQ), plus toute case que l'utilisateur passe lui-même en jaune.
      */
     const vehicles = computed(() => {
       if (!synLink) return [];
@@ -213,19 +225,29 @@ export default {
         void synLink.session.synCalcTick.value;
       }
       const raw = synLink.synRaw && synLink.synRaw.value;
-      const cols = synCalcExcelCols();
+
+      const colSet = new Set();
+      // 1) Colonnes fluo connues (règles métier) sur tout l'éventail des tables.
+      for (let n = colToNum('G'); n <= MAX_SCAN_COL; n++) {
+        const col = numToCol(n);
+        if (isSynRow16FluoCol(16, col)) colSet.add(col);
+      }
+      // 2) Cellules ligne 16 réellement coloriées en jaune fluo (ajouts manuels).
+      if (raw && Array.isArray(raw.cells)) {
+        for (const c of raw.cells) {
+          if (Number(c.r) === 16 && isFluoYellow(c.bg)) colSet.add(String(c.c));
+        }
+      }
+
+      const cols = [...colSet].sort((a, b) => colToNum(a) - colToNum(b));
       const out = [];
-      const seen = new Set();
       for (const col of cols) {
-        if (!isSynRow16FluoCol(16, col)) continue;
-        if (seen.has(col)) continue;
         const silhouette = rowValueTriplet(raw, 5, col);
         const hybridization = rowValueTriplet(raw, 6, col);
         const curbMass = formatCurb(
           synLink.getSynRow16Display ? synLink.getSynRow16Display(col) : ''
         );
         if (!silhouette && !hybridization && !curbMass) continue;
-        seen.add(col);
         out.push({
           id: col,
           displayCol: excelToDisplayCol(col),
@@ -450,17 +472,6 @@ export default {
 
       ctx.save();
       ctx.lineCap = 'round';
-
-      // Longue ligne pointillée à gauche du rond (7× la ligne de droite).
-      const leftLineLen = 7 * lineLen;
-      ctx.beginPath();
-      ctx.setLineDash([3 * scale, 3 * scale]);
-      ctx.moveTo(leftX - leftLineLen, centerY);
-      ctx.lineTo(leftX, centerY);
-      ctx.strokeStyle = '#1b3f72';
-      ctx.lineWidth = 1.5 * scale;
-      ctx.stroke();
-      ctx.setLineDash([]);
 
       // Rond d'ancrage.
       ctx.beginPath();
@@ -748,7 +759,6 @@ export default {
                   :style="{ left: (bubble.x * 100) + '%', top: (bubble.y * 100) + '%' }"
                   @pointerdown="startBubbleDrag(i, bi, $event)"
                 >
-                  <span class="wl-line wl-line-left"></span>
                   <span class="wl-dot"></span>
                   <span class="wl-line"></span>
                   <span class="wl-bubble">
