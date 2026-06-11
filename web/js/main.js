@@ -19,6 +19,7 @@ import EmptyPage from './EmptyPage.js?v=syn-perf32';
 import MnsGrid from './MnsGrid.js?v=sp2-col-a-meta1';
 import CdcOutputGrid from './CdcOutputGrid.js?v=cdc-colc8';
 import WaterlinePage from './WaterlinePage.js?v=waterline14';
+import WeightTaxPage from './WeightTaxPage.js?v=weighttax19';
 import { resolveSynRow16DisplayFromRaw } from './sp2CurbLink.js?v=5';
 import MatrixModal from './MatrixModal.js?v=matrix-ca-syn1';
 import { NAV_ROUTES, DEFAULT_ROUTE } from './navConfig.js?v=syn-perf32';
@@ -72,7 +73,7 @@ import {
 } from './sessionPersistence.js?v=canonical-structure1';
 
 const App = {
-  components: { BdGrid, SynthesisGrid, MnsGrid, CdcOutputGrid, WaterlinePage, AppSidebar, EmptyPage, MatrixModal },
+  components: { BdGrid, SynthesisGrid, MnsGrid, CdcOutputGrid, WaterlinePage, WeightTaxPage, AppSidebar, EmptyPage, MatrixModal },
   setup() {
     const bdLoading = ref(false);
     const gridPreparing = ref(false);
@@ -180,6 +181,13 @@ const App = {
     const isOptionsSp2 = computed(() => route.value === 'cdc-options-sp2');
     const isCdcOutput = computed(() => route.value === 'cdc-output');
     const isWaterline = computed(() => route.value === 'waterline');
+    const isWeightTax = computed(() => route.value === 'weight-tax');
+    const weightTaxVariant = ref('bev');
+    const weightTaxVariants = [
+      { id: 'bev', label: 'BEV' },
+      { id: 'mhev', label: 'MHEV' },
+      { id: 'hev', label: 'HEV' },
+    ];
     const isGridPage = computed(
       () => route.value === 'database' || route.value === 'synthesis'
     );
@@ -2300,6 +2308,9 @@ const App = {
       isOptionsSp2,
       isCdcOutput,
       isWaterline,
+      isWeightTax,
+      weightTaxVariant,
+      weightTaxVariants,
       isGridPage,
       sessionLoading,
       showLegacyTopbarActions,
@@ -2378,6 +2389,23 @@ const App = {
           <span v-if="isDatabase" class="page-title">Database</span>
           <span v-else-if="isSynthesis" class="page-title">Synthesis</span>
           <span v-else class="page-title">{{ currentNav.label }}</span>
+          <div
+            v-if="isWeightTax"
+            class="wt-topbar-variants"
+            role="tablist"
+            aria-label="Weight Tax variant"
+          >
+            <button
+              v-for="v in weightTaxVariants"
+              :key="v.id"
+              type="button"
+              class="wt-variant-btn"
+              :class="{ active: weightTaxVariant === v.id }"
+              role="tab"
+              :aria-selected="weightTaxVariant === v.id"
+              @click="weightTaxVariant = v.id"
+            >{{ v.label }}</button>
+          </div>
           <template v-if="isDatabase || isSynthesis">
             <div class="topbar-history" role="group" aria-label="Historique des modifications">
               <button
@@ -2604,10 +2632,13 @@ const App = {
           <div v-show="isWaterline" class="grid-route-pane">
             <WaterlinePage v-if="isWaterline" key="waterline-page" />
           </div>
+          <div v-show="isWeightTax" class="grid-route-pane">
+            <WeightTaxPage v-if="isWeightTax" :variant="weightTaxVariant" key="weight-tax-page" />
+          </div>
           <div v-if="error" class="loading-overlay error-text">{{ error }}</div>
           <div v-else-if="showContentOverlay" class="loading-overlay">{{ overlayMessage }}</div>
           <EmptyPage
-            v-else-if="!isDatabase && !isSynthesis && !isMns && !isOptionsSp2 && !isCdcOutput && !isWaterline"
+            v-else-if="!isDatabase && !isSynthesis && !isMns && !isOptionsSp2 && !isCdcOutput && !isWaterline && !isWeightTax"
             :title="currentNav.label"
           />
         </main>

@@ -1,0 +1,230 @@
+/* Weight Tax — planche type tableur (bandeau bleu + tableau gras). */
+
+.weight-tax-page {
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  background: #ffffff;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.wt-table-wrap {
+  flex: 0 0 auto;
+}
+
+.wt-chart-zone {
+  flex: 1 1 auto;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #000000;
+  background: #fafafa;
+  box-sizing: border-box;
+}
+
+.wt-chart-title-wrap {
+  padding: 10px 14px;
+  text-align: center;
+  background: #f3f3f3;
+  border-bottom: 1px solid #d9d9d9;
+}
+
+.wt-chart-title-input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #000000;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  cursor: text;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.wt-chart-title-input:hover {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+
+.wt-chart-title-input:focus {
+  background: #ffffff;
+  border-color: #888;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.wt-chart-canvas {
+  flex: 1 1 auto;
+  min-height: 260px;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.wt-sheet {
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+}
+
+.wt-sheet th,
+.wt-sheet td {
+  width: 72px;
+  min-width: 72px;
+  height: 24px;
+  border: 1px solid #d9d9d9; /* quadrillage léger type tableur */
+  padding: 0 4px;
+  text-align: center;
+  vertical-align: middle;
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* En-têtes Excel (lettres de colonnes, numéros de lignes). */
+.wt-corner,
+.wt-colhead,
+.wt-rownum {
+  background: #f3f3f3;
+  color: #5a5a5a;
+  font-weight: 600;
+}
+
+.wt-sheet th.wt-corner,
+.wt-sheet th.wt-rownum {
+  width: 30px;
+  min-width: 30px;
+  padding: 0 2px;
+}
+
+.wt-empty {
+  background: #ffffff;
+}
+
+/* Bandeau bleu plein B1:V2 — cellule fusionnée, aucune ligne ne le traverse. */
+.wt-banner {
+  background: #0070c0;
+  border: 1px solid #0070c0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.wt-bev {
+  display: inline-block;
+  color: #00b050; /* vert */
+  font-weight: 800;
+  font-size: 28px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.wt-bev.wt-banner-text-long {
+  font-size: 20px;
+  letter-spacing: 0.5px;
+}
+
+.wt-topbar-variants {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.wt-variant-btn {
+  padding: 3px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.wt-variant-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.wt-variant-btn.active {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+/* Tableau gras B3:V22 — contour, lignes et colonnes internes en gras. */
+.wt-cell {
+  background: #ffffff;
+  border: 2px solid #000000;
+}
+
+/* Ligne 3 — en-tête épaisse, libellés sur plusieurs lignes. */
+.wt-sheet td.wt-row5 {
+  height: 90px;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  white-space: normal;
+  overflow: hidden;
+  padding: 4px 4px;
+}
+
+/* Couleurs de la ligne 3 (texte blanc sur fonds foncés, sombre sur fonds clairs). */
+.wt-sheet td.wt-row5.c-002060 { background: #002060; color: #ffffff; }
+.wt-sheet td.wt-row5.c-daeef3 { background: #daeef3; color: #1a1a1a; }
+.wt-sheet td.wt-row5.c-b7dee8 { background: #b7dee8; color: #1a1a1a; }
+.wt-sheet td.wt-row5.c-92cddc { background: #92cddc; color: #1a1a1a; }
+.wt-sheet td.wt-row5.c-31869b { background: #31869b; color: #ffffff; }
+.wt-sheet td.wt-row5.c-215967 { background: #215967; color: #ffffff; }
+
+/* Colonne B — légèrement réduite. */
+.wt-sheet th.wt-col-b {
+  width: 330px;
+  min-width: 330px;
+}
+
+/* Colonne C — plus étroite. */
+.wt-sheet th.wt-col-c {
+  width: 100px;
+  min-width: 100px;
+}
+
+/* Colonnes D → F — légèrement réduites. */
+.wt-sheet th.wt-col-ch {
+  width: 135px;
+  min-width: 135px;
+}
+
+/* Colonnes G (Treeshold) et H (Deduction) — légèrement plus étroites. */
+.wt-sheet th.wt-col-gh {
+  width: 115px;
+  min-width: 115px;
+}
+
+/* Colonne C — sélecteur d'année de lancement. */
+.wt-sheet td.wt-cell-year {
+  padding: 0 2px;
+}
+
+.wt-year-select {
+  width: 100%;
+  height: 100%;
+  min-height: 22px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+  appearance: auto;
+}
