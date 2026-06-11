@@ -327,6 +327,57 @@
 .wt-sheet td.wt-cell-editable {
   padding: 0;
 }
+.wt-sheet td.wt-cell-curb {
+  padding: 0 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+.wt-curb-linked {
+  display: block;
+  width: 100%;
+  min-height: 19px;
+  line-height: 19px;
+  font-size: 11px;
+  color: #000;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
+
+/* Colonnes E, F, I…R — fond gris sur les lignes véhicules (à partir de la ligne 4). */
+.wt-sheet td.wt-cell-gray {
+  background: #a6a6a6 !important;
+  color: #000;
+}
+.wt-sheet td.wt-cell-gray .wt-cell-input {
+  background: transparent;
+  color: #000;
+}
+.wt-sheet td.wt-cell-gray .wt-cell-input:focus {
+  background: #fff9e6;
+}
+.wt-sheet td.wt-cell-computed {
+  padding: 0 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+.wt-computed-linked {
+  display: block;
+  width: 100%;
+  min-height: 19px;
+  line-height: 19px;
+  font-size: 11px;
+  color: #000;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+}
 
 .wt-cell-input {
   width: 100%;

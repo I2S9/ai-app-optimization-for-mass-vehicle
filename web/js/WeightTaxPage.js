@@ -12,12 +12,17 @@
  * lequel les données et calculs (côté backend) viendront se greffer ensuite.
  */
 
-import { reactive, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { reactive, ref, computed, inject, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import {
   listCdcVehiclesForWeightTaxVariant,
   loadCdcOutputCells,
   CDC_OUTPUT_STORAGE_KEY,
-} from './CdcOutputGrid.js?v=cdc-wt-link1';
+} from './CdcOutputGrid.js?v=cdc-curb1';
+import {
+  buildCdcCurbMassMap,
+  cdcCurbMassForRow,
+  CDC_CURB_WT_TITLE,
+} from './cdcCurbLink.js?v=cdc-curb1';
 import {
   fetchModuleState,
   saveModuleState,
@@ -49,6 +54,31 @@ const BEV_CELL_DEFAULTS = {
   G: '1399 kg',
   H: '600 kg',
 };
+
+/** Colonnes de données grisées (#a6a6a6) à partir de la ligne 4. */
+const WT_GRAY_DATA_COLS = new Set(['E', 'F', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S']);
+
+/** Terme ajouté à la colonne D pour calculer E (masse en ordre de marche), par défaut. */
+const DEFAULT_RUNNING_ORDER_ADDEND = 75;
+
+function parseMassKg(raw) {
+  if (raw == null) return null;
+  const s = String(raw)
+    .trim()
+    .replace(/\s*kg\s*$/i, '')
+    .replace(/\s/g, '')
+    .replace(',', '.');
+  if (s === '') return null;
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatMassKg(n) {
+  if (n == null || !Number.isFinite(n)) return '';
+  const rounded = Math.round(n * 100) / 100;
+  const text = Number.isInteger(rounded) ? String(rounded) : String(rounded);
+  return `${text} kg`;
+}
 
 function createVariantHeaderLabels() {
   const labels = {};
@@ -176,6 +206,48 @@ export default {
     let saving = false;
     let pendingSave = false;
 
+    const synLink = inject('synthesisCellLink', null);
+
+    function synRow16DisplayDependencies() {
+      if (!synLink) return null;
+      if (synLink.synRevision) void synLink.synRevision.value;
+      if (synLink.synEditTick) void synLink.synEditTick.value;
+      if (synLink.session?.synCalcTick) void synLink.session.synCalcTick.value;
+      if (synLink.session?.displayTick) void synLink.session.displayTick.value;
+      if (synLink.session?.liveBdEdited) void synLink.session.liveBdEdited.value;
+      return synLink.getSynRow16Display;
+    }
+
+    /** Output for CDC column W (Curb Mass) per CDC row — live from Synthesis row 16. */
+    const cdcCurbMassByRow = computed(() => {
+      try {
+        return buildCdcCurbMassMap(synRow16DisplayDependencies());
+      } catch (e) {
+        console.warn('[weight-tax] CDC curb mass link:', e);
+        return {};
+      }
+    });
+
+    function curbWeightForRow(cdcRow) {
+      return cdcCurbMassForRow(cdcRow, cdcCurbMassByRow.value);
+    }
+
+    /** Colonne E = Curbweight (D) + 75 kg. */
+    function massRunningOrderForRow(cdcRow) {
+      const curb = parseMassKg(curbWeightForRow(cdcRow));
+      if (curb == null) return '';
+      return formatMassKg(curb + DEFAULT_RUNNING_ORDER_ADDEND);
+    }
+
+    function massRunningOrderTitle(cdcRow) {
+      const curb = curbWeightForRow(cdcRow) || '—';
+      return `D (${curb}) + ${DEFAULT_RUNNING_ORDER_ADDEND} kg — mis à jour automatiquement`;
+    }
+
+    function isGrayDataCol(col) {
+      return WT_GRAY_DATA_COLS.has(col);
+    }
+
     const selectedVehicles = reactive({
       bev: [],
       mhev: [],
@@ -215,6 +287,50 @@ export default {
       if (launchYears[variant][key] == null) {
         launchYears[variant][key] = DEFAULT_LAUNCH_YEAR;
       }
+    }
+
+    function deductionKgForRow(cdcRow) {
+      const key = vehicleRowKey(cdcRow);
+      const row = cellData[props.variant][key];
+      if (!row) return null;
+      return parseMassKg(row.H);
+    }
+
+    /** Colonne F = E − H (masse en ordre de marche après déduction). */
+    function massAfterDeductionForRow(cdcRow) {
+      const running = parseMassKg(massRunningOrderForRow(cdcRow));
+      const deduction = deductionKgForRow(cdcRow);
+      if (running == null || deduction == null) return '';
+      return formatMassKg(running - deduction);
+    }
+
+    function massAfterDeductionTitle(cdcRow) {
+      const e = massRunningOrderForRow(cdcRow) || '—';
+      const key = vehicleRowKey(cdcRow);
+      const h = cellData[props.variant][key]?.H || '—';
+      return `E (${e}) − H (${h}) — mis à jour automatiquement`;
+    }
+
+    function thresholdKgForRow(cdcRow) {
+      const key = vehicleRowKey(cdcRow);
+      const row = cellData[props.variant][key];
+      if (!row) return null;
+      return parseMassKg(row.G);
+    }
+
+    /** Colonne S = F − G (Gap for weight tax). */
+    function weightTaxGapForRow(cdcRow) {
+      const afterDeduction = parseMassKg(massAfterDeductionForRow(cdcRow));
+      const threshold = thresholdKgForRow(cdcRow);
+      if (afterDeduction == null || threshold == null) return '';
+      return formatMassKg(afterDeduction - threshold);
+    }
+
+    function weightTaxGapTitle(cdcRow) {
+      const f = massAfterDeductionForRow(cdcRow) || '—';
+      const key = vehicleRowKey(cdcRow);
+      const g = cellData[props.variant][key]?.G || '—';
+      return `F (${f}) − G (${g}) — mis à jour automatiquement`;
     }
 
     function applyPersistedState(saved) {
@@ -497,6 +613,10 @@ export default {
     }
 
     onMounted(() => {
+      if (synLink) {
+        if (typeof synLink.ensureSynGrid === 'function') void synLink.ensureSynGrid();
+        else if (typeof synLink.ensureSyn === 'function') void synLink.ensureSyn();
+      }
       void loadRemoteState();
       syncChartWidth();
       const table = tableWrapRef.value?.querySelector('.wt-sheet');
@@ -659,6 +779,15 @@ export default {
       stopChartTitleEdit,
       onChartTitleKeydown,
       exportChartPng,
+      curbWeightForRow,
+      CDC_CURB_WT_TITLE,
+      massRunningOrderForRow,
+      massRunningOrderTitle,
+      massAfterDeductionForRow,
+      massAfterDeductionTitle,
+      weightTaxGapForRow,
+      weightTaxGapTitle,
+      isGrayDataCol,
     };
   },
   template: `
@@ -734,8 +863,46 @@ export default {
                   <option v-for="y in launchYearOptions" :key="y" :value="y">{{ y }}</option>
                 </select>
               </td>
-              <!-- Lignes véhicules — cellules éditables. -->
-              <td v-else-if="vehicleAtRow(r)" class="wt-cell wt-cell-editable">
+              <!-- Colonne D (Curbweight) : liée à Output for CDC colonne W (même ligne véhicule). -->
+              <td v-else-if="vehicleAtRow(r) && col === 'D'" class="wt-cell wt-cell-curb">
+                <span class="wt-curb-linked" :title="CDC_CURB_WT_TITLE">{{ curbWeightForRow(vehicleAtRow(r).cdcRow) }}</span>
+              </td>
+              <!-- Colonne E : D + 75 kg. -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'E'"
+                class="wt-cell wt-cell-gray wt-cell-computed"
+              >
+                <span
+                  class="wt-computed-linked"
+                  :title="massRunningOrderTitle(vehicleAtRow(r).cdcRow)"
+                >{{ massRunningOrderForRow(vehicleAtRow(r).cdcRow) }}</span>
+              </td>
+              <!-- Colonne F : E − H (masse après déduction). -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'F'"
+                class="wt-cell wt-cell-gray wt-cell-computed"
+              >
+                <span
+                  class="wt-computed-linked"
+                  :title="massAfterDeductionTitle(vehicleAtRow(r).cdcRow)"
+                >{{ massAfterDeductionForRow(vehicleAtRow(r).cdcRow) }}</span>
+              </td>
+              <!-- Colonne S : F − G (Gap for weight tax). -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'S'"
+                class="wt-cell wt-cell-gray wt-cell-computed"
+              >
+                <span
+                  class="wt-computed-linked"
+                  :title="weightTaxGapTitle(vehicleAtRow(r).cdcRow)"
+                >{{ weightTaxGapForRow(vehicleAtRow(r).cdcRow) }}</span>
+              </td>
+              <!-- Lignes véhicules — cellules éditables (I…R grisées). -->
+              <td
+                v-else-if="vehicleAtRow(r)"
+                class="wt-cell wt-cell-editable"
+                :class="{ 'wt-cell-gray': isGrayDataCol(col) }"
+              >
                 <input
                   v-model="cellData[variant][vehicleRowKey(vehicleAtRow(r).cdcRow)][col]"
                   class="wt-cell-input"

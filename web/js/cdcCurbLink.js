@@ -88,3 +88,30 @@ export function cdcCurbLinkTitle(row) {
   if (!block || !synCol) return '';
   return `Lié à Synthesis — Curb mass ligne 16, table ${block.label}, colonne ${synCol}`;
 }
+
+/** Live Curb mass values for all linked CDC rows (Synthesis row 16 → CDC column W). */
+export function buildCdcCurbMassMap(getSynRow16Display) {
+  if (typeof getSynRow16Display !== 'function') return {};
+  const out = {};
+  for (const block of CDC_SYN_CURB_BLOCKS) {
+    const cols = block.getSynCols();
+    for (let row = block.from; row <= block.to; row += 1) {
+      const idx = row - block.from;
+      if (idx >= cols.length) continue;
+      const shown = getSynRow16Display(cols[idx]);
+      if (shown != null && String(shown).trim() !== '') {
+        out[row] = String(shown);
+      }
+    }
+  }
+  return out;
+}
+
+export function cdcCurbMassForRow(cdcRow, curbMassByRow = {}) {
+  const r = Number(cdcRow);
+  if (!Number.isFinite(r)) return '';
+  return curbMassByRow[r] || '';
+}
+
+export const CDC_CURB_WT_TITLE =
+  'Lié à Output for CDC (Curb Mass, colonne W) — mis à jour automatiquement';
