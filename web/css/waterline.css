@@ -33,7 +33,8 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
+  /* visible pour ne pas couper le menu déroulant ; l'image est clippée par le corps. */
+  overflow: visible;
   outline: none;
 }
 
@@ -78,15 +79,16 @@
 }
 
 .waterline-export-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid #000;
   background: #fff;
   color: #000;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 3px 10px;
+  width: 28px;
+  height: 24px;
   border-radius: 3px;
   cursor: pointer;
-  font-family: 'Segoe UI', Arial, sans-serif;
 }
 
 .waterline-export-btn:hover {
@@ -157,13 +159,24 @@
   align-items: center;
   justify-content: center;
   background: #fff;
+  overflow: hidden;
+}
+
+/* Le canvas enveloppe l'image au pixel près : les bulles (en %) suivent l'image. */
+.waterline-canvas {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  max-height: 100%;
+  line-height: 0;
 }
 
 .waterline-image {
+  display: block;
   max-width: 100%;
   max-height: 100%;
-  object-fit: contain;
-  display: block;
+  width: auto;
+  height: auto;
 }
 
 .waterline-img-actions {
@@ -237,4 +250,189 @@
 
 .waterline-file {
   display: none;
+}
+
+/* ── Bouton véhicule + menu à cases à cocher ──────────────────────────────── */
+.waterline-right {
+  gap: 6px;
+}
+
+.waterline-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.waterline-veh-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #000;
+  background: #fff;
+  color: #000;
+  width: 28px;
+  height: 24px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.waterline-veh-btn:hover,
+.waterline-veh-btn.active {
+  background: #1b3f72;
+  color: #fff;
+  border-color: #1b3f72;
+}
+
+.waterline-menu {
+  width: 300px;
+  max-width: 80vw;
+  background: #fff;
+  border: 1px solid #1b3f72;
+  border-radius: 5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+/* Téléporté dans <body> : position fixe et toujours au premier plan. */
+.waterline-menu-fixed {
+  position: fixed;
+  z-index: 20000;
+}
+
+.waterline-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #fff;
+  background: #1b3f72;
+}
+
+.waterline-menu-count {
+  background: #fff;
+  color: #1b3f72;
+  border-radius: 9px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.waterline-menu-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.waterline-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.waterline-menu-item:hover {
+  background: #eef3fb;
+}
+
+.waterline-menu-item input {
+  cursor: pointer;
+}
+
+.waterline-menu-empty {
+  padding: 12px 10px;
+  font-size: 12px;
+  color: #888;
+}
+
+/* Couleurs des 3 infos (menu + bulle). */
+.wl-sil {
+  font-weight: 800;
+  color: #0a1f3f;
+}
+.wl-hyb {
+  font-weight: 700;
+  color: #b07a00;
+}
+.wl-curb {
+  font-weight: 700;
+  color: #0a1f3f;
+}
+
+/* ── Bulles déplaçables sur l'image ───────────────────────────────────────── */
+.wl-bubble-group {
+  position: absolute;
+  /* -280px = largeur de la longue ligne gauche, pour garder le rond sur (x,y). */
+  transform: translate(-280px, -50%);
+  display: inline-flex;
+  align-items: center;
+  cursor: grab;
+  white-space: nowrap;
+  user-select: none;
+  line-height: 1;
+}
+
+.wl-bubble-group:active {
+  cursor: grabbing;
+}
+
+.wl-dot {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #1b3f72;
+  border: 1.5px solid #0d2747;
+  box-sizing: border-box;
+}
+
+.wl-line {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 0;
+  border-top: 1.5px dashed #1b3f72;
+}
+
+/* Longue ligne pointillée à gauche du rond (7× la ligne de droite). */
+.wl-line-left {
+  width: 280px;
+}
+
+.wl-bubble {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 4px;
+  padding: 5px 10px;
+  border: 1.5px solid #1b3f72;
+  border-radius: 7px;
+  background: linear-gradient(#d4e4f7, #9fc1e8);
+  font-size: 13px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.wl-bubble-x {
+  margin-left: 2px;
+  border: none;
+  background: transparent;
+  color: #1b3f72;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.wl-bubble-group:hover .wl-bubble-x {
+  opacity: 1;
+}
+
+.wl-bubble-x:hover {
+  color: #b00020;
 }
