@@ -13,6 +13,11 @@
  */
 
 import { reactive, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import {
+  listCdcVehiclesForWeightTaxVariant,
+  loadCdcOutputCells,
+  CDC_OUTPUT_STORAGE_KEY,
+} from './CdcOutputGrid.js?v=cdc-wt-link1';
 
 /** En-têtes de colonnes Excel B → V (21 colonnes). */
 function makeColumns() {
@@ -21,15 +26,14 @@ function makeColumns() {
   return out;
 }
 
-const ROW_COUNT = 22;
+const HEADER_ROW = 3;
+const DATA_ROW_START = 4;
 const BANNER_LABELS = {
   bev: 'BEV',
   mhev: 'MHEV P2  Weight Tax',
   hev: 'HEV Weight Tax',
 };
 const DEFAULT_CHART_TITLE = 'Fr Mass + CO2 Malus (€ estimation) versus Curb mass';
-const DATA_ROW_START = 4;
-const DATA_ROW_END = 22;
 const DATA_COLS = makeColumns();
 const DEFAULT_LAUNCH_YEAR = 2028;
 const LAUNCH_YEAR_END = 2050;
@@ -47,23 +51,12 @@ function createVariantHeaderLabels() {
   return labels;
 }
 
-function createVariantCellGrid(defaultsByCol = {}) {
-  const grid = {};
-  for (let r = DATA_ROW_START; r <= DATA_ROW_END; r++) {
-    grid[r] = {};
-    for (const col of DATA_COLS) {
-      grid[r][col] = defaultsByCol[col] ?? '';
-    }
+function createEmptyRowCols(defaultsByCol = {}) {
+  const row = {};
+  for (const col of DATA_COLS) {
+    row[col] = defaultsByCol[col] ?? '';
   }
-  return grid;
-}
-
-function createVariantLaunchYears() {
-  const years = {};
-  for (let r = DATA_ROW_START; r <= DATA_ROW_END; r++) {
-    years[r] = DEFAULT_LAUNCH_YEAR;
-  }
-  return years;
+  return row;
 }
 
 function makeLaunchYearOptions() {
@@ -115,6 +108,47 @@ const ROW5_COLORS = {
   R: 'c-215967',
 };
 
+const STORAGE_KEY = 'weight-tax-state-v1';
+let persistTimer = 0;
+
+function loadPersistedState() {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function hydrateVehiclesForVariant(variant, savedList) {
+  if (!Array.isArray(savedList) || savedList.length === 0) return [];
+  const catalog = listCdcVehiclesForWeightTaxVariant(variant, loadCdcOutputCells());
+  const byCdcRow = new Map(catalog.map((v) => [v.cdcRow, v]));
+  return savedList
+    .map((item) => {
+      const cdcRow = typeof item === 'number' ? item : item?.cdcRow;
+      if (typeof cdcRow !== 'number') return null;
+      const fresh = byCdcRow.get(cdcRow);
+      if (fresh) return fresh;
+      if (typeof item === 'object' && item) return item;
+      return { cdcRow, trim: `Row ${cdcRow}`, hybrid: '', colBClasses: [] };
+    })
+    .filter(Boolean);
+}
+
+function createHeaderLabelsFromSaved(savedVariant) {
+  const labels = createVariantHeaderLabels();
+  if (savedVariant && typeof savedVariant === 'object') {
+    for (const col of DATA_COLS) {
+      if (savedVariant[col] != null) labels[col] = savedVariant[col];
+    }
+  }
+  return labels;
+}
+
 export default {
   name: 'WeightTaxPage',
   props: {
@@ -126,27 +160,33 @@ export default {
   },
   setup(props) {
     const cols = makeColumns();
-    const rows = Array.from({ length: ROW_COUNT }, (_, i) => i + 1);
     const launchYearOptions = makeLaunchYearOptions();
+    const saved = loadPersistedState();
+
+    const selectedVehicles = reactive({
+      bev: hydrateVehiclesForVariant('bev', saved?.selectedVehicles?.bev ?? []),
+      mhev: hydrateVehiclesForVariant('mhev', saved?.selectedVehicles?.mhev ?? []),
+      hev: hydrateVehiclesForVariant('hev', saved?.selectedVehicles?.hev ?? []),
+    });
     const cellData = reactive({
-      bev: createVariantCellGrid(BEV_CELL_DEFAULTS),
-      mhev: createVariantCellGrid(),
-      hev: createVariantCellGrid(),
+      bev: { ...(saved?.cellData?.bev ?? {}) },
+      mhev: { ...(saved?.cellData?.mhev ?? {}) },
+      hev: { ...(saved?.cellData?.hev ?? {}) },
     });
     const headerLabels = reactive({
-      bev: createVariantHeaderLabels(),
-      mhev: createVariantHeaderLabels(),
-      hev: createVariantHeaderLabels(),
+      bev: createHeaderLabelsFromSaved(saved?.headerLabels?.bev),
+      mhev: createHeaderLabelsFromSaved(saved?.headerLabels?.mhev),
+      hev: createHeaderLabelsFromSaved(saved?.headerLabels?.hev),
     });
     const launchYears = reactive({
-      bev: createVariantLaunchYears(),
-      mhev: createVariantLaunchYears(),
-      hev: createVariantLaunchYears(),
+      bev: { ...(saved?.launchYears?.bev ?? {}) },
+      mhev: { ...(saved?.launchYears?.mhev ?? {}) },
+      hev: { ...(saved?.launchYears?.hev ?? {}) },
     });
     const chartTitles = reactive({
-      bev: DEFAULT_CHART_TITLE,
-      mhev: DEFAULT_CHART_TITLE,
-      hev: DEFAULT_CHART_TITLE,
+      bev: saved?.chartTitles?.bev ?? DEFAULT_CHART_TITLE,
+      mhev: saved?.chartTitles?.mhev ?? DEFAULT_CHART_TITLE,
+      hev: saved?.chartTitles?.hev ?? DEFAULT_CHART_TITLE,
     });
     const chartTitle = computed({
       get: () => chartTitles[props.variant] ?? DEFAULT_CHART_TITLE,
@@ -156,6 +196,146 @@ export default {
     });
     const bannerText = computed(() => BANNER_LABELS[props.variant] || BANNER_LABELS.bev);
     const bannerLong = computed(() => props.variant !== 'bev');
+
+    const dataRows = computed(() => selectedVehicles[props.variant] || []);
+
+    const rows = computed(() => {
+      const count = HEADER_ROW + dataRows.value.length;
+      return Array.from({ length: Math.max(count, HEADER_ROW) }, (_, i) => i + 1);
+    });
+
+    function vehicleAtRow(r) {
+      if (r < DATA_ROW_START) return null;
+      return dataRows.value[r - DATA_ROW_START] ?? null;
+    }
+
+    function vehicleRowKey(cdcRow) {
+      return String(cdcRow);
+    }
+
+    function ensureVehicleData(variant, cdcRow) {
+      const key = vehicleRowKey(cdcRow);
+      if (!cellData[variant][key]) {
+        const defaults = variant === 'bev' ? BEV_CELL_DEFAULTS : {};
+        cellData[variant][key] = createEmptyRowCols(defaults);
+      }
+      if (launchYears[variant][key] == null) {
+        launchYears[variant][key] = DEFAULT_LAUNCH_YEAR;
+      }
+    }
+
+    for (const variant of ['bev', 'mhev', 'hev']) {
+      for (const vehicle of selectedVehicles[variant]) {
+        ensureVehicleData(variant, vehicle.cdcRow);
+      }
+    }
+
+    function persistState() {
+      if (typeof localStorage === 'undefined') return;
+      try {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            selectedVehicles: {
+              bev: selectedVehicles.bev.map((v) => v.cdcRow),
+              mhev: selectedVehicles.mhev.map((v) => v.cdcRow),
+              hev: selectedVehicles.hev.map((v) => v.cdcRow),
+            },
+            cellData: {
+              bev: cellData.bev,
+              mhev: cellData.mhev,
+              hev: cellData.hev,
+            },
+            launchYears: {
+              bev: launchYears.bev,
+              mhev: launchYears.mhev,
+              hev: launchYears.hev,
+            },
+            headerLabels: {
+              bev: headerLabels.bev,
+              mhev: headerLabels.mhev,
+              hev: headerLabels.hev,
+            },
+            chartTitles: {
+              bev: chartTitles.bev,
+              mhev: chartTitles.mhev,
+              hev: chartTitles.hev,
+            },
+          })
+        );
+      } catch {
+        /* quota / private mode */
+      }
+    }
+
+    function schedulePersist() {
+      clearTimeout(persistTimer);
+      persistTimer = setTimeout(persistState, 300);
+    }
+
+    function rehydrateSelectedVehiclesFromCdc() {
+      for (const variant of ['bev', 'mhev', 'hev']) {
+        const rows = selectedVehicles[variant].map((v) => v.cdcRow);
+        selectedVehicles[variant] = hydrateVehiclesForVariant(variant, rows);
+      }
+    }
+
+    const vehiclePickerOpen = ref(false);
+    const vehiclePickerOptions = ref([]);
+    const vehiclePickerDraft = ref([]);
+
+    function refreshVehiclePickerOptions() {
+      vehiclePickerOptions.value = listCdcVehiclesForWeightTaxVariant(
+        props.variant,
+        loadCdcOutputCells()
+      );
+    }
+
+    function openVehiclePicker() {
+      headerEditingCol.value = null;
+      refreshVehiclePickerOptions();
+      vehiclePickerDraft.value = dataRows.value.map((v) => v.cdcRow);
+      vehiclePickerOpen.value = true;
+    }
+
+    function closeVehiclePicker() {
+      vehiclePickerOpen.value = false;
+    }
+
+    function isDraftVehicleSelected(cdcRow) {
+      return vehiclePickerDraft.value.includes(cdcRow);
+    }
+
+    function toggleVehicleDraft(cdcRow) {
+      const draft = vehiclePickerDraft.value.slice();
+      const idx = draft.indexOf(cdcRow);
+      if (idx >= 0) draft.splice(idx, 1);
+      else draft.push(cdcRow);
+      vehiclePickerDraft.value = draft;
+    }
+
+    function applyVehiclePicker() {
+      const picked = vehiclePickerOptions.value.filter((v) =>
+        vehiclePickerDraft.value.includes(v.cdcRow)
+      );
+      selectedVehicles[props.variant] = picked;
+      for (const vehicle of picked) ensureVehicleData(props.variant, vehicle.cdcRow);
+      vehiclePickerOpen.value = false;
+      nextTick(syncChartWidth);
+    }
+
+    function onHeaderCellClick(col) {
+      if (col === 'B') {
+        openVehiclePicker();
+        return;
+      }
+      startHeaderEdit(col);
+    }
+
+    function vehicleColBClasses(vehicle) {
+      if (!vehicle?.colBClasses?.length) return [];
+      return vehicle.colBClasses;
+    }
 
     function row5ColorClass(col) {
       return ROW5_COLORS[col] || 'c-002060';
@@ -169,12 +349,19 @@ export default {
     }
 
     function startHeaderEdit(col) {
+      if (col === 'B') {
+        openVehiclePicker();
+        return;
+      }
       headerEditingCol.value = col;
       nextTick(() => {
-        const input = headerInputRef.value;
-        if (!input) return;
+        const el = headerInputRef.value;
+        const input = Array.isArray(el)
+          ? el.find((node) => node && typeof node.focus === 'function')
+          : el;
+        if (!input || typeof input.focus !== 'function') return;
         input.focus();
-        input.select();
+        if (typeof input.select === 'function') input.select();
       });
     }
 
@@ -212,15 +399,41 @@ export default {
         tableWidthObserver.observe(table);
       }
       window.addEventListener('resize', syncChartWidth);
+      window.addEventListener('storage', onCdcStorageChange);
     });
 
     onUnmounted(() => {
+      clearTimeout(persistTimer);
       tableWidthObserver?.disconnect();
       window.removeEventListener('resize', syncChartWidth);
+      window.removeEventListener('storage', onCdcStorageChange);
     });
+
+    function onCdcStorageChange(event) {
+      if (event.key !== CDC_OUTPUT_STORAGE_KEY) return;
+      rehydrateSelectedVehiclesFromCdc();
+      if (vehiclePickerOpen.value) refreshVehiclePickerOptions();
+    }
+
+    watch(
+      () => ({
+        selectedVehicles: {
+          bev: selectedVehicles.bev.map((v) => v.cdcRow),
+          mhev: selectedVehicles.mhev.map((v) => v.cdcRow),
+          hev: selectedVehicles.hev.map((v) => v.cdcRow),
+        },
+        cellData,
+        launchYears,
+        headerLabels,
+        chartTitles: { ...chartTitles },
+      }),
+      schedulePersist,
+      { deep: true }
+    );
 
     watch(() => props.variant, () => {
       headerEditingCol.value = null;
+      vehiclePickerOpen.value = false;
       requestAnimationFrame(syncChartWidth);
     });
 
@@ -304,13 +517,25 @@ export default {
     return {
       cols,
       rows,
+      dataRows,
+      vehicleAtRow,
+      vehicleRowKey,
       row5ColorClass,
       headerLabels,
       isHeaderEditing,
+      onHeaderCellClick,
       startHeaderEdit,
       stopHeaderEdit,
       onHeaderKeydown,
       headerInputRef,
+      vehiclePickerOpen,
+      vehiclePickerOptions,
+      vehiclePickerDraft,
+      isDraftVehicleSelected,
+      toggleVehicleDraft,
+      applyVehiclePicker,
+      closeVehiclePicker,
+      vehicleColBClasses,
       launchYearOptions,
       launchYears,
       cellData,
@@ -360,7 +585,7 @@ export default {
               </td>
               <!-- Cellules B..V des lignes 1 et 2 : couvertes par le bandeau fusionné. -->
               <template v-else-if="r === 1 || r === 2"></template>
-              <!-- Ligne 3 : en-têtes centrés, éditables au clic. -->
+              <!-- Ligne 3 : en-têtes centrés ; colonne B ouvre le sélecteur véhicules. -->
               <td
                 v-else-if="r === 3"
                 class="wt-cell wt-row5"
@@ -370,12 +595,13 @@ export default {
                   <span
                     v-if="!isHeaderEditing(col)"
                     class="wt-row5-label"
-                    title="Cliquer pour modifier"
-                    @click="startHeaderEdit(col)"
+                    :class="{ 'wt-row5-label-pick': col === 'B' }"
+                    :title="col === 'B' ? 'Cliquer pour choisir les véhicules (Output for CDC)' : 'Cliquer pour modifier'"
+                    @click.stop="onHeaderCellClick(col)"
                   >{{ headerLabels[variant][col] }}</span>
                   <textarea
-                    v-else
-                    ref="headerInputRef"
+                    v-else-if="isHeaderEditing(col)"
+                    :ref="(el) => { if (isHeaderEditing(col)) headerInputRef = el; }"
                     v-model="headerLabels[variant][col]"
                     class="wt-row5-input"
                     spellcheck="false"
@@ -384,16 +610,27 @@ export default {
                   ></textarea>
                 </div>
               </td>
+              <!-- Colonne B : Trim CDC (couleur colonne B Output for CDC). -->
+              <td
+                v-else-if="vehicleAtRow(r) && col === 'B'"
+                class="wt-cell wt-cell-vehicle"
+                :class="vehicleColBClasses(vehicleAtRow(r))"
+              >
+                <span class="wt-vehicle-label">{{ vehicleAtRow(r).trim }}</span>
+              </td>
               <!-- Colonne C (Years of launch) : sélecteur d'année, défaut 2028. -->
-              <td v-else-if="r >= 4 && r <= 22 && col === 'C'" class="wt-cell wt-cell-year">
-                <select class="wt-year-select" v-model.number="launchYears[variant][r]">
+              <td v-else-if="vehicleAtRow(r) && col === 'C'" class="wt-cell wt-cell-year">
+                <select
+                  class="wt-year-select"
+                  v-model.number="launchYears[variant][vehicleRowKey(vehicleAtRow(r).cdcRow)]"
+                >
                   <option v-for="y in launchYearOptions" :key="y" :value="y">{{ y }}</option>
                 </select>
               </td>
-              <!-- Tableau gras B4:V22 — cellules éditables. -->
-              <td v-else-if="r >= 4 && r <= 22" class="wt-cell wt-cell-editable">
+              <!-- Lignes véhicules — cellules éditables. -->
+              <td v-else-if="vehicleAtRow(r)" class="wt-cell wt-cell-editable">
                 <input
-                  v-model="cellData[variant][r][col]"
+                  v-model="cellData[variant][vehicleRowKey(vehicleAtRow(r).cdcRow)][col]"
                   class="wt-cell-input"
                   type="text"
                   spellcheck="false"
@@ -449,6 +686,42 @@ export default {
           </div>
           <div class="wt-chart-canvas" ref="chartCanvasRef"></div>
         </section>
+      </div>
+
+      <div
+        v-if="vehiclePickerOpen"
+        class="wt-modal-backdrop"
+        @click.self="closeVehiclePicker"
+      >
+        <div class="wt-modal" role="dialog" aria-labelledby="wt-vehicle-picker-title">
+          <h3 id="wt-vehicle-picker-title" class="wt-modal-title">Sélection des véhicules</h3>
+          <p class="wt-modal-hint">
+            Source : Output for CDC (Trim), filtré par hybridation
+            <strong>{{ variant === 'mhev' ? 'MHEV P2' : variant.toUpperCase() }}</strong>.
+          </p>
+          <div v-if="vehiclePickerOptions.length" class="wt-vehicle-list">
+            <label
+              v-for="opt in vehiclePickerOptions"
+              :key="opt.cdcRow"
+              class="wt-vehicle-option"
+            >
+              <input
+                type="checkbox"
+                :checked="isDraftVehicleSelected(opt.cdcRow)"
+                @change="toggleVehicleDraft(opt.cdcRow)"
+              />
+              <span class="wt-vehicle-option-swatch" :class="opt.colBClasses"></span>
+              <span class="wt-vehicle-option-label">{{ opt.trim }}</span>
+            </label>
+          </div>
+          <p v-else class="wt-modal-empty">Aucun véhicule trouvé pour cette hybridation dans Output for CDC.</p>
+          <div class="wt-modal-actions">
+            <button type="button" class="wt-modal-btn" @click="closeVehiclePicker">Annuler</button>
+            <button type="button" class="wt-modal-btn wt-modal-btn-primary" @click="applyVehiclePicker">
+              Appliquer
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   `,

@@ -1,5 +1,5 @@
 /**
- * CDC ▸ Output for CDC — blank editable spreadsheet (A…CA, 200 rows).
+ * CDC ▸ Output for CDC — blank editable spreadsheet (A…AY, 200 rows).
  * Column B is intentionally wide; all other columns use the default width.
  */
 import { ref, shallowRef, computed, onMounted, onUnmounted, nextTick } from 'vue';
@@ -13,7 +13,7 @@ import {
 
 const STORAGE_KEY = 'cdc-output-grid-cells-v1';
 const ROW_COUNT = 194;
-const MAX_COL = 'CA';
+const MAX_COL = 'AY';
 
 function numToCol(n) {
   let s = '';
@@ -413,6 +413,23 @@ const FIXED_LABELS = {
   '1:K': 'Pole',
   '1:L': 'Front Engine',
   '1:M': 'Rear Engine',
+  '1:W': 'Curb Mass',
+  '1:X': 'Options Mass',
+  '1:Y': 'Front Options',
+  '1:Z': 'Rear Options',
+  '1:AA': 'Unsprung Front',
+  '1:AB': 'Unsprung Rear',
+  '1:AC': 'Répartition avant (%)',
+  '1:AD': 'Longueur mm',
+  '1:AE': 'Largeur (mm)',
+  '1:AF': 'Hauteur mm',
+  '1:AG': 'PAF Avant',
+  '1:AH': 'PAF Arrière',
+  '1:AI': 'Empattement (mm)',
+  '1:AJ': 'Voie avant',
+  '1:AK': 'Voie arrière',
+  '1:AL': 'GCVW (MTRA)',
+  '1:AM': 'ADAC - Max towing (braked) (kg)',
   '121:B': 'SP2',
 };
 
@@ -565,6 +582,59 @@ function loadStoredCells() {
   }
 }
 
+/** Resolved CDC cell (defaults + user overrides from localStorage). */
+function resolveCdcCell(row, col, cells = {}) {
+  const stored = cells[cellKey(row, col)];
+  if (stored !== undefined) return stored;
+  if (isBConcatCell(row, col)) {
+    return COL_B_CONCAT_ORDER.map((partCol) => String(resolveCdcCell(row, partCol, cells)).trim())
+      .filter((part) => part !== '')
+      .join(' ');
+  }
+  return columnDefaultValue(row, col);
+}
+
+function getCdcColBClassList(row) {
+  const classes = [];
+  const band = colBBandClass(row, COL_B_CONCAT);
+  if (band) classes.push(band);
+  const tint = colBTintClass(row) || columnTintClass(row, COL_B_CONCAT);
+  if (tint) classes.push(tint);
+  return classes;
+}
+
+const WT_VARIANT_HYBRID = {
+  bev: 'BEV',
+  mhev: 'MHEV P2',
+  hev: 'HEV',
+};
+
+export function loadCdcOutputCells() {
+  return loadStoredCells() || {};
+}
+
+export function listCdcVehiclesForWeightTaxVariant(variant, cells = loadCdcOutputCells()) {
+  const targetHybrid = WT_VARIANT_HYBRID[variant];
+  if (!targetHybrid) return [];
+  const out = [];
+  for (let row = HYBRID_DEFAULT_FROM; row <= HYBRID_DEFAULT_TO; row += 1) {
+    if (NO_FILL_ROWS.has(row)) continue;
+    const hybrid = String(resolveCdcCell(row, COL_HYBRID, cells)).trim();
+    if (hybrid !== targetHybrid) continue;
+    const trim = String(resolveCdcCell(row, COL_C, cells)).trim();
+    if (!trim) continue;
+    out.push({
+      cdcRow: row,
+      trim,
+      hybrid,
+      colBClasses: getCdcColBClassList(row),
+    });
+  }
+  return out;
+}
+
+export { STORAGE_KEY as CDC_OUTPUT_STORAGE_KEY };
+
 export default {
   name: 'CdcOutputGrid',
   setup() {
@@ -599,7 +669,7 @@ export default {
     );
 
     // ── Row virtualization ────────────────────────────────────────────────
-    // Rendering all 200 rows × ~79 columns means ~15 800 live <input>/<select>
+    // Rendering all 200 rows × ~51 columns means ~10 200 live <input>/<select>
     // elements, which made horizontal/vertical scrolling stutter badly. We keep
     // only the rows inside (and just around) the viewport mounted; top/bottom
     // spacer rows preserve the full scroll height so the scrollbar stays exact.
