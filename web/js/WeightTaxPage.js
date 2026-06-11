@@ -12,7 +12,7 @@
  * lequel les données et calculs (côté backend) viendront se greffer ensuite.
  */
 
-import { reactive, ref, computed } from 'vue';
+import { reactive, ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 
 /** En-têtes de colonnes Excel B → V (21 colonnes). */
 function makeColumns() {
@@ -30,8 +30,41 @@ const BANNER_LABELS = {
 const DEFAULT_CHART_TITLE = 'Fr Mass + CO2 Malus (€ estimation) versus Curb mass';
 const DATA_ROW_START = 4;
 const DATA_ROW_END = 22;
+const DATA_COLS = makeColumns();
 const DEFAULT_LAUNCH_YEAR = 2028;
 const LAUNCH_YEAR_END = 2050;
+
+const BEV_CELL_DEFAULTS = {
+  G: '1399 kg',
+  H: '600 kg',
+};
+
+function createVariantHeaderLabels() {
+  const labels = {};
+  for (const col of DATA_COLS) {
+    labels[col] = ROW5_LABELS[col] || '';
+  }
+  return labels;
+}
+
+function createVariantCellGrid(defaultsByCol = {}) {
+  const grid = {};
+  for (let r = DATA_ROW_START; r <= DATA_ROW_END; r++) {
+    grid[r] = {};
+    for (const col of DATA_COLS) {
+      grid[r][col] = defaultsByCol[col] ?? '';
+    }
+  }
+  return grid;
+}
+
+function createVariantLaunchYears() {
+  const years = {};
+  for (let r = DATA_ROW_START; r <= DATA_ROW_END; r++) {
+    years[r] = DEFAULT_LAUNCH_YEAR;
+  }
+  return years;
+}
 
 function makeLaunchYearOptions() {
   const startYear = new Date().getFullYear();
@@ -43,10 +76,10 @@ function makeLaunchYearOptions() {
 /** Libellés d'en-tête de la ligne 3, par colonne Excel. */
 const ROW5_LABELS = {
   B: 'Vehicle',
-  C: 'Years of launch',
+  C: 'Years of\nlaunch',
   D: 'Curbweight',
-  E: 'Mass in running order',
-  F: 'Mass in running order after deduction',
+  E: 'Mass in\nrunning order',
+  F: 'Mass in running order\nafter deduction',
   G: 'Treeshold',
   H: 'Deduction',
   I: '200 kg',
@@ -59,10 +92,10 @@ const ROW5_LABELS = {
   P: '25 €/kg',
   Q: '100 kg',
   R: '30€/kg',
-  S: 'Gap for weight tax',
-  T: 'Weight Tax (€)',
-  U: 'CO2 Malus (€)',
-  V: 'Mass + CO2 Malus (€)',
+  S: 'Gap for\nweight tax',
+  T: 'Weight Tax\n(€)',
+  U: 'CO2 Malus\n(€)',
+  V: 'Mass + CO2\nMalus (€)',
 };
 
 /**
@@ -95,7 +128,21 @@ export default {
     const cols = makeColumns();
     const rows = Array.from({ length: ROW_COUNT }, (_, i) => i + 1);
     const launchYearOptions = makeLaunchYearOptions();
-    const launchYears = reactive({});
+    const cellData = reactive({
+      bev: createVariantCellGrid(BEV_CELL_DEFAULTS),
+      mhev: createVariantCellGrid(),
+      hev: createVariantCellGrid(),
+    });
+    const headerLabels = reactive({
+      bev: createVariantHeaderLabels(),
+      mhev: createVariantHeaderLabels(),
+      hev: createVariantHeaderLabels(),
+    });
+    const launchYears = reactive({
+      bev: createVariantLaunchYears(),
+      mhev: createVariantLaunchYears(),
+      hev: createVariantLaunchYears(),
+    });
     const chartTitles = reactive({
       bev: DEFAULT_CHART_TITLE,
       mhev: DEFAULT_CHART_TITLE,
@@ -110,24 +157,183 @@ export default {
     const bannerText = computed(() => BANNER_LABELS[props.variant] || BANNER_LABELS.bev);
     const bannerLong = computed(() => props.variant !== 'bev');
 
-    for (let r = DATA_ROW_START; r <= DATA_ROW_END; r++) {
-      launchYears[r] = DEFAULT_LAUNCH_YEAR;
-    }
-
     function row5ColorClass(col) {
       return ROW5_COLORS[col] || 'c-002060';
     }
 
-    function row5Label(col) {
-      return ROW5_LABELS[col] || '';
+    const headerEditingCol = ref(null);
+    const headerInputRef = ref(null);
+
+    function isHeaderEditing(col) {
+      return headerEditingCol.value === col;
     }
 
-    return { cols, rows, row5ColorClass, row5Label, launchYearOptions, launchYears, chartTitle, bannerText, bannerLong };
+    function startHeaderEdit(col) {
+      headerEditingCol.value = col;
+      nextTick(() => {
+        const input = headerInputRef.value;
+        if (!input) return;
+        input.focus();
+        input.select();
+      });
+    }
+
+    function stopHeaderEdit() {
+      headerEditingCol.value = null;
+    }
+
+    function onHeaderKeydown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        stopHeaderEdit();
+      }
+    }
+
+    const tableWrapRef = ref(null);
+    const chartZoneRef = ref(null);
+    const chartCanvasRef = ref(null);
+    const chartTitleInputRef = ref(null);
+    const chartTitleEditing = ref(false);
+    const chartTitleInputWidth = computed(() => `${Math.max(chartTitle.value.length + 2, 20)}ch`);
+    let tableWidthObserver = null;
+
+    function syncChartWidth() {
+      const table = tableWrapRef.value?.querySelector('.wt-sheet');
+      const chart = chartZoneRef.value;
+      if (!table || !chart) return;
+      chart.style.width = `${table.getBoundingClientRect().width}px`;
+    }
+
+    onMounted(() => {
+      syncChartWidth();
+      const table = tableWrapRef.value?.querySelector('.wt-sheet');
+      if (table && typeof ResizeObserver !== 'undefined') {
+        tableWidthObserver = new ResizeObserver(syncChartWidth);
+        tableWidthObserver.observe(table);
+      }
+      window.addEventListener('resize', syncChartWidth);
+    });
+
+    onUnmounted(() => {
+      tableWidthObserver?.disconnect();
+      window.removeEventListener('resize', syncChartWidth);
+    });
+
+    watch(() => props.variant, () => {
+      headerEditingCol.value = null;
+      requestAnimationFrame(syncChartWidth);
+    });
+
+    function startChartTitleEdit() {
+      chartTitleEditing.value = true;
+      nextTick(() => {
+        const input = chartTitleInputRef.value;
+        if (!input) return;
+        input.focus();
+        input.select();
+      });
+    }
+
+    function stopChartTitleEdit() {
+      chartTitleEditing.value = false;
+    }
+
+    function onChartTitleKeydown(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        stopChartTitleEdit();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        stopChartTitleEdit();
+      }
+    }
+
+    function exportChartPng() {
+      const zone = chartZoneRef.value;
+      const canvasEl = chartCanvasRef.value;
+      if (!zone || !canvasEl) return;
+
+      const headerH = 44;
+      const width = Math.max(Math.round(zone.getBoundingClientRect().width), 1);
+      const chartH = Math.max(Math.round(canvasEl.getBoundingClientRect().height), 1);
+      const height = headerH + chartH;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.fillStyle = '#f3f3f3';
+      ctx.fillRect(0, 0, width, headerH);
+      ctx.strokeStyle = '#d9d9d9';
+      ctx.beginPath();
+      ctx.moveTo(0, headerH);
+      ctx.lineTo(width, headerH);
+      ctx.stroke();
+
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 14px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(chartTitle.value || DEFAULT_CHART_TITLE, width / 2, headerH / 2);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, headerH, width, chartH);
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, width - 2, height - 2);
+
+      const titlePart = (chartTitle.value || DEFAULT_CHART_TITLE)
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+      const filename = `weight-tax-${props.variant}${titlePart ? `-${titlePart}` : ''}.png`;
+
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    return {
+      cols,
+      rows,
+      row5ColorClass,
+      headerLabels,
+      isHeaderEditing,
+      startHeaderEdit,
+      stopHeaderEdit,
+      onHeaderKeydown,
+      headerInputRef,
+      launchYearOptions,
+      launchYears,
+      cellData,
+      chartTitle,
+      bannerText,
+      bannerLong,
+      tableWrapRef,
+      chartZoneRef,
+      chartCanvasRef,
+      chartTitleInputRef,
+      chartTitleEditing,
+      chartTitleInputWidth,
+      startChartTitleEdit,
+      stopChartTitleEdit,
+      onChartTitleKeydown,
+      exportChartPng,
+    };
   },
   template: `
     <div class="weight-tax-page">
-      <div class="wt-table-wrap">
-        <table class="wt-sheet">
+      <div class="wt-sheet-column">
+        <div class="wt-table-wrap" ref="tableWrapRef">
+          <table class="wt-sheet">
         <thead>
           <tr>
             <th class="wt-corner"></th>
@@ -154,40 +360,96 @@ export default {
               </td>
               <!-- Cellules B..V des lignes 1 et 2 : couvertes par le bandeau fusionné. -->
               <template v-else-if="r === 1 || r === 2"></template>
-              <!-- Ligne 3 : en-tête (haute), fond bleu foncé + dégradé I→R. -->
+              <!-- Ligne 3 : en-têtes centrés, éditables au clic. -->
               <td
                 v-else-if="r === 3"
                 class="wt-cell wt-row5"
                 :class="row5ColorClass(col)"
-              >{{ row5Label(col) }}</td>
+              >
+                <div class="wt-row5-label-wrap">
+                  <span
+                    v-if="!isHeaderEditing(col)"
+                    class="wt-row5-label"
+                    title="Cliquer pour modifier"
+                    @click="startHeaderEdit(col)"
+                  >{{ headerLabels[variant][col] }}</span>
+                  <textarea
+                    v-else
+                    ref="headerInputRef"
+                    v-model="headerLabels[variant][col]"
+                    class="wt-row5-input"
+                    spellcheck="false"
+                    @blur="stopHeaderEdit"
+                    @keydown="onHeaderKeydown"
+                  ></textarea>
+                </div>
+              </td>
               <!-- Colonne C (Years of launch) : sélecteur d'année, défaut 2028. -->
               <td v-else-if="r >= 4 && r <= 22 && col === 'C'" class="wt-cell wt-cell-year">
-                <select class="wt-year-select" v-model.number="launchYears[r]">
+                <select class="wt-year-select" v-model.number="launchYears[variant][r]">
                   <option v-for="y in launchYearOptions" :key="y" :value="y">{{ y }}</option>
                 </select>
               </td>
-              <!-- Tableau gras B4:V22. -->
-              <td v-else-if="r >= 4 && r <= 22" class="wt-cell"></td>
+              <!-- Tableau gras B4:V22 — cellules éditables. -->
+              <td v-else-if="r >= 4 && r <= 22" class="wt-cell wt-cell-editable">
+                <input
+                  v-model="cellData[variant][r][col]"
+                  class="wt-cell-input"
+                  type="text"
+                  spellcheck="false"
+                />
+              </td>
               <td v-else class="wt-empty"></td>
             </template>
           </tr>
         </tbody>
         </table>
-      </div>
-
-      <section class="wt-chart-zone" aria-label="Weight Tax chart">
-        <div class="wt-chart-title-wrap">
-          <input
-            v-model="chartTitle"
-            class="wt-chart-title-input"
-            type="text"
-            title="Cliquer pour modifier le titre"
-            aria-label="Graph title"
-            spellcheck="false"
-          />
         </div>
-        <div class="wt-chart-canvas"></div>
-      </section>
+
+        <section class="wt-chart-zone" ref="chartZoneRef" aria-label="Weight Tax chart">
+          <div class="wt-chart-title-wrap">
+            <button
+              type="button"
+              class="wt-chart-export-btn"
+              title="Exporter le graphe en PNG"
+              aria-label="Exporter le graphe en PNG"
+              @click="exportChartPng"
+            >
+              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <path
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.35"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M8 2v7.5M5.5 7 8 9.5 10.5 7M3 12.5h10"
+                />
+              </svg>
+            </button>
+            <div class="wt-chart-title-center">
+              <span
+                v-if="!chartTitleEditing"
+                class="wt-chart-title-text"
+                title="Cliquer pour modifier le titre"
+                @click="startChartTitleEdit"
+              >{{ chartTitle }}</span>
+              <input
+                v-else
+                ref="chartTitleInputRef"
+                v-model="chartTitle"
+                class="wt-chart-title-input"
+                type="text"
+                aria-label="Graph title"
+                spellcheck="false"
+                :style="{ width: chartTitleInputWidth }"
+                @blur="stopChartTitleEdit"
+                @keydown="onChartTitleKeydown"
+              />
+            </div>
+          </div>
+          <div class="wt-chart-canvas" ref="chartCanvasRef"></div>
+        </section>
+      </div>
     </div>
   `,
 };
