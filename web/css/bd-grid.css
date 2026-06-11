@@ -5831,14 +5831,26 @@
   min-width: 96px;
   max-width: 96px;
 }
-/* Columns C and J — wider to fit longer values */
-.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='C'],
-.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='C'],
+/* Columns H, J and K — wider to fit longer values.
+   !important is required because the "C…CA" rule above uses
+   :not([data-col='A']):not([data-col='B']), whose :not() arguments raise its
+   specificity above a plain [data-col='X'] selector. */
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='H'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='H'],
 .bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='J'],
-.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='J'] {
-  width: 160px;
-  min-width: 160px;
-  max-width: 160px;
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='J'],
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='K'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='K'] {
+  width: 240px !important;
+  min-width: 240px !important;
+  max-width: 240px !important;
+}
+/* Column C — wider to fit long values (see note above re !important). */
+.bd-grid-root.cdc-output-grid .bd-table thead th.col-letter[data-col='C'],
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='C'] {
+  width: 320px !important;
+  min-width: 320px !important;
+  max-width: 320px !important;
 }
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'],
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell[data-col='B'] .grid-cell-input {
@@ -5890,11 +5902,24 @@
   text-align: left;
   padding: 0 6px;
 }
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell .cdc-cell-readonly {
+  cursor: default;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell .cdc-hyb-cycle {
+  cursor: pointer;
+  text-align: center;
+  user-select: none;
+}
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue .cdc-cell-text,
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-fluo .cdc-cell-text,
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r5-green .cdc-cell-text {
   font-weight: 700;
   text-align: center;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue[data-col='B'] .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-blue[data-col='B'] .grid-cell-input {
+  color: #fff !important;
+  text-align: left;
 }
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r1-finish .cdc-cell-text,
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-r121-black .cdc-cell-text {
@@ -5957,9 +5982,50 @@
 .bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-orange {
   background: #ffc000 !important;
 }
-.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluo,
-.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluo .cdc-b-concat {
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluo {
   background: #ffff00 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-khaki {
+  background: #c4bd97 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-blackred {
+  background: #000000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-blackred .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-blackred .grid-cell-input {
+  color: #ff0000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-orange2 {
+  background: #e26b0a !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluored {
+  background: #ffff00 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluored .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-fluored .grid-cell-input {
+  color: #ff0000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-purple {
+  background: #b1a0c7 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-green2 {
+  background: #cad40a !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-gray1 {
+  background: #595959 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-gray2 {
+  background: #a6a6a6 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-gray1 .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-gray1 .grid-cell-input,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-gray2 .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody td.data-cell.cdc-tint-gray2 .grid-cell-input {
+  color: #ff0000 !important;
+}
+.bd-grid-root.cdc-output-grid .bd-table tbody tr.cdc-row-red td.data-cell .cdc-cell-text,
+.bd-grid-root.cdc-output-grid .bd-table tbody tr.cdc-row-red td.data-cell .grid-cell-input {
+  color: #ff0000 !important;
 }
 
 /* CDC Output — narrower column E */

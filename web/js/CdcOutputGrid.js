@@ -46,14 +46,24 @@ const COL_OV_TO = colToNum('V');
 const ROW5_BAND = 5;
 const ROW121_BAND = 121;
 /** Rows kept fully blank: never receive default text nor colour. */
-const NO_FILL_ROWS = new Set([2, 3, 4, 6]);
+const NO_FILL_ROWS = new Set([
+  2, 3, 4, 6, 120, 122, 123, 194, 195, 196, 197, 198, 199, 200,
+]);
 /** Rows that keep their colour band but receive no default text (except listed labels). */
 const NO_TEXT_ROWS = new Set([ROW5_BAND]);
 /** Text-only labels still shown on blank / no-text rows (nothing else is written). */
 const NO_FILL_TEXT_EXCEPTIONS = { '5:B': 'SPC' };
-/** Column F ("Hybridization") edits via a dropdown with colour-coded choices. */
+/** Column F ("Hybridization") cycles through the colour-coded choices on click. */
 const COL_HYBRID = 'F';
 const HYBRID_OPTIONS = ['', 'BEV', 'HEV', 'MHEV P2'];
+/** Click order for column F: BEV → HEV → MHEV P2 → BEV … */
+const HYBRID_CYCLE = ['BEV', 'HEV', 'MHEV P2'];
+
+function nextHybrid(cur) {
+  const i = HYBRID_CYCLE.indexOf(cur);
+  if (i === -1) return HYBRID_CYCLE[0];
+  return HYBRID_CYCLE[(i + 1) % HYBRID_CYCLE.length];
+}
 const HYBRID_CLASS = {
   BEV: 'cdc-hyb-bev',
   HEV: 'cdc-hyb-hev',
@@ -189,10 +199,10 @@ function colDDefault(row) {
 }
 const COL_I_SW_FROM = 22;
 const COL_I_SW_TO = 33;
-/** Column L ("Front Engine"): default "S13F4.9" from row 7, blank on rows 120…123. */
+/** Column L ("Front Engine"): default "S13F4.9" from row 7; blank only on the SP2 band row. */
 const COL_L_DEFAULT = 'S13F4.9';
 const COL_L_DEFAULT_FROM = 7;
-const COL_L_BLANK_ROWS = new Set([120, 121, 122, 123]);
+const COL_L_BLANK_ROWS = new Set([121]);
 /** Column L override: "EB2LTDH2" on these row ranges instead of "S13F4.9". */
 const COL_L_EB2_DEFAULT = 'EB2LTDH2';
 const COL_L_EB2_RANGES = [
@@ -285,13 +295,44 @@ function cellColorClass(row, col) {
   return fixedCellClass(row, col);
 }
 
-/** Column B fluo-yellow highlight on specific row ranges. */
-const COL_B_FLUO_RANGES = [[7, 21]];
+/** Column B colour highlights per row range. */
+const COL_B_FLUO_RANGES = [[7, 21], [157, 169]];
+const COL_B_KHAKI_RANGES = [[51, 62]];
+const COL_B_BLACKRED_RANGES = [[63, 79]];
+const COL_B_ORANGE2_RANGES = [[80, 92]];
+const COL_B_FLUORED_RANGES = [[93, 104]];
+const COL_B_PURPLE_RANGES = [[105, 119]];
+const COL_B_GREEN2_RANGES = [[170, 181]];
+const COL_B_GRAY1_RANGES = [[141, 156]];
+const COL_B_GRAY2_RANGES = [[124, 140]];
+
+function colBTintClass(row) {
+  if (rowInRanges(row, COL_B_FLUO_RANGES)) return 'cdc-tint-fluo';
+  if (rowInRanges(row, COL_B_KHAKI_RANGES)) return 'cdc-tint-khaki';
+  if (rowInRanges(row, COL_B_BLACKRED_RANGES)) return 'cdc-tint-blackred';
+  if (rowInRanges(row, COL_B_ORANGE2_RANGES)) return 'cdc-tint-orange2';
+  if (rowInRanges(row, COL_B_FLUORED_RANGES)) return 'cdc-tint-fluored';
+  if (rowInRanges(row, COL_B_PURPLE_RANGES)) return 'cdc-tint-purple';
+  if (rowInRanges(row, COL_B_GREEN2_RANGES)) return 'cdc-tint-green2';
+  if (rowInRanges(row, COL_B_GRAY1_RANGES)) return 'cdc-tint-gray1';
+  if (rowInRanges(row, COL_B_GRAY2_RANGES)) return 'cdc-tint-gray2';
+  return '';
+}
+
+/** Rows where the whole text is shown in red (column B is handled separately). */
+const RED_TEXT_RANGES = [];
+
+function rowTextClass(row) {
+  return rowInRanges(row, RED_TEXT_RANGES) ? 'cdc-row-red' : '';
+}
 
 function columnTintClass(row, col) {
   if (NO_FILL_ROWS.has(row)) return '';
   if (isFixedCell(row, col)) return '';
-  if (col === COL_B_CONCAT && rowInRanges(row, COL_B_FLUO_RANGES)) return 'cdc-tint-fluo';
+  if (col === COL_B_CONCAT) {
+    const b = colBTintClass(row);
+    if (b) return b;
+  }
   if (ORANGE_COLS.has(col)) return 'cdc-tint-orange';
   if (YELLOW_COLS.has(col) && row >= TINT_ROW_FROM) return 'cdc-tint-yellow';
   return '';
@@ -341,6 +382,8 @@ export default {
     let persistTimer = 0;
 
     const {
+      axisRow,
+      axisCol,
       syncFromCell: syncAxisFromCell,
       onRowNumClick: onAxisRowNumClick,
       onColHeaderClick: onAxisColHeaderClick,
@@ -491,21 +534,53 @@ export default {
     }
 
     function startEdit(row, col, event) {
+      if (isBConcatCell(row, col)) {
+        onCellAxisSelect(row, col, event);
+        return;
+      }
       onCellAxisSelect(row, col, event);
       activeKey.value = cellKey(row, col);
       nextTick(() => {
         const el = scrollEl.value
           ? scrollEl.value.querySelector('.cdc-cell-input-active')
           : null;
-        if (el && typeof el.focus === 'function') {
-          el.focus();
-          if (typeof el.select === 'function') el.select();
+        if (!el || typeof el.focus !== 'function') return;
+        el.focus();
+        if (el.tagName === 'SELECT') {
+          // Open the dropdown straight away so the colour-coded picker stays a
+          // single click, even though the <select> only mounts on demand.
+          if (typeof el.showPicker === 'function') {
+            try {
+              el.showPicker();
+            } catch {
+              /* showPicker can throw if not user-activated — focus is enough */
+            }
+          }
+        } else if (typeof el.select === 'function') {
+          el.select();
         }
       });
     }
 
     function stopEdit() {
       activeKey.value = null;
+    }
+
+    function onHybridChange(row, col, event) {
+      onCellInput(row, col, event);
+      stopEdit();
+    }
+
+    function cycleHybrid(row, col, event) {
+      if (event && event.button != null && event.button !== 0) return;
+      if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      onCellAxisSelect(row, col, event);
+      const next = nextHybrid(cellValue(row, col));
+      const key = cellKey(row, col);
+      if (next === '') delete cells.value[key];
+      else cells.value[key] = next;
+      touchCells();
+      schedulePersist();
     }
 
     function onCellInput(row, col, event) {
@@ -556,6 +631,12 @@ export default {
       isEditing,
       startEdit,
       stopEdit,
+      onHybridChange,
+      cycleHybrid,
+      editTick,
+      activeKey,
+      axisRow,
+      axisCol,
       onCellAxisSelect,
       onAxisRowNumClick,
       onAxisColHeaderClick,
@@ -575,6 +656,7 @@ export default {
       isBConcatCell,
       concatBValue,
       columnTintClass,
+      rowTextClass,
       hybridOptions: HYBRID_OPTIONS,
     };
   },
@@ -631,8 +713,9 @@ export default {
             <tr
               v-for="row in visibleRows"
               :key="'cdc-row-' + row"
+              v-memo="[row, editTick, activeKey, axisRow, axisCol, ovGroupCollapsed]"
               class="grid-row-cv"
-              :class="{ 'grid-axis-row-focus': isAxisRow(row), 'cdc-row1': row === 1 }"
+              :class="[rowTextClass(row), { 'grid-axis-row-focus': isAxisRow(row), 'cdc-row1': row === 1 }]"
             >
               <td
                 class="row-num grid-axis-hdr"
@@ -652,19 +735,15 @@ export default {
                 ]"
               >
                 <div
-                  v-if="isRow1WrapCell(row, col)"
+                  v-if="isRow1WrapCell(row, col) && !isEditing(row, col)"
                   class="cdc-r1-wrap-label"
-                >{{ fixedCellLabel(row, col) }}</div>
-                <select
+                  @mousedown="startEdit(row, col, $event)"
+                >{{ cellValue(row, col) }}</div>
+                <span
                   v-else-if="isHybridSelectCell(row, col)"
-                  class="grid-cell-input cdc-cell-input cdc-hyb-select"
-                  :value="cellValue(row, col)"
-                  @mousedown="onCellAxisSelect(row, col, $event)"
-                  @focus="onCellAxisSelect(row, col, $event)"
-                  @change="onCellInput(row, col, $event)"
-                >
-                  <option v-for="opt in hybridOptions" :key="'hyb-' + opt" :value="opt">{{ opt }}</option>
-                </select>
+                  class="cdc-cell-text cdc-hyb-cycle"
+                  @mousedown="cycleHybrid(row, col, $event)"
+                >{{ cellValue(row, col) }}</span>
                 <input
                   v-else-if="isEditing(row, col)"
                   type="text"
@@ -677,6 +756,10 @@ export default {
                   @keydown.enter.prevent="stopEdit"
                   @keydown.esc.prevent="stopEdit"
                 />
+                <span
+                  v-else-if="isBConcatCell(row, col)"
+                  class="cdc-cell-text cdc-cell-readonly"
+                >{{ cellValue(row, col) }}</span>
                 <span
                   v-else
                   class="cdc-cell-text"
