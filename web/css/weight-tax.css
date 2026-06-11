@@ -9,13 +9,17 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
 }
 
 .wt-sheet-column {
-  display: inline-grid;
-  grid-template-columns: max-content;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
   gap: 24px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .wt-table-wrap {
@@ -24,10 +28,10 @@
 }
 
 .wt-chart-zone {
-  flex: 0 0 auto;
-  width: max-content;
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 0;
-  min-height: 640px;
+  min-height: min(92vh, 1120px);
   display: flex;
   flex-direction: column;
   border: 2px solid #000000;
@@ -107,11 +111,62 @@
   box-sizing: border-box;
 }
 
-.wt-chart-canvas {
+.wt-chart-plot {
   flex: 1 1 auto;
-  min-height: 560px;
+  min-height: 720px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: #ffffff;
+}
+
+.wt-chart-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 720px;
   background: #ffffff;
   box-sizing: border-box;
+}
+
+.wt-chart-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: #fafafa;
+  border-bottom: 1px solid #e6e6e6;
+  box-sizing: border-box;
+}
+
+.wt-chart-toolbar-btn {
+  padding: 4px 10px;
+  border: 1px solid #c8c8c8;
+  border-radius: 3px;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.wt-chart-toolbar-btn:hover {
+  background: #f0f0f0;
+}
+
+.wt-chart-toolbar-hint {
+  font-size: 12px;
+  color: #666666;
+}
+
+.wt-modal-actions-split {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wt-modal-actions-spacer {
+  flex: 1 1 auto;
 }
 
 .wt-sheet {

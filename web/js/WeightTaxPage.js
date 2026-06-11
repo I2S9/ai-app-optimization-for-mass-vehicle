@@ -28,6 +28,7 @@ import {
   saveModuleState,
   moduleCloudConfig,
 } from './moduleStateApi.js?v=wt-cloud1';
+import { drawWeightTaxChart, exportWeightTaxChartPng } from './WeightTaxChart.js?v=wt-chart3';
 
 const MODULE_KEY = 'weight-tax';
 
@@ -298,6 +299,7 @@ export default {
       mhev: DEFAULT_CHART_TITLE,
       hev: DEFAULT_CHART_TITLE,
     });
+    const chartSelectedRows = reactive({ bev: [], mhev: [], hev: [] });
 
     function vehicleRowKey(cdcRow) {
       return String(cdcRow);
@@ -405,6 +407,25 @@ export default {
       return `T (${t}) + U (${u}) — mis à jour automatiquement`;
     }
 
+    function syncChartVehicleSelection(variant) {
+      const tableRows = selectedVehicles[variant].map((v) => v.cdcRow);
+      const prev = chartSelectedRows[variant].filter((r) => tableRows.includes(r));
+      chartSelectedRows[variant] = prev.length ? prev : [...tableRows];
+    }
+
+    function chartSeriesData() {
+      const selected = new Set(chartSelectedRows[props.variant] || []);
+      return selectedVehicles[props.variant]
+        .filter((v) => selected.has(v.cdcRow))
+        .map((v) => ({
+          cdcRow: v.cdcRow,
+          label: v.trim,
+          massKg: parseMassKg(curbWeightForRow(v.cdcRow)),
+          malusEuro: parseEuro(massCo2MalusTotalForRow(v.cdcRow)) ?? 0,
+        }))
+        .filter((d) => d.massKg != null);
+    }
+
     function applyPersistedState(saved) {
       if (!saved || typeof saved !== 'object') return;
       selectedVehicles.bev = hydrateVehiclesForVariant('bev', saved.selectedVehicles?.bev ?? []);
@@ -422,15 +443,22 @@ export default {
       chartTitles.bev = saved.chartTitles?.bev ?? DEFAULT_CHART_TITLE;
       chartTitles.mhev = saved.chartTitles?.mhev ?? DEFAULT_CHART_TITLE;
       chartTitles.hev = saved.chartTitles?.hev ?? DEFAULT_CHART_TITLE;
+      for (const v of ['bev', 'mhev', 'hev']) {
+        const savedChart = saved.chartSelectedRows?.[v];
+        chartSelectedRows[v] = Array.isArray(savedChart)
+          ? savedChart.filter((r) => typeof r === 'number')
+          : [];
+      }
       for (const variant of ['bev', 'mhev', 'hev']) {
         for (const vehicle of selectedVehicles[variant]) {
           ensureVehicleData(variant, vehicle.cdcRow);
         }
+        syncChartVehicleSelection(variant);
       }
       if (['bev', 'mhev', 'hev'].includes(saved.activeVariant)) {
         emit('loaded-variant', saved.activeVariant);
       }
-      nextTick(syncChartWidth);
+      nextTick(syncChartLayout);
     }
 
     if (cachedLocal) applyPersistedState(cachedLocal);
@@ -482,6 +510,11 @@ export default {
           bev: chartTitles.bev,
           mhev: chartTitles.mhev,
           hev: chartTitles.hev,
+        },
+        chartSelectedRows: {
+          bev: [...chartSelectedRows.bev],
+          mhev: [...chartSelectedRows.mhev],
+          hev: [...chartSelectedRows.hev],
         },
         savedAt: new Date().toISOString(),
       };
@@ -570,7 +603,9 @@ export default {
       for (const variant of ['bev', 'mhev', 'hev']) {
         const rows = selectedVehicles[variant].map((v) => v.cdcRow);
         selectedVehicles[variant] = hydrateVehiclesForVariant(variant, rows);
+        syncChartVehicleSelection(variant);
       }
+      nextTick(renderChart);
     }
 
     const vehiclePickerOpen = ref(false);
@@ -613,8 +648,49 @@ export default {
       );
       selectedVehicles[props.variant] = picked;
       for (const vehicle of picked) ensureVehicleData(props.variant, vehicle.cdcRow);
+      syncChartVehicleSelection(props.variant);
       vehiclePickerOpen.value = false;
-      nextTick(syncChartWidth);
+      nextTick(syncChartLayout);
+    }
+
+    const chartPickerOpen = ref(false);
+    const chartPickerDraft = ref([]);
+
+    function openChartPicker() {
+      chartPickerDraft.value = chartSelectedRows[props.variant].slice();
+      chartPickerOpen.value = true;
+    }
+
+    function closeChartPicker() {
+      chartPickerOpen.value = false;
+    }
+
+    function isChartDraftSelected(cdcRow) {
+      return chartPickerDraft.value.includes(cdcRow);
+    }
+
+    function toggleChartDraft(cdcRow) {
+      const draft = chartPickerDraft.value.slice();
+      const idx = draft.indexOf(cdcRow);
+      if (idx >= 0) draft.splice(idx, 1);
+      else draft.push(cdcRow);
+      chartPickerDraft.value = draft;
+    }
+
+    function applyChartPicker() {
+      chartSelectedRows[props.variant] = chartPickerDraft.value.filter((r) =>
+        selectedVehicles[props.variant].some((v) => v.cdcRow === r)
+      );
+      chartPickerOpen.value = false;
+      nextTick(renderChart);
+    }
+
+    function selectAllChartDraft() {
+      chartPickerDraft.value = selectedVehicles[props.variant].map((v) => v.cdcRow);
+    }
+
+    function clearChartDraft() {
+      chartPickerDraft.value = [];
     }
 
     function onHeaderCellClick(col) {
@@ -675,13 +751,19 @@ export default {
     const chartTitleInputRef = ref(null);
     const chartTitleEditing = ref(false);
     const chartTitleInputWidth = computed(() => `${Math.max(chartTitle.value.length + 2, 20)}ch`);
-    let tableWidthObserver = null;
+    let chartResizeObserver = null;
 
-    function syncChartWidth() {
-      const table = tableWrapRef.value?.querySelector('.wt-sheet');
-      const chart = chartZoneRef.value;
-      if (!table || !chart) return;
-      chart.style.width = `${table.getBoundingClientRect().width}px`;
+    function renderChart() {
+      const canvas = chartCanvasRef.value;
+      if (!canvas || typeof canvas.getContext !== 'function') return;
+      drawWeightTaxChart(canvas, {
+        series: chartSeriesData(),
+        dpr: window.devicePixelRatio || 1,
+      });
+    }
+
+    function syncChartLayout() {
+      renderChart();
     }
 
     onMounted(() => {
@@ -690,20 +772,24 @@ export default {
         else if (typeof synLink.ensureSyn === 'function') void synLink.ensureSyn();
       }
       void loadRemoteState();
-      syncChartWidth();
-      const table = tableWrapRef.value?.querySelector('.wt-sheet');
-      if (table && typeof ResizeObserver !== 'undefined') {
-        tableWidthObserver = new ResizeObserver(syncChartWidth);
-        tableWidthObserver.observe(table);
+      syncChartLayout();
+      const chartZone = chartZoneRef.value;
+      const chartPlot = chartZone?.querySelector('.wt-chart-plot');
+      if (chartPlot && typeof ResizeObserver !== 'undefined') {
+        chartResizeObserver = new ResizeObserver(() => {
+          requestAnimationFrame(renderChart);
+        });
+        chartResizeObserver.observe(chartPlot);
       }
-      window.addEventListener('resize', syncChartWidth);
+      window.addEventListener('resize', syncChartLayout);
       window.addEventListener('storage', onCdcStorageChange);
+      nextTick(renderChart);
     });
 
     onUnmounted(() => {
       clearTimeout(persistTimer);
-      tableWidthObserver?.disconnect();
-      window.removeEventListener('resize', syncChartWidth);
+      chartResizeObserver?.disconnect();
+      window.removeEventListener('resize', syncChartLayout);
       window.removeEventListener('storage', onCdcStorageChange);
     });
 
@@ -725,18 +811,36 @@ export default {
         launchYears,
         headerLabels,
         chartTitles: { ...chartTitles },
+        chartSelectedRows: {
+          bev: [...chartSelectedRows.bev],
+          mhev: [...chartSelectedRows.mhev],
+          hev: [...chartSelectedRows.hev],
+        },
       }),
       schedulePersist,
+      { deep: true }
+    );
+
+    watch(
+      () => ({
+        variant: props.variant,
+        curb: cdcCurbMassByRow.value,
+        cellData: cellData[props.variant],
+        chartRows: chartSelectedRows[props.variant].slice(),
+        vehicles: selectedVehicles[props.variant].map((v) => v.cdcRow),
+      }),
+      () => nextTick(renderChart),
       { deep: true }
     );
 
     watch(() => props.variant, () => {
       headerEditingCol.value = null;
       vehiclePickerOpen.value = false;
+      chartPickerOpen.value = false;
       for (const vehicle of selectedVehicles[props.variant]) {
         ensureVehicleData(props.variant, vehicle.cdcRow);
       }
-      requestAnimationFrame(syncChartWidth);
+      requestAnimationFrame(syncChartLayout);
     });
 
     function startChartTitleEdit() {
@@ -768,49 +872,17 @@ export default {
       const zone = chartZoneRef.value;
       const canvasEl = chartCanvasRef.value;
       if (!zone || !canvasEl) return;
-
-      const headerH = 44;
-      const width = Math.max(Math.round(zone.getBoundingClientRect().width), 1);
-      const chartH = Math.max(Math.round(canvasEl.getBoundingClientRect().height), 1);
-      const height = headerH + chartH;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.fillStyle = '#f3f3f3';
-      ctx.fillRect(0, 0, width, headerH);
-      ctx.strokeStyle = '#d9d9d9';
-      ctx.beginPath();
-      ctx.moveTo(0, headerH);
-      ctx.lineTo(width, headerH);
-      ctx.stroke();
-
-      ctx.fillStyle = '#000000';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = '700 14px "Segoe UI", Arial, sans-serif';
-      ctx.fillText(chartTitle.value || DEFAULT_CHART_TITLE, width / 2, headerH / 2);
-
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, headerH, width, chartH);
-
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(1, 1, width - 2, height - 2);
-
-      const titlePart = (chartTitle.value || DEFAULT_CHART_TITLE)
-        .replace(/\s+/g, '-')
-        .replace(/[^\w-]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
-      const filename = `weight-tax-${props.variant}${titlePart ? `-${titlePart}` : ''}.png`;
-
+      renderChart();
+      const out = exportWeightTaxChartPng({
+        zoneEl: zone,
+        canvasEl,
+        title: chartTitle.value || DEFAULT_CHART_TITLE,
+        variant: props.variant,
+      });
+      if (!out) return;
       const link = document.createElement('a');
-      link.href = canvas.toDataURL('image/png');
-      link.download = filename;
+      link.href = out.dataUrl;
+      link.download = out.filename;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -850,10 +922,20 @@ export default {
       chartTitleInputRef,
       chartTitleEditing,
       chartTitleInputWidth,
+      chartSelectedRows,
       startChartTitleEdit,
       stopChartTitleEdit,
       onChartTitleKeydown,
       exportChartPng,
+      openChartPicker,
+      closeChartPicker,
+      applyChartPicker,
+      chartPickerOpen,
+      chartPickerDraft,
+      isChartDraftSelected,
+      toggleChartDraft,
+      selectAllChartDraft,
+      clearChartDraft,
       curbWeightForRow,
       CDC_CURB_WT_TITLE,
       massRunningOrderForRow,
@@ -1065,7 +1147,17 @@ export default {
               />
             </div>
           </div>
-          <div class="wt-chart-canvas" ref="chartCanvasRef"></div>
+          <div class="wt-chart-toolbar">
+            <button type="button" class="wt-chart-toolbar-btn" @click="openChartPicker">
+              Véhicules du graphe
+            </button>
+            <span class="wt-chart-toolbar-hint">
+              {{ chartSelectedRows[variant].length }} / {{ dataRows.length }} véhicule(s) affiché(s)
+            </span>
+          </div>
+          <div class="wt-chart-plot">
+            <canvas class="wt-chart-canvas" ref="chartCanvasRef" aria-label="Weight Tax chart canvas"></canvas>
+          </div>
         </section>
       </div>
 
@@ -1099,6 +1191,44 @@ export default {
           <div class="wt-modal-actions">
             <button type="button" class="wt-modal-btn" @click="closeVehiclePicker">Annuler</button>
             <button type="button" class="wt-modal-btn wt-modal-btn-primary" @click="applyVehiclePicker">
+              Appliquer
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div
+        v-if="chartPickerOpen"
+        class="wt-modal-backdrop"
+        @click.self="closeChartPicker"
+      >
+        <div class="wt-modal" role="dialog" aria-labelledby="wt-chart-picker-title">
+          <h3 id="wt-chart-picker-title" class="wt-modal-title">Véhicules du graphe</h3>
+          <p class="wt-modal-hint">
+            Choisissez les véhicules de la colonne B à afficher (masse à vide en barres, malus colonne V en rouge).
+          </p>
+          <div v-if="dataRows.length" class="wt-vehicle-list">
+            <label
+              v-for="v in dataRows"
+              :key="'chart-' + v.cdcRow"
+              class="wt-vehicle-option"
+            >
+              <input
+                type="checkbox"
+                :checked="isChartDraftSelected(v.cdcRow)"
+                @change="toggleChartDraft(v.cdcRow)"
+              />
+              <span class="wt-vehicle-option-swatch" :class="v.colBClasses"></span>
+              <span class="wt-vehicle-option-label">{{ v.trim }}</span>
+            </label>
+          </div>
+          <p v-else class="wt-modal-empty">Ajoutez d'abord des véhicules dans la colonne B du tableau.</p>
+          <div class="wt-modal-actions wt-modal-actions-split">
+            <button type="button" class="wt-modal-btn" @click="selectAllChartDraft">Tout</button>
+            <button type="button" class="wt-modal-btn" @click="clearChartDraft">Aucun</button>
+            <span class="wt-modal-actions-spacer"></span>
+            <button type="button" class="wt-modal-btn" @click="closeChartPicker">Annuler</button>
+            <button type="button" class="wt-modal-btn wt-modal-btn-primary" @click="applyChartPicker">
               Appliquer
             </button>
           </div>
