@@ -11,7 +11,16 @@ export const NAV_ITEMS = [
       { id: 'cdc-output', label: 'Output for CDC', path: '/cdc/output' },
     ],
   },
-  { id: 'cdg', label: 'CDG - Center of gravity', path: '/cdg' },
+  {
+    id: 'cdg',
+    label: 'CDG - Center of gravity',
+    path: '/cdg',
+    children: [
+      { id: 'cdg-input-1', label: 'INPUT 1', path: '/cdg/input-1' },
+      { id: 'cdg-input-2', label: 'INPUT 2', path: '/cdg/input-2' },
+      { id: 'cdg-output', label: 'OUTPUT', path: '/cdg/output' },
+    ],
+  },
   { id: 'waterline', label: 'Waterline', path: '/waterline' },
   { id: 'weight-tax', label: 'Weight Tax', path: '/weight-tax' },
   { id: 'target-status-forecast', label: 'Target-status-forecast', path: '/target-status-forecast' },
